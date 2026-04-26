@@ -1,0 +1,47 @@
+# HomeCompanion Project Guidelines
+
+Home automation framework designed to complement KNX and OpenHAB with complex/parametrized logic. See [README.md](../README.md) for full overview.
+
+## Build & Test
+
+```bash
+dotnet build HomeCompanion.slnx
+dotnet test Tests/HomeCompanion.Tests.csproj
+```
+
+Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or InfluxDB required.
+
+## Architecture
+
+| Project | Role |
+|---------|------|
+| `HomeCompanion.Abstractions` | Core interfaces: `ILogic`, `IDiagnostic`, connectivity provider interfaces |
+| `HomeCompanion.Base` | Base class `LogicBase` — implements `ILogic` with common functionality |
+| `HomeCompanion.Core` | `LogicManager`, connectivity managers (KNX, OpenHAB, MQTT, InfluxDB) |
+| `HomeCompanion.Logics` | Built-in `ILogic` module implementations |
+| `HomeCompanion.Server` | Blazor Server app — entry point |
+| `HomeCompanion.Tests` | NUnit test suite |
+| `SRF.Network/` | Networking sub-solution — see its own [copilot-instructions.md](../SRF.Network/.github/copilot-instructions.md) |
+
+Full dependency graph: [README.md § Structure](../README.md#structure).
+
+## Logic Module Pattern
+
+New logic modules go in `HomeCompanion.Logics` (or any project referencing `HomeCompanion.Base`):
+1. Extend `LogicBase` (`HomeCompanion.Base`) — it implements `ILogic`
+2. Register in DI; enable/disable per instance via configuration
+3. Multiple instances can run simultaneously (e.g. production + testing side-by-side)
+
+## Code Style
+
+- **Target**: .NET 10.0, C# latest, `Nullable` enabled, `ImplicitUsings` enabled
+- **Naming**: PascalCase for all public members; `_camelCase` for private fields
+- **Time**: Use `TimeProvider.System` — never `DateTime.Now`/`DateTimeOffset.Now` directly
+- **Timestamps**: Prefer `DateTimeOffset` over `DateTime`; exception: external API contracts or serialized config files
+- **XML docs**: Required on all public APIs — include `<remarks>` if non-obvious. Keep text short, concise, clear, and facts based with accurate references.
+
+## Testing
+
+- Framework: NUnit 4.x (`NUnit.Framework` is globally `using`'d in `Tests/` — no import needed)
+- Use `IDiagnostic` for in-app diagnostics available in both production and test instances
+- See [README.md § Testing modes](../README.md#testing-modes) for the full test strategy

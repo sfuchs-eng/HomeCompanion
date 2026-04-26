@@ -68,6 +68,19 @@ graph TD
     Abstractions[HomeCompanion.Abstractions]
 ```
 
+## Development approach
+
+### Testing modes
+
+The following maturity approach is foreseen:
+
+1. unit testing based on NUnit tests which must run offline without access to the home automation environment
+2. manual integration testing in the real environment, yet on a separate instance of the application
+3. diagnostic features built into the application based on `IDiagnostic`, running in either version, real or testing
+4. production operation in the real environment on a separate instance of the application
+
+The application supports to run multiple innstances in parallel at once on the same home automation environment. This allows to have a "testing mode" instance, which can be used for testing new logic modules or changes to existing ones without affecting the "production mode" instance, which is running the stable automation logic for the home. Reason is that there's rarely a test environment for home automation and hands-on testing / pilot operation happens in the real environment. Avoiding interference between stable/production and testing instances is realized by enabling/disabling logic modules via configuration in either system.
+
 ## Getting started
 
 ### Prerequisites
@@ -77,17 +90,6 @@ graph TD
 - Access to an OpenHAB instance (optional, for OpenHAB connectivity)
 - Access to a MQTT broker (optional, for MQTT connectivity)
 - Access to an InfluxDB v2 instance (optional, for InfluxDB connectivity)
-
-### Testing modes
-
-The following approach is foreseen:
-
-1. unit testing based on NUnit tests which must run offline without access to the home automation environment
-2. manual integration testing in the real environment, yet on a separate instance of the application
-3. diagnostic features built into the application based on `IDiagnostic`, running in either version, real or testing
-4. productcion operation in the real environment on a separate instance of the application
-
-The application supports to run multiple innstances in parallel at once on the same home automation environment. This allows to have a "testing mode" instance, which can be used for testing new logic modules or changes to existing ones without affecting the "production mode" instance, which is running the stable automation logic for the home. Reason is that there's rarely a test environment for home automation and hands-on testing / pilot operation happens in the real environment. Avoiding interference between stable/production and testing instances is realized by enabling/disabling logic modules via configuration in either system.
 
 ### Installation
 
