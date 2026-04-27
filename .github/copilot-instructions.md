@@ -25,6 +25,15 @@ Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or Infl
 
 Full dependency graph: [README.md § Structure](../README.md#structure).
 
+The application is a strongly event based system, receiving, processing and sending events related to values of distributed data points.
+This follows the general pattern of OpenHAB Items/Channels and of KNX group addresses with their objects in devices' memory.
+
+## Breaking Changes
+
+- Breaking changes can generally be made to any of the projects as they are being developed together. Backwards compatibility is not a concern at this stage.
+- If a breaking change is made to `HomeCompanion.Abstractions` or `HomeCompanion.Base`, all other projects must be updated to compile with the new version before merging.
+- If a breaking change is made to `HomeCompanion.Core`, `HomeCompanion.Logics`, or `HomeCompanion.Server`, the change must be merged and released before updating the other projects to compile with the new version.
+
 ## Logic Module Pattern
 
 New logic modules go in `HomeCompanion.Logics` (or any project referencing `HomeCompanion.Base`):

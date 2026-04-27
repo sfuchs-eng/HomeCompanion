@@ -1,8 +1,12 @@
+using HomeCompanion.Core;
 using HomeCompanion.Server.Components;
+using SRF.Network.Knx;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.AddHomeCompanionCore();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 

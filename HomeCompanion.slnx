@@ -3,6 +3,7 @@
     <Project Path="Abstractions/HomeCompanion.Abstractions.csproj" />
   </Folder>
   <Folder Name="/Base/">
+    <File Path="globals.cs" />
     <Project Path="Base/HomeCompanion.Base.csproj" />
   </Folder>
   <Folder Name="/Core/">
