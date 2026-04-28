@@ -28,5 +28,27 @@ public abstract class LogicBase : ILogic
     /// </summary>
     protected void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
         => _subscriber.Subscribe(handler);
+
+    /// <inheritdoc/>
+    /// <remarks>Enables the logic upon initialization. Override to add custom initialization; call <c>base.InitializeAsync</c> to retain default enabled behaviour.</remarks>
+    public virtual Task InitializeAsync(CancellationToken cancellationToken = default)
+        => EnableAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public virtual Task EnableAsync(CancellationToken cancellationToken = default)
+    {
+        IsEnabled = true;
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public virtual Task DisableAsync(CancellationToken cancellationToken = default)
+    {
+        IsEnabled = false;
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public bool IsEnabled { get; private set; }
 }
 

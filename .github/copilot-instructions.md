@@ -46,7 +46,7 @@ New logic modules go in `HomeCompanion.Logics` (or any project referencing `Home
 - **Target**: .NET 10.0, C# latest, `Nullable` enabled, `ImplicitUsings` enabled
 - **Naming**: PascalCase for all public members; `_camelCase` for private fields
 - **Time**: Use `TimeProvider.System` — never `DateTime.Now`/`DateTimeOffset.Now` directly
-- **Timestamps**: Prefer `DateTimeOffset` over `DateTime`; exception: external API contracts or serialized config files
+- **Timestamps**: Prefer `DateTimeOffset` over `DateTime`; exception: external API contracts or serialized config files; time in config files is always local time.
 - **XML docs**: Required on all public APIs — include `<remarks>` if non-obvious. Keep text short, concise, clear, and facts based with accurate references.
 
 ## Testing

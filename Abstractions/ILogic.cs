@@ -2,7 +2,24 @@ using System;
 
 namespace HomeCompanion.Abstractions;
 
+/// <summary>
+/// Represents a logic component in the HomeCompanion system.
+/// A logic component subscribes to events, processes them, and may publish new events or perform actions.
+/// The exact contract is intentionally left vague for now; it will evolve as we add specific logic requirements.
+/// </summary>
+/// <remarks>
+/// This is a marker interface used for discovery. The logic subsystem will find all registered implementations and register them as event handlers.
+/// Logics are managed as singletons by the host and injected by other logics that depend on them. They are initialized by the host at startup, but may also be initialized on demand by dependent logics before or after being called by the host.
+/// Upon initialization, the logic shall be enabled by default.
+/// </remarks>
 public interface ILogic
 {
-
+    /// <summary>
+    /// Initializes the logic component, e.g. by subscribing to events and performing any necessary setup.
+    /// Might be called multiple times, e.g. also by dependent logics before or after being called by the host.
+    /// </summary>
+    Task InitializeAsync(CancellationToken cancellationToken = default);
+    Task EnableAsync(CancellationToken cancellationToken = default);
+    Task DisableAsync(CancellationToken cancellationToken = default);
+    bool IsEnabled { get; }
 }
