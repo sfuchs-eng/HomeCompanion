@@ -14,14 +14,15 @@ public class ValueBase : IValue
     public event EventHandler<ValueChangedEventArgs>? Changed;
 
     /// <summary>
-    /// See <see cref="IValueBusMapping"/> for details on the purpose of this property.
-    /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusMapping"/> for a specific bus type (e.g. KNX).
+    /// See <see cref="IValueBusEndpointMapping"/> for details on the purpose of this property.
+    /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusEndpointMapping"/> for a specific bus type (e.g. KNX).
     /// </summary>
-    public Dictionary<object, IValueBusMapping> BusMappings { get; } = [];
+    protected Dictionary<object, IValueBusEndpointMapping> _busMappings { get; private set; } = [];
+    public Dictionary<object, IValueBusEndpointMapping> BusMappings { init => _busMappings = value ?? []; }
 
-    public bool TryGetBusMapping<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusMapping
+    public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
     {
-        if (BusMappings.TryGetValue(busIdentifier, out var value) && value is TBusMapping typedValue)
+        if (_busMappings.TryGetValue(busIdentifier, out var value) && value is TBusMapping typedValue)
         {
             mapping = typedValue;
             return true;
@@ -30,9 +31,9 @@ public class ValueBase : IValue
         return false;
     }
 
-    public void AddBusMapping(object busIdentifier, IValueBusMapping mapping)
+    public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping)
     {
-        BusMappings[busIdentifier] = mapping;
+        _busMappings[busIdentifier] = mapping;
     }
 }
 

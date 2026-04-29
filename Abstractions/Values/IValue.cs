@@ -28,8 +28,14 @@ public interface IValue
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
 
-    public void AddBusMapping(object busIdentifier, IValueBusMapping mapping);
-    public bool TryGetBusMapping<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusMapping;
+    public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping);
+    public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping;
+
+    /// <summary>
+    /// Allows for direct initialization via code.
+    /// E.g. a KNX value can be initialized with its group address mapping via this property, eliminating the need for dynamic initialization of mappings.
+    /// </summary>
+    public Dictionary<object, IValueBusEndpointMapping> BusMappings { init; }
 }
 
 public interface IValue<T> : IValue

@@ -8,11 +8,11 @@ namespace HomeCompanion.Base.Values;
 /// in cases where the mapping cannot be determined via convention (e.g. <see cref="IValue.Name"/> matching a named bus address/datapoint).
 /// Override <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of this interface for a specific bus type (e.g. KNX).
 /// </summary>
-public interface IValueBusMapping : IEqualityComparer
+public interface IValueBusEndpointMapping : IEqualityComparer
 {
 }
 
-public class ValueBusMapping<TBus, TAddress> : IValueBusMapping where TBus : notnull where TAddress : notnull
+public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TBus : notnull where TAddress : notnull
 {
     public ValueBusMapping(TBus bus, TAddress address)
     {

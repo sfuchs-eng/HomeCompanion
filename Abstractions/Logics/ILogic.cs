@@ -1,6 +1,6 @@
 using System;
 
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Logics;
 
 /// <summary>
 /// Represents a logic component in the HomeCompanion system.
