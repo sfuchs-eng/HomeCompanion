@@ -1,4 +1,5 @@
 using System.Collections;
+using HomeCompanion.Abstractions;
 
 namespace HomeCompanion.Base.Values;
 
@@ -36,6 +37,13 @@ public interface IValue
     /// E.g. a KNX value can be initialized with its group address mapping via this property, eliminating the need for dynamic initialization of mappings.
     /// </summary>
     public Dictionary<object, IValueBusEndpointMapping> BusMappings { init; }
+
+    /// <summary>
+    /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Base.Events.ValueWriteReceived"/>)
+    /// and publish outbound requests (via <see cref="HomeCompanion.Base.Events.ValueWritten"/> and <see cref="HomeCompanion.Base.Events.ValueChanged"/>).
+    /// Called at startup by a values manager or connectivity provider for each discovered value.
+    /// </summary>
+    void Initialize(IEventPublisher publisher, IEventSubscriber subscriber);
 }
 
 public interface IValue<T> : IValue

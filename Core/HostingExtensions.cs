@@ -1,4 +1,5 @@
 using HomeCompanion.Abstractions;
+using HomeCompanion.Logics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.EnvironmentVariables;
 using Microsoft.Extensions.Configuration.Json;
@@ -28,8 +29,8 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddEventBus();
 
-        // Libraries with extension methods
-        builder.AddKnxIpRouting("default");
+        // KNX connections — read names from "Knx:Connections" config; defaults to ["default"].
+        builder.Services.AddKnxConnections(builder.Configuration);
 
         // Custom discovery-based registrations
         builder.Services.AddConnectivityProviders();
@@ -96,7 +97,24 @@ public static class HostingExtensions
     }
 
     /// <summary>
-    /// Registers the <see cref="EventBus"/> singleton as <see cref="IEventPublisher"/>,
+    /// Registers KNX/IP Routing stacks for all connection names configured under <c>Knx:Connections</c>.
+    /// Falls back to a single connection named <c>"default"</c> if no names are configured.
+    /// </summary>
+    /// <remarks>
+    /// Each connection name maps to a UDP multicast config section at <c>Udp:Connections:{name}</c>.
+    /// Multiple connections allow bridging several independent KNX IP Routing segments.
+    /// </remarks>
+    public static IServiceCollection AddKnxConnections(this IServiceCollection services, IConfiguration configuration)
+    {
+        var names = configuration.GetSection("Knx:Connections").Get<string[]>()
+                    ?? ["default"];
+        foreach (var name in names)
+            services.AddKnxIpRouting(name);
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <see cref="EventBus"/> singleton as <see cref="IEventPublisher"/>,
     /// <see cref="IEventSubscriber"/>, and <see cref="IHostedService"/>.
     /// </summary>
     public static IServiceCollection AddEventBus(this IServiceCollection services)

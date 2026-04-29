@@ -8,3 +8,7 @@ It includes:
 - Connectivity provider interfaces, building the links between busses like KNX, OpenHAB, MQTT to the `IValuesContainer` with their `IValue` data points via the event system.
 - Event bus interfaces for publishing and subscribing to events in a decoupled way.
 - ...
+
+## Special conventions
+
+- Namespaces follow their counterparts in `HomeCompanion.Core` and `HomeCompanion.Base` (e.g. `HomeCompanion.Logics` for logic-related interfaces, `HomeCompanion.Values` for value-related interfaces, etc.) to keep the vocabulary consistent across projects while avoiding circular dependencies.

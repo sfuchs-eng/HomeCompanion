@@ -28,6 +28,11 @@ Full dependency graph: [README.md § Structure](../README.md#structure).
 The application is a strongly event based system, receiving, processing and sending events related to values of distributed data points.
 This follows the general pattern of OpenHAB Items/Channels and of KNX group addresses with their objects in devices' memory.
 
+### Namespaces
+- Generally, the namespace structure follows the project and folder structure (e.g. `HomeCompanion.Logics` for logic modules).
+- There shall be no Abstractions namespace. Instead, the Abstractions project uses the same namespaces as the other projects (e.g. `HomeCompanion.Logics`) for its interfaces. This allows logic modules to depend on the Abstractions project without needing to reference a separate namespace. Same for `Events` and `Values`.
+- The `Base` project name is stripped from the namespace, resulting e.g. in `HomeCompanion.Events` instead of `HomeCompanion.Base.Events`. `Core`, `Logics`, `Server`, `Tests` and others keep the project name in the namespace.
+
 ## Breaking Changes
 
 - Breaking changes can generally be made to any of the projects as they are being developed together. Backwards compatibility is not a concern at this stage.

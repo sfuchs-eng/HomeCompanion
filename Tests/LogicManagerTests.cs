@@ -1,5 +1,6 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
+using HomeCompanion.Logics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

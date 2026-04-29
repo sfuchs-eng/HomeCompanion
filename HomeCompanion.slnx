@@ -9,6 +9,9 @@
   <Folder Name="/Core/">
     <Project Path="Core/HomeCompanion.Core.csproj" />
   </Folder>
+  <Folder Name="/HomeCompanion.Knx/">
+    <Project Path="HomeCompanion.Knx/HomeCompanion.Knx.csproj" />
+  </Folder>
   <Folder Name="/Logics/">
     <Project Path="Logics/HomeCompanion.Logics.csproj" />
   </Folder>

@@ -1,6 +1,7 @@
 # ADR-0002: KNX Connectivity Provider Design
 
 **Date:** 2026-04-29  
+**Revised:** 2026-04-30
 
 ---
 
@@ -18,57 +19,68 @@ HomeCompanion needs to bridge the KNX bus to its internal event system and provi
 
 ## Decision
 
-### 1. New `HomeCompanion.Knx` library project
+### 1. `HomeCompanion.Knx` library project
 
-A new project was introduced between `HomeCompanion.Base` and `HomeCompanion.Core` in the dependency graph. It contains:
+A library project sits between `HomeCompanion.Base` and `HomeCompanion.Core` in the dependency graph. It contains:
 
-- **`IKnxValue` / `IKnxValue<T>`** — typed value interfaces that extend `IValue<T>` with `GroupAddress`, `Initialize(IEventPublisher)`, `UpdateFromBus(object?)`, and `Write(T)`
-- **`KnxValue<T>`** — concrete implementation; the group address is passed in the constructor (e.g. `new KnxValue<bool>("1/0/0")`)
-- **KNX-specific HC events** — `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` (inbound), and `KnxGroupWriteRequested<T>` (outbound)
+- **`KnxBusEndpointMapping`** — maps an `IValue` to a KNX group address; placed in `IValue.BusMappings` under the key `KnxBusEndpointMapping.BusId`
+- **KNX-specific HC events** — `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` (inbound, bus-level detail)
 
-This keeps the KNX-specific vocabulary out of the generic abstractions while making it available to any project referencing `HomeCompanion.Knx` (including `HomeCompanion.Logics`).
+This keeps the KNX-specific vocabulary out of the generic abstractions while making it available to any project referencing `HomeCompanion.Knx`.
 
-### 2. `KnxValue<T>` as the GA binding mechanism (no attribute)
+### 2. `KnxBusEndpointMapping` as the GA binding mechanism
+
+Logic modules declare plain `IValue<T>` (or `ValueBase<T>`) properties on an `IValuesContainer` and attach a `KnxBusEndpointMapping` to `IValue.BusMappings` at construction time:
+
+```csharp
+public ValueBase<bool> Light { get; } = new()
+{
+    BusMappings = { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0") }
+};
+```
 
 **Considered alternatives:**
 
 | Approach | Notes |
 |---|---|
 | `[KnxGroupAddress("1/0/0")]` on `IValue<T>` property | Requires runtime attribute reflection; GA is detached from the value object |
-| `KnxValue<T>` with GA in constructor | GA is co-located with the value; type itself is the discovery marker; no attribute infrastructure needed |
-| String-keyed dictionary in config | Runtime-only binding; no compile-time safety |
+| `KnxValue<T>` subclass with GA in constructor | Couples value type to KNX; leaks bus technology into the value framework |
+| `KnxBusEndpointMapping` in `BusMappings` | GA co-located with the value; no KNX-specific type required on the property; value stays bus-agnostic |
 
-**Decision:** Use `KnxValue<T>` with the group address in its constructor. The type doubles as the binding marker — the provider discovers `IKnxValue` properties via reflection on `IValuesContainer` instances at startup.
+**Decision:** Use `KnxBusEndpointMapping` in `IValue.BusMappings`. The mapping is the discovery marker — the provider checks for it via reflection and `TryGetBusEndpoint<KnxBusEndpointMapping>` at startup.
 
-### 3. Outbound flow: HC event bus (not direct C# events on `KnxValue<T>`)
+### 3. Inbound flow: KNX → EventBus → IValue
 
-When a logic calls `knxValue.Write(value)`, `KnxValue<T>` publishes a `KnxGroupWriteRequested<T>` event on the HC event bus. The `KnxConnectivityProvider` subscribes to the base type `KnxGroupWriteRequested` (the EventBus walks the type hierarchy) and forwards it as a `GroupValueWrite` telegram.
+On each inbound telegram, the provider publishes two layers of events:
 
-**Why the HC event bus rather than C# events on `KnxValue<T>`:**
-- Logics already depend on `IEventPublisher`; no new coupling introduced
-- Any other subscriber (logging, auditing, another logic) can observe writes without hooking into the value object
+1. **KNX-level** (`HomeCompanion.Knx.Events`): `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` — carry raw bus detail (group address, physical source address, raw payload, decoded value).
+2. **Value-level** (`HomeCompanion.Base.Events`): `ValueWriteReceived`, `ValueReadReceived`, `ValueReadAnswerReceived` — carry a reference to the `IValue` target and the decoded value.
+
+`ValueBase<T>` subscribes to `ValueWriteReceived` on the event bus (via `IValue.Initialize`) and updates its stored value when the event targets it. It then publishes `ValueChanged<T>` if the value actually changed.
+
+`GroupValueResponse` is treated as both a read answer (`ValueReadAnswerReceived`) and a write (`ValueWriteReceived`) so that the stored value is updated in both cases.
+
+### 4. Outbound flow: IValue.Write() → EventBus → KNX
+
+`ValueBase<T>.Write(value)` updates the stored value immediately and publishes `ValueWritten<T>` on the HC event bus. The `KnxConnectivityProvider` subscribes to the base `ValueWritten` event; when the source value carries a `KnxBusEndpointMapping`, it encodes the value via `IDptResolver` and broadcasts a `GroupValueWrite` telegram to all connections.
+
+**Why the HC event bus rather than a direct callback:**
+- No coupling between `IValue` and `KnxConnectivityProvider`
+- Any subscriber (logging, auditing, another logic) can observe writes
 - Consistent with the rest of the system's event-driven architecture
-- Testable: swap the bus for a mock in unit tests
+- Testable: swap the event bus for a mock in unit tests
 
-**Two-phase init:** `KnxValue<T>` holds a nullable `IEventPublisher` that is injected by `KnxConnectivityProvider.StartAsync` calling `Initialize(publisher)` on each discovered value. Writing before init throws `InvalidOperationException`.
+### 5. `IValue.Initialize(IEventPublisher, IEventSubscriber)`
 
-### 4. Stored value is NOT updated on `Write()` — bus echo model
+Two-phase initialization: the connectivity provider calls `Initialize` on each discovered value at startup, injecting the event bus references the value needs to subscribe to `ValueWriteReceived` and publish `ValueChanged<T>`. Values cannot receive bus updates before `Initialize` is called.
 
-`Write()` sends to the bus but does not update the local `Value` property. The value is updated when the bus echoes the telegram back as a `GroupValueWrite` (or `GroupValueResponse`). This matches KNX semantics: the bus is the source of truth.
+### 6. `ValueChanged<T>` in `HomeCompanion.Base`
 
-### 5. `ValueChanged<T>` in `HomeCompanion.Base`
-
-A bus-agnostic `ValueChanged<T>` event (carrying `OldValue`, `NewValue`, `Source`) was added to `HomeCompanion.Base.Events`. It is published by `KnxValue<T>.UpdateFromBus` when the stored value actually changes (or on first initialization). Placing it in Base means any connectivity provider or logic can produce or consume it without depending on `HomeCompanion.Knx`.
-
-### 6. `Write(T)` added to `IValue<T>`
-
-`IValue<T>` gained `void Write(T value)` to allow generic write support across value types. `ValueBase<T>` provides a virtual no-op default so existing subclasses are not broken.
-
-**Known concern:** This adds write semantics to a read-oriented interface. An `IWritableValue<T> : IValue<T>` segregation would be cleaner. Left as a future refactor to avoid over-engineering at this stage.
+A bus-agnostic `ValueChanged<T>` event (carrying `OldValue`, `NewValue`, `Source`) is published by `ValueBase<T>` whenever the stored value changes. Placing it in Base means any connectivity provider or logic can produce or consume it without depending on `HomeCompanion.Knx`.
 
 ### 7. Multi-connection via keyed DI singletons
 
-`SRF.Network.Knx.ExtensionsHosting.AddKnxIpRouting(name)` was updated to register `IKnxBus` and `IKnxConnection` as **keyed singletons** (keyed by connection name). Each call also registers a non-keyed `IKnxConnection` forwarding, so `IEnumerable<IKnxConnection>` accumulates all named connections and is injected into `KnxConnectivityProvider`.
+`SRF.Network.Knx.ExtensionsHosting.AddKnxIpRouting(name)` registers `IKnxBus` and `IKnxConnection` as **keyed singletons** (keyed by connection name). `IEnumerable<IKnxConnection>` accumulates all named connections and is injected into `KnxConnectivityProvider`.
 
 Connection names are configured under `Knx:Connections` (string array). If absent, a single connection named `"default"` is used.
 
@@ -82,17 +94,17 @@ The provider discovers values via reflection over `IValuesContainer` instances. 
 
 ## Consequences
 
-- Logic modules declare KNX-backed values as `KnxValue<T>` properties on an `IValuesContainer` implementation — no bus-level plumbing needed in the logic itself
-- Adding a new KNX value requires only declaring a property; no config file changes
+- Logic modules declare values as plain `ValueBase<T>` (or any `IValue<T>` impl) with a `KnxBusEndpointMapping` attached — no KNX-specific type required on the property
+- The value framework (`IValue`, `ValueBase`) is fully bus-agnostic; KNX is entirely in the mapping and provider layer
+- Adding a new KNX value requires only declaring a property and attaching a `KnxBusEndpointMapping`; no config file changes
 - The KNX provider handles all reflection, initialization, and routing transparently
 - Multi-connection support works out of the box via `Knx:Connections` config
 - Unit tests are fully offline: stub `IKnxConnection` + `IDptResolver` suffice
-- `IValue<T>.Write()` is a breaking change for any `IValue<T>` implementors outside this codebase
 
 ---
 
 ## Open Issues
 
-1. **`IWritableValue<T>` segregation** — consider splitting `IValue<T>` into read and write interfaces to avoid forcing write semantics on all value types.
-2. **`IsInitializationFinished` under partial availability** — if a device is offline, read requests go unanswered and initialization blocks until `InitializationReadTimeout` (30 s). A per-value timeout with `ValueStatus.Error` marking is recommended for a future iteration.
-3. **SRF.Network.Knx keyed-services change** — the change to `ExtensionsHosting` is a breaking change within the `SRF.Network.sln` sub-solution. Any code that was registering `IKnxBus` or `IKnxConnection` as non-keyed singletons and injecting them directly must be updated.
+1. **`IsInitializationFinished` under partial availability** — if a device is offline, read requests go unanswered and initialization blocks until `InitializationReadTimeout` (30 s). A per-value timeout with `ValueStatus.Error` marking is recommended for a future iteration.
+2. **SRF.Network.Knx keyed-services change** — the change to `ExtensionsHosting` is a breaking change within the `SRF.Network.sln` sub-solution. Any code that was registering `IKnxBus` or `IKnxConnection` as non-keyed singletons and injecting them directly must be updated.
+

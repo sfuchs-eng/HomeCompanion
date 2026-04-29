@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Server\HomeCompanion.Server.csproj" />
     <ProjectReference Include="..\Core\HomeCompanion.Core.csproj" />
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
+    <ProjectReference Include="..\HomeCompanion.Knx\HomeCompanion.Knx.csproj" />
     <ProjectReference Include="..\Logics\HomeCompanion.Logics.csproj" />
   </ItemGroup>
 
