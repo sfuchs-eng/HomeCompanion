@@ -29,10 +29,42 @@ public abstract class LogicBase : ILogic
     protected void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
         => _subscriber.Subscribe(handler);
 
-    /// <inheritdoc/>
-    /// <remarks>Enables the logic upon initialization. Override to add custom initialization; call <c>base.InitializeAsync</c> to retain default enabled behaviour.</remarks>
-    public virtual Task InitializeAsync(CancellationToken cancellationToken = default)
-        => EnableAsync(cancellationToken);
+    // Semaphore to ensure that InitializeAsyncLatched is only called once, even if InitializeAsync is called multiple times.
+    private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
+    private bool _isInitialized = false;
+
+    /// <summary>
+    /// Initializes the logic. For convenience, this method calls <see cref="InitializeAsyncLatched"/> only
+    /// once, even if called multiple times. Subsequent calls wait until the first initialization completes and then return immediately.
+    /// This allows dependent logics to call <c>InitializeAsync</c> on their dependencies without risking multiple initializations or deadlocks.
+    /// Inheriting classes should override <see cref="InitializeAsyncLatched"/> to perform their initialization logic, which is guaranteed to only run once.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        await _initializationSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (_isInitialized)
+                return;
+
+            await InitializeAsyncLatched(cancellationToken);
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initializationSemaphore.Release();
+        }
+        await EnableAsync(cancellationToken);
+    }
+    
+    /// <summary>
+    /// Internal initialization method that is guaranteed to only be called once, even if <see cref="InitializeAsync"/> is called multiple times.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    protected abstract Task InitializeAsyncLatched(CancellationToken cancellationToken = default);
 
     /// <inheritdoc/>
     public virtual Task EnableAsync(CancellationToken cancellationToken = default)
@@ -51,4 +83,3 @@ public abstract class LogicBase : ILogic
     /// <inheritdoc/>
     public bool IsEnabled { get; private set; }
 }
-
