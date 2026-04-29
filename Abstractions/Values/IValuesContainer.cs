@@ -1,6 +1,6 @@
 using System;
 
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Base.Values;
 
 /// <summary>
 /// Classes implementing this interface can contain <see cref="IValue"/> instances.

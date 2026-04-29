@@ -1,6 +1,6 @@
 using System;
 
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Base.Values;
 
 public interface IValuesManager
 {
