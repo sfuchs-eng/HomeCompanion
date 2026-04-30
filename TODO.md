@@ -6,11 +6,9 @@
 
 ## Priority 1 — Blockers (system cannot run without these)
 
-### 1.1 Register `IValuesContainer` implementations in DI
+### ~~1.1 Register `IValuesContainer` implementations in DI~~ ✓
 
-`KnxConnectivityProvider` receives `IEnumerable<IValuesContainer>` via constructor injection, but `AddHomeCompanionCore()` / `HostingExtensions` never registers any implementations. The provider will always discover **zero values** until this is fixed.
-
-Add `AddValuesContainers()` to `HostingExtensions.cs` — assembly-scan for concrete `IValuesContainer` types (same pattern as `AddLogics()`) and register each as its own type + as `IValuesContainer`. Call it from `AddHomeCompanionCore()`.
+`AddValuesContainers()` added to `HostingExtensions.cs` — assembly-scans for concrete `IValuesContainer` types and registers each as its own type + as `IValuesContainer`. Called from `AddHomeCompanionCore()`.
 
 ### ~~1.2 Add KNX network config to `appsettings.json`~~ ✓
 

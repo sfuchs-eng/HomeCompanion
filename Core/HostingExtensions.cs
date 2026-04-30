@@ -1,4 +1,5 @@
 using HomeCompanion.Abstractions;
+using HomeCompanion.Base.Values;
 using HomeCompanion.Logics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.EnvironmentVariables;
@@ -34,6 +35,7 @@ public static class HostingExtensions
 
         // Custom discovery-based registrations
         builder.Services.AddConnectivityProviders();
+        builder.Services.AddValuesContainers();
         builder.Services.AddLogics();
         builder.Services.AddLogicManager();
 
@@ -179,6 +181,33 @@ public static class HostingExtensions
             services.AddSingleton(type);
             services.AddSingleton(providerInterface, sp => sp.GetRequiredService(type));
             services.AddHostedService(sp => (IHostedService)sp.GetRequiredService(type));
+        }
+
+        return services;
+    }
+
+    /// <summary>
+    /// Scans all assemblies loaded in the current <see cref="AppDomain"/> for concrete types that implement
+    /// <see cref="IValuesContainer"/> and registers each as a singleton of its own type and as
+    /// <see cref="IValuesContainer"/>.
+    /// </summary>
+    /// <remarks>
+    /// Discovery is performed once at registration time against <see cref="AppDomain.CurrentDomain"/>.
+    /// Any assembly loaded after this call will not be discovered automatically.
+    /// </remarks>
+    public static IServiceCollection AddValuesContainers(this IServiceCollection services)
+    {
+        var containerInterface = typeof(IValuesContainer);
+
+        var containerTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic)
+            .SelectMany(a => a.GetExportedTypes())
+            .Where(t => t.IsClass && !t.IsAbstract && containerInterface.IsAssignableFrom(t));
+
+        foreach (var type in containerTypes)
+        {
+            services.TryAddSingleton(type);
+            services.AddSingleton(containerInterface, sp => sp.GetRequiredService(type));
         }
 
         return services;
