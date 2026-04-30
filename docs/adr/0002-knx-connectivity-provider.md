@@ -82,7 +82,7 @@ A bus-agnostic `ValueChanged<T>` event (carrying `OldValue`, `NewValue`, `Source
 
 `SRF.Network.Knx.ExtensionsHosting.AddKnxIpRouting(name)` registers `IKnxBus` and `IKnxConnection` as **keyed singletons** (keyed by connection name). `IEnumerable<IKnxConnection>` accumulates all named connections and is injected into `KnxConnectivityProvider`.
 
-Connection names are configured under `Knx:Connections` (string array). If absent, a single connection named `"default"` is used.
+Connections are configured under `Knx:Connections` as a dictionary of `name → UdpMulticastOptions`. Each entry's key is the connection name; the value maps directly to `UdpMulticastOptions` (multicast address, port, …) and optionally a nested `ConnectionManager` sub-section. This keeps all KNX transport configuration under the single `Knx` root — no separate `Udp:Connections` section is required. If absent, a single connection named `"default"` is registered with library-default UDP settings.
 
 **Broadcast outbound:** all registered connections receive every outbound `GroupValueWrite`. No GA-to-connection routing in v1.
 

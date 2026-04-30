@@ -12,12 +12,15 @@
 
 Add `AddValuesContainers()` to `HostingExtensions.cs` — assembly-scan for concrete `IValuesContainer` types (same pattern as `AddLogics()`) and register each as its own type + as `IValuesContainer`. Call it from `AddHomeCompanionCore()`.
 
-### 1.2 Add KNX network config to `appsettings.json`
+### ~~1.2 Add KNX network config to `appsettings.json`~~ ✓
 
-`AddKnxIpRouting("default")` binds the UDP transport from `Udp:Connections:default`. Without it, the socket uses library defaults and will not reach the bus. Minimal required section:
+`Knx:Connections` is now a dictionary (`name → UdpMulticastOptions`) rather than a string array.
+`AddKnxConnections` enumerates its children and passes each section path (`Knx:Connections:{name}`)
+directly to `AddKnxIpRouting` as the `configSection` override, so no separate `Udp:Connections`
+section is needed. `appsettings.json` now contains the minimal required entry:
 
 ```json
-"Udp": {
+"Knx": {
   "Connections": {
     "default": {
       "MulticastAddress": "224.0.23.12",
@@ -27,7 +30,7 @@ Add `AddValuesContainers()` to `HostingExtensions.cs` — assembly-scan for conc
 }
 ```
 
-Also consider adding `Knx:Connections: ["default"]` explicitly (currently falls back silently).
+Add a `ConnectionManager` sub-key inside the connection object for reconnect tuning if needed.
 
 ### 1.3 Provide ETS group address export file
 
