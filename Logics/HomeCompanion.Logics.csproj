@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
+    <ProjectReference Include="..\HomeCompanion.Knx\HomeCompanion.Knx.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

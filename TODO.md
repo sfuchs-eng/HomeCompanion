@@ -30,14 +30,15 @@ section is needed. `appsettings.json` now contains the minimal required entry:
 
 Add a `ConnectionManager` sub-key inside the connection object for reconnect tuning if needed.
 
-### 1.3 Provide ETS group address export file
+### ~~1.3 Provide ETS group address export file~~ ✓
 
 `KnxDptResolver` requires a `DomainConfiguration` loaded from the ETS XML export (`Knx:EtsGAExportFile`, default `GroupAddressExport.xml`). Without it, every inbound and outbound telegram triggers `KnxException: Group address X not found in ETS export`, silently dropping all values.
 
-- Export the group address list from ETS as `GroupAddressExport.xml` and place it in the working directory (or configure the path in `appsettings.json` under `Knx:EtsGAExportFile`).
-- Alternatively, implement a fallback `IDptResolver` that infers DPT from the `IValue<T>`'s generic type argument — removes the hard dependency on the ETS file for simple use cases.
+Use the `SRF.Knx.Config` library functionality to access ETS export files and other KNX master data and configuration information.
+There's a user config file "~/.config/HomeCompanion.json" containing the required configuration to locate the existing ETS export file and other, generated KNX configuration files.
+This should all be already available via DI. The only missing piece is to inject the `DomainConfiguration` into `KnxDptResolver` and use its properties which reflect the ETS export content.
 
-### 1.4 Add `HomeCompanion.Knx` reference to `HomeCompanion.Logics`
+### ~~1.4 Add `HomeCompanion.Knx` reference to `HomeCompanion.Logics`~~ ✓
 
 `HomeCompanion.Logics.csproj` only references `HomeCompanion.Base`. Any values container declaring `KnxBusEndpointMapping` properties must reference `HomeCompanion.Knx`. Add the project reference.
 
@@ -45,8 +46,11 @@ Add a `ConnectionManager` sub-key inside the connection object for reconnect tun
 
 `HomeCompanion.Logics` is empty. Add at least one concrete values container (e.g. `HomeValues`) with typed `ValueBase<T>` properties and `KnxBusEndpointMapping` entries. This is the first piece a logic module needs to interact with the KNX bus.
 
+There shall be a KNX oriented values container in `HomeCompanion.Knx` (e.g. `KnxValues`) that contains the IValues<> properties as per the ETS export.
+In order to establish a general workflow to also update the values container when the ETS export changes, the values container should be generated from the DomainConfiguration loaded from the ETS export. A source generator project `HomeCompanion.Knx.CodeGen` shall be created for this purpose, taking the DomainConfiguration as input and generating a values container class with all the required properties and mappings.
+
 ```csharp
-public class HomeValues : IValuesContainer
+public partial class KnxValues : IValuesContainer
 {
     public ValueBase<bool> LivingRoomLight { get; } = new()
     {
@@ -58,10 +62,14 @@ public class HomeValues : IValuesContainer
 ### 1.6 Create a first `ILogic` implementation
 
 `HomeCompanion.Logics` has no logic modules. Implement one minimal logic that:
-- Extends `LogicBase`
+
+- `TestCounterLogic` extends `LogicBase`
 - Injects a values container
-- Subscribes to `ValueChanged<T>` or a container's `Changed` event in `InitializeAsyncLatched`
-- Performs a simple reactive action (e.g. log or write another value)
+- Subscribes to `ValueChanged<T>` or the required `IValue` events in `InitializeAsyncLatched`
+- Performs a simple reactive action:
+  - Start a timer when "Test switch" turns on, stop it when it turns off
+  - With each turn-off, increment "Test count" by 1 (read `IValue<int>.Value`, add 1, write back)
+  - Write the on-duration of the switch in seconds to "Test duration" (`IValue<double>`).
 
 This is the minimal proof that the full path KNX → `IValue.Changed` → logic reaction works end to end.
 
