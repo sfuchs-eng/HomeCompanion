@@ -3,6 +3,9 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Developer-local KNX values container attribute file (carries the per-developer ETS export path)
+HomeCompanion.Knx/KnxValues.local.cs
+
 # dotenv files
 .env
 

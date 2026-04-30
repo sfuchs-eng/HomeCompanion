@@ -9,6 +9,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\SRF.Network\Knx\SRF.Network.Knx.csproj" />
+    <ProjectReference Include="..\HomeCompanion.Knx.CodeGen\HomeCompanion.Knx.CodeGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

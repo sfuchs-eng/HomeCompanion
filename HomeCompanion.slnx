@@ -11,6 +11,7 @@
   </Folder>
   <Folder Name="/HomeCompanion.Knx/">
     <Project Path="HomeCompanion.Knx/HomeCompanion.Knx.csproj" />
+    <Project Path="HomeCompanion.Knx.CodeGen/HomeCompanion.Knx.CodeGen.csproj" />
   </Folder>
   <Folder Name="/Logics/">
     <Project Path="Logics/HomeCompanion.Logics.csproj" />
