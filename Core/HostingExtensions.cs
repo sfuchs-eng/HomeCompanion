@@ -1,13 +1,12 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Base.Values;
+using HomeCompanion.Extensions;
 using HomeCompanion.Logics;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.EnvironmentVariables;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using SRF.Network.Knx;
 
 namespace HomeCompanion.Core;
 
@@ -30,10 +29,15 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddEventBus();
 
-        // KNX connections — read names from "Knx:Connections" config; defaults to ["default"].
-        builder.Services.AddKnxConnections(builder.Configuration);
+        // Load assemblies from the application base directory and optional extensions directory before scanning.
+        // Reference-walk via AppDomain is unreliable (assemblies load lazily; entry assembly is null under dotnet watch).
+        var extensionsPath = builder.Configuration.GetSection(AppName)[nameof(CoreOptions.ExtensionsPath)];
+        LoadAssembliesFromDirectory(AppContext.BaseDirectory);
+        if (!string.IsNullOrWhiteSpace(extensionsPath))
+            LoadAssembliesFromDirectory(extensionsPath);
 
         // Custom discovery-based registrations
+        builder.AddExtensions();
         builder.Services.AddConnectivityProviders();
         builder.Services.AddValuesContainers();
         builder.Services.AddLogics();
@@ -99,47 +103,22 @@ public static class HostingExtensions
     }
 
     /// <summary>
-    /// Registers KNX/IP Routing stacks for all connection names configured under <c>Knx:Connections</c>.
-    /// Falls back to a single connection named <c>"default"</c> with library-default UDP settings if no
-    /// connections are configured.
+    /// Registers services for all extensions implementing <see cref="IExtensionRegistration"/>.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <c>Knx:Connections</c> is a dictionary where each key is the connection name and the value is the
-    /// UDP multicast configuration for that connection (<c>UdpMulticastOptions</c>). The UDP settings are
-    /// read directly from <c>Knx:Connections:{name}</c>, so no separate <c>Udp:Connections</c> section is
-    /// required. Example:
-    /// </para>
-    /// <code>
-    /// "Knx": {
-    ///   "Connections": {
-    ///     "default": {
-    ///       "MulticastAddress": "224.0.23.12",
-    ///       "Port": 3671,
-    ///       "ConnectionManager": { "ReconnectInterval": 10.0 }
-    ///     }
-    ///   }
-    /// }
-    /// </code>
-    /// <para>
-    /// Multiple entries allow bridging several independent KNX IP Routing segments simultaneously.
-    /// </para>
-    /// </remarks>
-    public static IServiceCollection AddKnxConnections(this IServiceCollection services, IConfiguration configuration)
+    /// <param name="builder">The <see cref="IHostApplicationBuilder"/> to configure.</param>
+    /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
+    public static IHostApplicationBuilder AddExtensions(this IHostApplicationBuilder builder)
     {
-        var children = configuration.GetSection("Knx:Connections").GetChildren().ToList();
-
-        if (children.Count == 0)
+        var context = new ExtensionRegistrationContext(builder);
+        foreach (var extension in AppDomain.CurrentDomain.GetAssemblies()
+                     .SelectMany(a => a.GetTypes())
+                     .Where(t => typeof(IExtensionRegistration).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                     .Select(Activator.CreateInstance)
+                     .Cast<IExtensionRegistration>())
         {
-            // No connections configured — register a single "default" connection with library defaults.
-            services.AddKnxIpRouting("default");
-            return services;
+            extension.RegisterServices(context);
         }
-
-        foreach (var child in children)
-            services.AddKnxIpRouting(child.Key, $"Knx:Connections:{child.Key}");
-
-        return services;
+        return builder;
     }
 
     /// <summary>
@@ -173,14 +152,14 @@ public static class HostingExtensions
 
         var providerTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic)
-            .SelectMany(a => a.GetExportedTypes())
+            .SelectMany(GetExportedTypesSafe)
             .Where(t => t.IsClass && !t.IsAbstract && providerInterface.IsAssignableFrom(t));
 
         foreach (var type in providerTypes)
         {
             services.AddSingleton(type);
             services.AddSingleton(providerInterface, sp => sp.GetRequiredService(type));
-            services.AddHostedService(sp => (IHostedService)sp.GetRequiredService(type));
+            services.AddSingleton(typeof(IHostedService), sp => (IHostedService)sp.GetRequiredService(type));
         }
 
         return services;
@@ -201,11 +180,14 @@ public static class HostingExtensions
 
         var containerTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic)
-            .SelectMany(a => a.GetExportedTypes())
+            .SelectMany(GetExportedTypesSafe)
             .Where(t => t.IsClass && !t.IsAbstract && containerInterface.IsAssignableFrom(t));
+
+        Console.Error.WriteLine($"Discovered {containerTypes.Count()} values containers:");
 
         foreach (var type in containerTypes)
         {
+            Console.Error.WriteLine($"- Registering values container: {type.FullName}");
             services.TryAddSingleton(type);
             services.AddSingleton(containerInterface, sp => sp.GetRequiredService(type));
         }
@@ -227,7 +209,7 @@ public static class HostingExtensions
 
         var logicTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic)
-            .SelectMany(a => a.GetExportedTypes())
+            .SelectMany(GetExportedTypesSafe)
             .Where(t => t.IsClass && !t.IsAbstract && logicInterface.IsAssignableFrom(t));
 
         foreach (var type in logicTypes)
@@ -247,5 +229,38 @@ public static class HostingExtensions
     {
         services.AddHostedService<LogicManager>();
         return services;
+    }
+
+    /// <summary>
+    /// Returns the exported types of an assembly, or an empty array if the assembly fails to enumerate its types
+    /// (e.g. due to a <see cref="System.Reflection.ReflectionTypeLoadException"/>).
+    /// </summary>
+    private static Type[] GetExportedTypesSafe(System.Reflection.Assembly assembly)
+    {
+        try { return assembly.GetExportedTypes(); }
+        catch { return []; }
+    }
+
+    /// <summary>
+    /// Loads all <c>*.dll</c> files from <paramref name="directory"/> into the current <see cref="AppDomain"/>.
+    /// Files that are already loaded or that fail to load are silently skipped.
+    /// </summary>
+    private static void LoadAssembliesFromDirectory(string directory)
+    {
+        if (!Directory.Exists(directory)) return;
+
+        var loadedPaths = new HashSet<string>(
+            AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                .Select(a => Path.GetFullPath(a.Location)),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dll in Directory.EnumerateFiles(directory, "*.dll", SearchOption.TopDirectoryOnly))
+        {
+            var fullPath = Path.GetFullPath(dll);
+            if (loadedPaths.Contains(fullPath)) continue;
+            try { System.Reflection.Assembly.LoadFrom(fullPath); }
+            catch { /* skip assemblies that cannot be loaded */ }
+        }
     }
 }

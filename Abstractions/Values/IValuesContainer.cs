@@ -9,5 +9,5 @@ namespace HomeCompanion.Base.Values;
 /// </summary>
 public interface IValuesContainer
 {
-
+    IEnumerable<IValue> GetValues();
 }

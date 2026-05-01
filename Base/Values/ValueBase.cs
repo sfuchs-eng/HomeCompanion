@@ -14,15 +14,15 @@ public abstract class ValueBase : IValue
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
 
-    protected void RaiseWritten(ValueWrittenEventArgs args) => Written?.Invoke(this, args);
-    protected void RaiseChanged(ValueChangedEventArgs args) => Changed?.Invoke(this, args);
+    protected virtual void RaiseWritten(ValueWrittenEventArgs args) => Written?.Invoke(this, args);
+    protected virtual void RaiseChanged(ValueChangedEventArgs args) => Changed?.Invoke(this, args);
 
     /// <summary>
     /// See <see cref="IValueBusEndpointMapping"/> for details on the purpose of this property.
     /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusEndpointMapping"/> for a specific bus type (e.g. KNX).
     /// </summary>
     protected Dictionary<object, IValueBusEndpointMapping> _busMappings { get; private set; } = [];
-    public Dictionary<object, IValueBusEndpointMapping> BusMappings { init => _busMappings = value ?? []; }
+    public Dictionary<object, IValueBusEndpointMapping> BusMappings { get => _busMappings; init => _busMappings = value ?? []; }
 
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
     {
@@ -35,13 +35,13 @@ public abstract class ValueBase : IValue
         return false;
     }
 
-    public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping)
+    public virtual void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping)
     {
         _busMappings[busIdentifier] = mapping;
     }
 
     /// <inheritdoc/>
-    public void Initialize(IEventPublisher publisher, IEventSubscriber subscriber)
+    public virtual void Initialize(IEventPublisher publisher, IEventSubscriber subscriber)
     {
         _publisher = publisher;
         subscriber.Subscribe(new WriteReceivedHandler(this));
@@ -53,7 +53,7 @@ public abstract class ValueBase : IValue
     protected virtual void ReceiveUpdate(object? rawValue) { }
 
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
-    protected void Publish(IEvent @event) => _publisher?.PublishAsync(@event);
+    protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event);
 
     private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
     {

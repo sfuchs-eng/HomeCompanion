@@ -124,7 +124,8 @@ public class KnxDptResolverIntegrationTests
         services.AddSingleton<IConfiguration>(config);
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-        services.AddKnxConnections(config);
+
+        Integrations.Knx.KnxExtensionRegistration.AddKnxConnections(services, config);
 
         var sp = services.BuildServiceProvider(validateScopes: false);
 

@@ -33,10 +33,10 @@ public interface IValue
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping;
 
     /// <summary>
-    /// Allows for direct initialization via code.
+    /// Allows for direct initialization via code and for reading the configured bus endpoint mappings.
     /// E.g. a KNX value can be initialized with its group address mapping via this property, eliminating the need for dynamic initialization of mappings.
     /// </summary>
-    public Dictionary<object, IValueBusEndpointMapping> BusMappings { init; }
+    public Dictionary<object, IValueBusEndpointMapping> BusMappings { get; init; }
 
     /// <summary>
     /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Base.Events.ValueWriteReceived"/>)

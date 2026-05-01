@@ -19,4 +19,4 @@ namespace HomeCompanion.Integrations.Knx;
 /// </list>
 /// Without the generated file the class compiles without any properties (CI-safe).
 /// </remarks>
-public partial class KnxValues : IValuesContainer { }
+public partial class KnxValues : ValueContainerBase { }

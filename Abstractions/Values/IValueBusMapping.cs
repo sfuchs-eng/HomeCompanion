@@ -10,6 +10,8 @@ namespace HomeCompanion.Base.Values;
 /// </summary>
 public interface IValueBusEndpointMapping : IEqualityComparer
 {
+    string BusId { get; }
+    string Address { get; }
 }
 
 public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TBus : notnull where TAddress : notnull
@@ -22,8 +24,11 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
     public TBus Bus { get; init; }
     public TAddress Address { get; init; }
 
+    string IValueBusEndpointMapping.BusId => Bus?.ToString() ?? string.Empty;
+    string IValueBusEndpointMapping.Address => Address?.ToString() ?? string.Empty;
+
     // Equality is based on bus and address, as these uniquely identify a datapoint on the bus.
-    public new bool Equals(object? x, object? y)
+    public virtual new bool Equals(object? x, object? y)
     {
         if (x is ValueBusMapping<TBus, TAddress> mappingX && y is ValueBusMapping<TBus, TAddress> mappingY)
         {
@@ -33,7 +38,7 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
         return false;
     }
 
-    public int GetHashCode(object obj)
+    public virtual int GetHashCode(object obj)
     {
         if (obj is ValueBusMapping<TBus, TAddress> mapping)
         {

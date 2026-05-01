@@ -12,7 +12,7 @@ namespace HomeCompanion.Integrations.Knx;
 /// a value as a KNX-backed data point. The KNX connectivity provider discovers values with this mapping
 /// at startup and builds the group address ↔ value index.
 /// </remarks>
-public sealed class KnxBusEndpointMapping : IValueBusEndpointMapping
+public sealed class KnxBusEndpointMapping : ValueBusMapping<string, GroupAddress>
 {
     /// <summary>
     /// The bus identifier used as the dictionary key in <see cref="IValue.BusMappings"/> for KNX mappings.
@@ -20,14 +20,15 @@ public sealed class KnxBusEndpointMapping : IValueBusEndpointMapping
     public static readonly string BusId = "knx";
 
     /// <summary>The KNX group address this value is mapped to.</summary>
-    public GroupAddress GroupAddress { get; }
+    public GroupAddress GroupAddress => (GroupAddress)Address;
 
     /// <param name="groupAddress">KNX group address in <c>"main/middle/sub"</c> format.</param>
-    public KnxBusEndpointMapping(string groupAddress) => GroupAddress = new GroupAddress(groupAddress);
+    public KnxBusEndpointMapping(string groupAddress) : base(BusId, new GroupAddress(groupAddress)) { }
 
     /// <param name="groupAddress">KNX group address.</param>
-    public KnxBusEndpointMapping(GroupAddress groupAddress) => GroupAddress = groupAddress;
+    public KnxBusEndpointMapping(GroupAddress groupAddress) : base(BusId, groupAddress) { }
 
+/*
     bool IEqualityComparer.Equals(object? x, object? y)
     {
         if (x is KnxBusEndpointMapping mx && y is KnxBusEndpointMapping my)
@@ -37,4 +38,5 @@ public sealed class KnxBusEndpointMapping : IValueBusEndpointMapping
 
     int IEqualityComparer.GetHashCode(object obj)
         => obj is KnxBusEndpointMapping m ? m.GroupAddress.GetHashCode() : 0;
+        */
 }

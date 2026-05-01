@@ -4,6 +4,13 @@ using SRF.Network.Knx;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// logging
+builder.Logging.AddSystemdConsole((cfo) =>
+{
+    cfo.UseUtcTimestamp = false;
+    cfo.TimestampFormat = "yyyy-MM-dd HH:MM:ss ";
+});
+
 // Add services to the container.
 builder.AddHomeCompanionCore();
 

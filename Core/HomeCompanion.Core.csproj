@@ -20,7 +20,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\SRF.Network\Knx\SRF.Network.Knx.csproj" />
+    <ProjectReference Include="..\Logics\HomeCompanion.Logics.csproj" />
+    <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
+    <ProjectReference Include="..\Integrations.Mqtt\HomeCompanion.Integrations.Mqtt.csproj" />
+    <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
   </ItemGroup>
-
 
 </Project>

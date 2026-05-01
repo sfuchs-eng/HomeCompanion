@@ -1,0 +1,237 @@
+@page "/status"
+@rendermode InteractiveServer
+
+@using HomeCompanion.Abstractions
+@using HomeCompanion.Base.Values
+@using HomeCompanion.Extensions
+@using HomeCompanion.Logics
+
+@inject IEnumerable<IConnectivityProvider> ConnectivityProviders
+@inject IEnumerable<ILogic> Logics
+@inject IEnumerable<IValuesContainer> ValuesContainers
+
+<PageTitle>System Status</PageTitle>
+
+<h1>System Status</h1>
+
+<div class="mb-4">
+    <h4 class="mb-3">Connectivity Providers</h4>
+    @if (!ConnectivityProviders.Any())
+    {
+        <p class="text-muted">No connectivity providers registered.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Type</th>
+                    <th>Connected</th>
+                    <th>Initialization Finished</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var provider in ConnectivityProviders)
+                {
+                    <tr>
+                        <td><code>@provider.GetType().Name</code></td>
+                        <td>
+                            @if (provider.IsConnected)
+                            {
+                                <span class="badge text-bg-success">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-danger">No</span>
+                            }
+                        </td>
+                        <td>
+                            @if (provider.IsInitializationFinished)
+                            {
+                                <span class="badge text-bg-success">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-warning text-dark">No</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="mb-4">
+    <h4 class="mb-3">Logic Modules</h4>
+    @if (!Logics.Any())
+    {
+        <p class="text-muted">No logic modules registered.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Type</th>
+                    <th>Enabled</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var logic in Logics)
+                {
+                    <tr>
+                        <td><code>@logic.GetType().Name</code></td>
+                        <td>
+                            @if (logic.IsEnabled)
+                            {
+                                <span class="badge text-bg-success">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">No</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="mb-4">
+    <h4 class="mb-3">Values Containers</h4>
+    @if (!ValuesContainers.Any())
+    {
+        <p class="text-muted">No values containers registered.</p>
+    }
+    else
+    {
+        <table class="table table-sm table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Type</th>
+                    <th>Value Count</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var container in ValuesContainers)
+                {
+                    var values = container.GetValues().ToList();
+                    <tr>
+                        <td><code>@container.GetType().Name</code></td>
+                        <td>@values.Count</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenValuesModal(container, values)">
+                                View Values
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (_showModal)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="valuesModalTitle">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="valuesModalTitle">
+                        Values — <code>@_selectedContainerName</code>
+                        <span class="ms-2 badge text-bg-secondary">@_selectedValues.Count</span>
+                    </h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body" style="overflow-y: auto; max-height: 70vh;">
+                    @if (_selectedValues.Count == 0)
+                    {
+                        <p class="text-muted">No values in this container.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Label</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Bus ID</th>
+                                    <th>Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var value in _selectedValues)
+                                {
+                                    var mappings = value.BusMappings.Values.ToList();
+                                    var rowSpan = mappings.Count > 1 ? mappings.Count : 1;
+                                    @for (int mi = 0; mi < rowSpan; mi++)
+                                    {
+                                        var mapping = mappings.Count > 0 ? mappings[mi] : null;
+                                        <tr>
+                                            @if (mi == 0)
+                                            {
+                                                <td rowspan="@rowSpan">@(value.Name ?? "—")</td>
+                                                <td rowspan="@rowSpan">@(value.Label ?? "—")</td>
+                                                <td rowspan="@rowSpan"><code>@value.ValueType.Name</code></td>
+                                                <td rowspan="@rowSpan">@RenderValueStatus(value.Status)</td>
+                                            }
+                                            <td>@(mapping?.BusId ?? "—")</td>
+                                            <td>@(mapping?.Address ?? "—")</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _showModal;
+    private string? _selectedContainerName;
+    private List<IValue> _selectedValues = [];
+
+    private void OpenValuesModal(IValuesContainer container, List<IValue> values)
+    {
+        _selectedContainerName = container.GetType().Name;
+        _selectedValues = values;
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        _showModal = false;
+        _selectedValues = [];
+        _selectedContainerName = null;
+    }
+
+    private MarkupString RenderValueStatus(ValueStatus status)
+    {
+        if (status == ValueStatus.Default)
+            return new MarkupString("<span class=\"badge text-bg-secondary\">Default</span>");
+
+        var badges = new System.Text.StringBuilder();
+        if (status.HasFlag(ValueStatus.Loaded))
+            badges.Append("<span class=\"badge text-bg-success me-1\">Loaded</span>");
+        if (status.HasFlag(ValueStatus.Initialized))
+            badges.Append("<span class=\"badge text-bg-primary me-1\">Initialized</span>");
+        if (status.HasFlag(ValueStatus.OutOfRange))
+            badges.Append("<span class=\"badge text-bg-warning text-dark me-1\">OutOfRange</span>");
+        if (status.HasFlag(ValueStatus.Error))
+            badges.Append("<span class=\"badge text-bg-danger me-1\">Error</span>");
+
+        return new MarkupString(badges.ToString());
+    }
+}

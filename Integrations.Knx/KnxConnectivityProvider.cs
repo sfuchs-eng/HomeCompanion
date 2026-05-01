@@ -200,18 +200,32 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         if (ctx.GroupEventArgs is not { } args) return;
 
         // Decode the value if the connection layer didn't already do it.
-        if (ctx.DecodedValue is null)
+        if (ctx.DecodedValue is null )
         {
-            try
+            if (args.Value is not null && args.Value.Value?.Length > 0)
             {
-                var dpt = _dptResolver.GetDpt(args.DestinationAddress);
-                ctx.Dpt = dpt;
-                ctx.DecodedValue = dpt.ToValue(args.Value);
+                try
+                {
+                    var dpt = _dptResolver.GetDpt(args.DestinationAddress);
+                    ctx.Dpt = dpt;
+                    ctx.DecodedValue = dpt.ToValue(args.Value);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "KnxConnectivityProvider: DPT decode failed for {GA}. GroupValue.Value length: {Length} bytes", args.DestinationAddress, args.Value?.Value?.Length);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex, "KnxConnectivityProvider: DPT decode failed for {GA}.", args.DestinationAddress);
+                _logger.LogTrace("KnxConnectivityProvider: received {EventType} message for {GA} with empty payload, ignoring message.", args.EventType, args.DestinationAddress);
+                return;
             }
+        }
+
+        if ( args.Value is null )
+        {
+            _logger.LogTrace("KnxConnectivityProvider: received {EventType} message for {GA} with null GroupValue.Value, ignoring message.", args.EventType, args.DestinationAddress);
+            return;
         }
 
         switch (args.EventType)
@@ -220,10 +234,10 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
                 {
                     DestinationAddress = args.DestinationAddress,
-                    SourceAddress      = args.SourceAddress,
-                    RawValue           = args.Value,
-                    DecodedValue       = ctx.DecodedValue,
-                    ReceivedAt         = ctx.ReceivedAt,
+                    SourceAddress = args.SourceAddress,
+                    RawValue = args.Value,
+                    DecodedValue = ctx.DecodedValue,
+                    ReceivedAt = ctx.ReceivedAt,
                 });
                 PublishValueWriteReceived(args.DestinationAddress, ctx.DecodedValue);
                 break;
@@ -232,8 +246,8 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 _ = _publisher.PublishAsync(new KnxGroupReadReceived
                 {
                     DestinationAddress = args.DestinationAddress,
-                    SourceAddress      = args.SourceAddress,
-                    ReceivedAt         = ctx.ReceivedAt,
+                    SourceAddress = args.SourceAddress,
+                    ReceivedAt = ctx.ReceivedAt,
                 });
                 PublishValueReadReceived(args.DestinationAddress);
                 break;
@@ -242,10 +256,10 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
                 {
                     DestinationAddress = args.DestinationAddress,
-                    SourceAddress      = args.SourceAddress,
-                    RawValue           = args.Value,
-                    DecodedValue       = ctx.DecodedValue,
-                    ReceivedAt         = ctx.ReceivedAt,
+                    SourceAddress = args.SourceAddress,
+                    RawValue = args.Value,
+                    DecodedValue = ctx.DecodedValue,
+                    ReceivedAt = ctx.ReceivedAt,
                 });
                 PublishValueReadAnswerReceived(args.DestinationAddress, ctx.DecodedValue);
                 // A read response also carries the current value — publish as write so the value updates.

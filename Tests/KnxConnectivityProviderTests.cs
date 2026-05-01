@@ -95,6 +95,8 @@ public class KnxConnectivityProviderTests
         {
             BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0") },
         };
+
+        public IEnumerable<IValue> GetValues() => [Light];
     }
 
     // ── Tests: inbound KNX → EventBus ────────────────────────────────────────
