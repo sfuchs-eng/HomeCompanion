@@ -3,17 +3,20 @@ using HomeCompanion.Base.Values;
 namespace HomeCompanion.Knx;
 
 /// <summary>
-/// KNX group address values container, with properties generated from the ETS group address export by <c>HomeCompanion.Knx.CodeGen</c>.
+/// KNX group address values container. Properties are generated into <c>KnxValues.generated.cs</c>
+/// by running <c>srf-network-cli kc --home-companion-code-gen</c>.
 /// </summary>
 /// <remarks>
-/// Properties are emitted by the source generator. To enable generation on your machine, create a
-/// git-ignored <c>KnxValues.local.cs</c> in this project with the path to your ETS export:
-/// <code>
-/// namespace HomeCompanion.Knx;
-/// [KnxValuesFromEtsExport("/path/to/GroupAddressExport.xml")]
-/// partial class KnxValues { }
-/// </code>
-/// The path may be absolute or relative to the project directory.
-/// Without the attribute file the class compiles without any generated properties (CI-safe).
+/// The generated file is git-ignored and machine-local. To enable generation on your machine:
+/// <list type="number">
+///   <item><description>
+///     Configure <c>HomeCompanionCodeGenFile</c> in your local <c>SRF.Network.json</c> to the
+///     absolute path of <c>HomeCompanion.Knx/KnxValues.generated.cs</c>.
+///   </description></item>
+///   <item><description>
+///     Run <c>srf-network-cli kc --home-companion-code-gen</c> from your KNX config working directory.
+///   </description></item>
+/// </list>
+/// Without the generated file the class compiles without any properties (CI-safe).
 /// </remarks>
 public partial class KnxValues : IValuesContainer { }

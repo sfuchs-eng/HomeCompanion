@@ -48,7 +48,6 @@ public class TestCounterLogic : LogicBase
 
     private void OnTestSwitchChanged(object? sender, ValueChangedEventArgs e)
     {
-        _values.WantToSeeTestCounterHereWithCodeCompletion
         /*
         if (_values.TestSwitch.Value)
         {
