@@ -6,6 +6,9 @@
     <File Path="globals.cs" />
     <Project Path="Base/HomeCompanion.Base.csproj" />
   </Folder>
+  <Folder Name="/Cli/">
+    <Project Path="Cli/HomeCompanion.Cli.csproj" />
+  </Folder>
   <Folder Name="/Core/">
     <Project Path="Core/HomeCompanion.Core.csproj" />
   </Folder>
@@ -21,6 +24,9 @@
     <Project Path="Server/HomeCompanion.Server.csproj" />
   </Folder>
   <Folder Name="/SRF.Network/" />
+  <Folder Name="/SRF.Network/Cli/">
+    <Project Path="SRF.Network/Cli/SRF.Network.Cli.csproj" />
+  </Folder>
   <Folder Name="/SRF.Network/Knx/">
     <Project Path="SRF.Network/Knx/SRF.Network.Knx.csproj" />
   </Folder>
@@ -36,11 +42,15 @@
     <Project Path="SRF.Network/Subs/SRF.Industrial/Packets/SRF.Industrial.Packets.csproj" />
   </Folder>
   <Folder Name="/SRF.Network/Subs/SRF.Knx/">
+    <Project Path="SRF.Network/Subs/SRF.Knx/SRF.Knx.Config.OpenHab/SRF.Knx.Config.OpenHab.csproj" />
     <Project Path="SRF.Network/Subs/SRF.Knx/SRF.Knx.Config/SRF.Knx.Config.csproj" />
     <Project Path="SRF.Network/Subs/SRF.Knx/SRF.Knx.Core/SRF.Knx.Core.csproj" />
   </Folder>
   <Folder Name="/SRF.Network/Udp/">
     <Project Path="SRF.Network/Udp/SRF.Network.Udp.csproj" />
+  </Folder>
+  <Folder Name="/SRF.Network/WebSocket/">
+    <Project Path="SRF.Network/WebSocket/SRF.Network.WebSocket.csproj" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/HomeCompanion.Tests.csproj" />

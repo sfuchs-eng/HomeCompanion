@@ -63,6 +63,12 @@ public class KnxConnectivityProviderTests
 
         public void RaiseMessageReceived(GroupEventArgs args, DateTimeOffset? at = null)
             => MessageReceived?.Invoke(this, new KnxMessageReceivedEventArgs(args, at ?? DateTimeOffset.UtcNow));
+
+        internal void RaiseConnectionStatusChanged(bool isConnected)
+        {
+            IsConnected = isConnected;
+            ConnectionStatusChanged?.Invoke(this, new KnxConnectionEventArgs());
+        }
     }
 
     /// <summary>A DPT resolver that maps any group address to a <see cref="BoolDpt"/>.</summary>
