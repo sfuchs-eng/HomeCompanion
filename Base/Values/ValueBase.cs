@@ -3,11 +3,10 @@ namespace HomeCompanion.Base.Values;
 /// <summary>
 /// The value type agnostic part for <see cref="ValueBase{T}"/>.
 /// </summary>
-public class ValueBase : IValue
+public abstract class ValueBase : IValue
 {
     private IEventPublisher? _publisher;
-
-    public Type ValueType => GetType();
+    public abstract Type ValueType { get; }
     public ValueStatus Status { get; protected set; }
     public string? Name { get; set; }
     public string? Label { get; set; }
@@ -70,6 +69,8 @@ public class ValueBase : IValue
 public class ValueBase<T> : ValueBase, IValue<T>
 {
     public T Value { get; protected set; } = default!;
+
+    public override Type ValueType { get => typeof(T); }
 
     /// <inheritdoc/>
     public virtual void Write(T value)

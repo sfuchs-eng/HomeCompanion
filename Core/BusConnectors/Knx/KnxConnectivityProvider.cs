@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using SRF.Knx.Core;
 using SRF.Network.Knx;
 using SRF.Network.Knx.Messages;
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace HomeCompanion.Core.BusConnectors.Knx;
@@ -52,7 +53,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private Dictionary<GroupAddress, IValue> _valueMap = [];
 
     /// <summary>Tracks which group addresses still need an initial read response.</summary>
-    private readonly HashSet<GroupAddress> _pendingInitialReads = [];
+    private readonly ConcurrentDictionary<GroupAddress, bool> _pendingInitialReads = [];
 
     private volatile bool _isInitializationFinished;
 
@@ -159,7 +160,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private async Task SendInitialReadRequestsAsync(CancellationToken cancellationToken)
     {
         foreach (var ga in _valueMap.Keys)
-            _pendingInitialReads.Add(ga);
+            _pendingInitialReads.TryAdd(ga, true);
 
         foreach (var ga in _valueMap.Keys)
         {
@@ -176,7 +177,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
         try
         {
-            while (_pendingInitialReads.Count > 0)
+            while (!_pendingInitialReads.IsEmpty)
                 await Task.Delay(200, linkedCts.Token);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
@@ -184,7 +185,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             _logger.LogWarning(
                 "KNX initialization read timeout reached. {Count} group address(es) did not respond: {GAs}",
                 _pendingInitialReads.Count,
-                string.Join(", ", _pendingInitialReads));
+                string.Join(", ", _pendingInitialReads.Keys));
         }
 
         _isInitializationFinished = true;
@@ -250,7 +251,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 PublishValueReadAnswerReceived(args.DestinationAddress, ctx.DecodedValue);
                 // A read response also carries the current value — publish as write so the value updates.
                 PublishValueWriteReceived(args.DestinationAddress, ctx.DecodedValue);
-                _pendingInitialReads.Remove(args.DestinationAddress);
+                _pendingInitialReads.TryRemove(args.DestinationAddress, out _);
                 break;
         }
     }

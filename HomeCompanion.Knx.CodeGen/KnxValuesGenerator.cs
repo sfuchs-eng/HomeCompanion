@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml.Linq;
+using HomeCompanion.Knx.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -47,6 +48,22 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor AutoGenFileNotFoundDescriptor = new(
+        id: "HCKNX004",
+        title: "HomeCompanion auto-gen file not found",
+        messageFormat: "HomeCompanion auto-gen file not found at '{0}'. No KNX values will be generated. Run 'srf-network-cli knx-configuration --generate-homecompanion-autogen' to create it.",
+        category: "HomeCompanion.Knx.CodeGen",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor AutoGenFileReadErrorDescriptor = new(
+        id: "HCKNX005",
+        title: "HomeCompanion auto-gen file could not be read",
+        messageFormat: "HomeCompanion auto-gen file '{0}' could not be read or parsed: {1}",
+        category: "HomeCompanion.Knx.CodeGen",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     // -------------------------------------------------------------------------
     // IIncrementalGenerator implementation
     // -------------------------------------------------------------------------
@@ -61,11 +78,12 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
                 transform: static (ctx, _) =>
                 {
                     var attr = ctx.Attributes[0];
-                    if (attr.ConstructorArguments.Length == 0)
-                        return null;
-                    return attr.ConstructorArguments[0].Value as string;
+                    var args = attr.ConstructorArguments;
+                    var exportFilePath = args.Length > 0 ? args[0].Value as string : null;
+                    var autoGenFilePath = args.Length > 1 ? args[1].Value as string : null;
+                    return (ExportFilePath: exportFilePath, AutoGenFilePath: autoGenFilePath);
                 })
-            .Where(static path => path is not null);
+            .Where(static pair => pair.ExportFilePath is not null || pair.AutoGenFilePath is not null);
 
         // Obtain the consuming project directory for resolving relative paths.
         var projectDir = context.AnalyzerConfigOptionsProvider
@@ -77,20 +95,66 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(
             exportPaths.Combine(projectDir),
-            static (spc, pair) => Execute(spc, pair.Left!, pair.Right));
+            static (spc, combined) => Execute(spc, combined.Left.ExportFilePath, combined.Left.AutoGenFilePath, combined.Right));
     }
 
     // -------------------------------------------------------------------------
     // Execution
     // -------------------------------------------------------------------------
 
-    private static void Execute(SourceProductionContext ctx, string rawPath, string projectDir)
+    private static void Execute(SourceProductionContext ctx, string? rawExportPath, string? rawAutoGenPath, string projectDir)
     {
-        var path = Path.IsPathRooted(rawPath)
-            ? rawPath
-            : Path.Combine(
-                projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                rawPath);
+        if (rawAutoGenPath is not null)
+        {
+            ExecuteFromAutoGen(ctx, rawAutoGenPath, projectDir);
+            return;
+        }
+        if (rawExportPath is not null)
+        {
+            ExecuteFromEtsXml(ctx, rawExportPath, projectDir);
+        }
+    }
+
+    private static void ExecuteFromAutoGen(SourceProductionContext ctx, string rawPath, string projectDir)
+    {
+        var path = ResolvePath(rawPath, projectDir);
+
+        if (!File.Exists(path))
+        {
+            ctx.ReportDiagnostic(Diagnostic.Create(AutoGenFileNotFoundDescriptor, null, path));
+            return;
+        }
+
+        string json;
+        try
+        {
+            json = File.ReadAllText(path, Encoding.UTF8);
+        }
+        catch (Exception ex)
+        {
+            ctx.ReportDiagnostic(Diagnostic.Create(AutoGenFileReadErrorDescriptor, null, path, ex.Message));
+            return;
+        }
+
+        var map = HomeCompanionAutoGenSerializer.Deserialize(json);
+        if (map is null)
+        {
+            ctx.ReportDiagnostic(Diagnostic.Create(AutoGenFileReadErrorDescriptor, null, path, "JSON could not be deserialized."));
+            return;
+        }
+
+        var entries = new List<GroupAddressEntry>(map.Count);
+        foreach (var kvp in map)
+        {
+            entries.Add(new GroupAddressEntry(kvp.Value.PropertyName, kvp.Key, kvp.Value.Dpt, useRawName: true));
+        }
+
+        ctx.AddSource("KnxValues.g.cs", SourceText.From(GenerateSource(ctx, entries), Encoding.UTF8));
+    }
+
+    private static void ExecuteFromEtsXml(SourceProductionContext ctx, string rawPath, string projectDir)
+    {
+        var path = ResolvePath(rawPath, projectDir);
 
         if (!File.Exists(path))
         {
@@ -134,6 +198,13 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
         return result;
     }
 
+    private static string ResolvePath(string rawPath, string projectDir)
+        => Path.IsPathRooted(rawPath)
+            ? rawPath
+            : Path.Combine(
+                projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                rawPath);
+
     private static void CollectGroupAddresses(XElement element, List<GroupAddressEntry> result)
     {
         foreach (var child in element.Elements())
@@ -147,7 +218,7 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
                     var name = child.Attribute("Name")?.Value;
                     var address = child.Attribute("Address")?.Value;
                     if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(address))
-                        result.Add(new GroupAddressEntry(name!, address!, child.Attribute("DPTs")?.Value));
+                        result.Add(new GroupAddressEntry(name!, address!, child.Attribute("DPTs")?.Value, useRawName: false));
                     break;
             }
         }
@@ -266,7 +337,8 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
                 ctx.ReportDiagnostic(Diagnostic.Create(MissingDptDescriptor, null, entry.Name, entry.Address));
 
             var csType = GetCSharpType(entry.Dpts);
-            var propName = MakeUnique(SanitizeToCSharpIdentifier(entry.Name), usedNames);
+            var rawPropName = entry.UseRawName ? entry.Name : SanitizeToCSharpIdentifier(entry.Name);
+            var propName = MakeUnique(rawPropName, usedNames);
 
             sb.AppendLine($"    /// <summary>{EscapeXmlComment(entry.Name)} (<c>{entry.Address}</c>)</summary>");
             sb.AppendLine($"    public ValueBase<{csType}> {propName} {{ get; }} = new()");
@@ -289,15 +361,18 @@ public sealed class KnxValuesGenerator : IIncrementalGenerator
 
     private sealed class GroupAddressEntry
     {
-        public GroupAddressEntry(string name, string address, string? dpts)
+        public GroupAddressEntry(string name, string address, string? dpts, bool useRawName)
         {
             Name = name;
             Address = address;
             Dpts = dpts;
+            UseRawName = useRawName;
         }
 
         public string Name { get; }
         public string Address { get; }
         public string? Dpts { get; }
+        /// <summary>When true, <see cref="Name"/> is already a valid C# identifier and must not be sanitized.</summary>
+        public bool UseRawName { get; }
     }
 }

@@ -69,7 +69,7 @@ See `docs/adr/0003-knx-values-source-generator.md` for the full decision record.
 
 This is the minimal proof that the full path KNX → `IValue.Changed` → logic reaction works end to end.
 
-### 1.7 Fix `KnxValues` property names to match the ones in `DomainConfiguration`
+### ~~1.7 Fix `KnxValues` property names to match the ones in `DomainConfiguration`~~ ✓
 
 Issue: the names in DomainConfiguration to not fully match the labels in the ETS export XML.
 The generator currently uses the XML labels as property names in camelized form. Those must change to match the DomainConfiguration property names which can be correlated to the ETS export via the Group Address ID (e.g. `1/2/3`).
@@ -93,7 +93,7 @@ The SRF.Network.Cli tool uses SRF.Knx.Connfig where the generation logic for the
 
 ## Priority 2 — Bugs / Correctness
 
-### 2.1 `ValueBase.ValueType` returns wrapper type, not `T`
+### ~~2.1 `ValueBase.ValueType` returns wrapper type, not `T`~~ ✓
 
 ```csharp
 // Current (in ValueBase, non-generic):
@@ -102,13 +102,48 @@ public Type ValueType => GetType();  // returns ValueBase<bool>, not typeof(bool
 
 Override in `ValueBase<T>` to return `typeof(T)`. Any diagnostic or UI code querying `IValue.ValueType` expects the value's data type, not the wrapper class.
 
-### 2.2 Thread safety of `_pendingInitialReads`
+### ~~2.2 Thread safety of `_pendingInitialReads`~~ ✓
 
-`KnxConnectivityProvider._pendingInitialReads` is a `HashSet<GroupAddress>` mutated from both the async initialization task (`SendInitialReadRequestsAsync`) and the network thread (`OnMessageReceived → _pendingInitialReads.Remove`). Replace with `ConcurrentDictionary<GroupAddress, bool>` or add a `lock`.
+`_pendingInitialReads` replaced with `ConcurrentDictionary<GroupAddress, bool>`. Uses `TryAdd`/`TryRemove`/`IsEmpty` for safe concurrent access between `SendInitialReadRequestsAsync` and the network-thread `OnMessageReceived`.
 
 ---
 
-## Priority 3 — Cleanup
+## Priority 3 — Improvements, Refactoring, Cleanup, Enhancements
+
+### 3.1 Test for type matching `IValue<T>` vs DPT numeric property type
+
+Add a test that verifies that for every `IValue<T>` with a numeric type `T` (e.g. `int`, `double`), the corresponding DPT property in the ETS export has a matching numeric PDT (e.g. `PDT_INT`, `PDT_FLOAT`) that can be resolved to the same .NET type by the DPT resolver. This ensures that the generated `IValue<T>` properties have compatible types with their DPT definitions, preventing runtime errors when formatting or parsing values.
+
+### 3.1 Refactor `DptBase.Format` to include unit information
+
+Currently, `DptBase.Format` returns only the raw value string (e.g. "22.5"). Refactor it to include unit information for numeric DPTs (e.g. "22.5 °C") by checking for `NumericInfo` and appending the unit if available.
+
+### 3.2 Enhance IValue to support unit-aware formatting
+
+Add an optional `Format` method to `IValue` that takes a `CultureInfo` and returns a formatted string including unit information if available. The default implementation can call the existing `ToString()` for backward compatibility.
+
+Bus connectors and bus specific code generators can then implement this `Format` method to provide enriched display strings for values, improving the user experience in UIs and logs without requiring consumers to manually append units without having to implement a bus-specific IValue - the IValue framework must remain bus-agnostic and not require bus-specific interfaces or implementations.
+
+Update the KNX code generator incl. the SRF.Network.Cli tool to implement this new `Format` method for KNX values, using the DPT's `NumericInfo` to include units in the formatted string.
+
+### 3.4 Enhance ETS context information available in XML comments for generated properties
+
+HomeCompanionAutoGenEntry currently includes the ETS export name (from DomainConfiguration) and group address, which are included in the generated `KnxValues` property XML comments.
+Add the Label (to property's XML comment summary) and Description (to property's XML comment remarks) from the ETS export.
+
+### 3.5 Consistency in KNX configuration properties
+
+There is ConnectionString in `KnxConnectionOptions` and in `SRF.Knx.Config.KnxConfiguration`.
+
+Review for duplications of KNX related configuration classes used in `IOptions<>` and evaluate consolidation options to prevent confusion and code duplication.
+
+Additionally, there are ConnectionString properties as well as more structured properties (e.g. MulticastAddress, Port) for the same KNX connection configuration. Review and consolidate to a single consistent approach supporting both. E.g. support parsing an optional ConnectionString while keeping the structured properties as the main configuration surface.
+
+Make those improvements with focus on HomeCompanion.Server usage but pull the SRF.Network.Cli tool along to use the same approach.
+
+---
+
+## Priority 4 — Cleanup
 
 ### 3.1 Extract shared `LambdaHandler<T>` test utility
 
@@ -120,7 +155,7 @@ Override in `ValueBase<T>` to return `typeof(T)`. Any diagnostic or UI code quer
 
 ---
 
-## Priority 4 — ADR Open Issues (future iterations)
+## Priority 5 — ADR Open Issues (future iterations)
 
 ### 4.1 Per-value initialization timeout (ADR-0002 open issue #1)
 
