@@ -5,6 +5,8 @@ namespace HomeCompanion.Abstractions;
 /// <summary>
 /// Implemented by components that bridge an external type of bus or API (e.g. KNX, OpenHAB, MQTT) to the HomeCompanion event system.
 /// The component is used as a singleton service and needs to handle all buses of that type (e.g. all KNX interfaces) if there are multiple.
+/// Connectivity providers are the entry points for system integrations. Typically they are in separate libraries within the HomeCompanion.Integrations namespace,
+/// and are responsible for translating between the external system's message format and the internal <see cref="IEvent"/> format, as well as for managing the connection lifecycle and reliability concerns of the external system.
 /// </summary>
 /// <remarks>
 /// A connectivity provider is responsible for translating inbound bus messages into <see cref="IEvent"/> instances
