@@ -1,6 +1,6 @@
 using HomeCompanion.Base.Values;
 
-namespace HomeCompanion.Knx;
+namespace HomeCompanion.Integrations.Knx;
 
 /// <summary>
 /// KNX group address values container. Properties are generated into <c>KnxValues.generated.cs</c>

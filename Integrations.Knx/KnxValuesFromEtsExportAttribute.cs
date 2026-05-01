@@ -1,4 +1,4 @@
-namespace HomeCompanion.Knx;
+namespace HomeCompanion.Integrations.Knx;
 
 /// <summary>
 /// Marker attribute indicating that this <see langword="partial"/> class participates in
@@ -9,7 +9,7 @@ namespace HomeCompanion.Knx;
 /// The file path parameters are accepted for forward compatibility but are not currently consumed;
 /// the output path is configured via <c>HomeCompanionCodeGenFile</c> in <c>SRF.Network.json</c>.
 /// <code>
-/// namespace HomeCompanion.Knx;
+/// namespace HomeCompanion.Integrations.Knx;
 /// [KnxValuesFromEtsExport]
 /// partial class KnxValues { }
 /// </code>

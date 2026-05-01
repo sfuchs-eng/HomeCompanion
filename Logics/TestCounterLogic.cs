@@ -1,7 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Base;
 using HomeCompanion.Base.Values;
-using HomeCompanion.Knx;
+using HomeCompanion.Integrations.Knx;
 
 namespace HomeCompanion.Logics;
 

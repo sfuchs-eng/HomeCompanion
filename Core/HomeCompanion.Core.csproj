@@ -19,13 +19,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
-    <ProjectReference Include="..\HomeCompanion.Knx\HomeCompanion.Knx.csproj" />
     <ProjectReference Include="..\SRF.Network\Knx\SRF.Network.Knx.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="BusConnectors/" />
-    <Folder Include="BusConnectors/Knx/" />
-  </ItemGroup>
 
 </Project>

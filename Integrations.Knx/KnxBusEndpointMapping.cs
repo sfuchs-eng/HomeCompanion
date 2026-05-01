@@ -2,7 +2,7 @@ using HomeCompanion.Base.Values;
 using SRF.Knx.Core;
 using System.Collections;
 
-namespace HomeCompanion.Knx;
+namespace HomeCompanion.Integrations.Knx;
 
 /// <summary>
 /// Maps an <see cref="IValue"/> to a KNX group address.

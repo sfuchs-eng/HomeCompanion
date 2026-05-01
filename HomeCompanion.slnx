@@ -12,8 +12,14 @@
   <Folder Name="/Core/">
     <Project Path="Core/HomeCompanion.Core.csproj" />
   </Folder>
-  <Folder Name="/HomeCompanion.Knx/">
-    <Project Path="HomeCompanion.Knx/HomeCompanion.Knx.csproj" />
+  <Folder Name="/Integrations.Knx/">
+    <Project Path="Integrations.Knx/HomeCompanion.Integrations.Knx.csproj" />
+  </Folder>
+  <Folder Name="/Integrations.Mqtt/">
+    <Project Path="Integrations.Mqtt/HomeCompanion.Integrations.Mqtt.csproj" />
+  </Folder>
+  <Folder Name="/Integrations.OpenHab/">
+    <Project Path="Integrations.OpenHab/HomeCompanion.Integrations.OpenHab.csproj" />
   </Folder>
   <Folder Name="/Logics/">
     <Project Path="Logics/HomeCompanion.Logics.csproj" />

@@ -2,7 +2,7 @@ using HomeCompanion.Abstractions;
 using SRF.Knx.Core;
 using SRF.Network.Knx.Messages;
 
-namespace HomeCompanion.Knx.Events;
+namespace HomeCompanion.Integrations.Knx.Events;
 
 /// <summary>
 /// Published by the KNX connectivity provider when a <c>GroupValueWrite</c> telegram is received from the bus.

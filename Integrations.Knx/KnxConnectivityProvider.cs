@@ -1,8 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Base.Events;
 using HomeCompanion.Base.Values;
-using HomeCompanion.Knx;
-using HomeCompanion.Knx.Events;
+using HomeCompanion.Integrations.Knx.Events;
 using Microsoft.Extensions.Logging;
 using SRF.Knx.Core;
 using SRF.Network.Knx;
@@ -10,7 +9,7 @@ using SRF.Network.Knx.Messages;
 using System.Collections.Concurrent;
 using System.Reflection;
 
-namespace HomeCompanion.Core.BusConnectors.Knx;
+namespace HomeCompanion.Integrations.Knx;
 
 /// <summary>
 /// KNX connectivity provider. Bridges one or more <see cref="IKnxConnection"/> instances to the
@@ -327,4 +326,3 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             => new(_provider.HandleValueWrittenAsync(@event, cancellationToken));
     }
 }
-
