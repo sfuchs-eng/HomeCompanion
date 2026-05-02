@@ -1,11 +1,15 @@
+using Microsoft.Extensions.Logging;
+
 namespace HomeCompanion.Base.Values;
 
 /// <summary>
 /// The value type agnostic part for <see cref="ValueBase{T}"/>.
 /// </summary>
-public abstract class ValueBase : IValue
+public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
 {
     private IEventPublisher? _publisher;
+    protected readonly ILogger<ValueBase> logger = logger;
+
     public abstract Type ValueType { get; }
     public ValueStatus Status { get; protected set; }
     public string? Name { get; set; }
@@ -14,8 +18,40 @@ public abstract class ValueBase : IValue
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
 
-    protected virtual void RaiseWritten(ValueWrittenEventArgs args) => Written?.Invoke(this, args);
-    protected virtual void RaiseChanged(ValueChangedEventArgs args) => Changed?.Invoke(this, args);
+    protected virtual void RaiseWritten(ValueWrittenEventArgs args)
+    {
+        // call the event handlers individually and catch exceptions to ensure that one misbehaving handler doesn't prevent others from being notified
+        var handlers = Written?.GetInvocationList().Cast<EventHandler<ValueWrittenEventArgs>>().ToArray() ?? [];
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                handler(this, args);
+            }
+            catch (Exception ex)
+            {
+                // log the exception and continue with the next handler
+                Console.Error.WriteLine($"Exception in ValueWritten event handler: {ex}");
+            }
+        }
+    }
+    
+    protected virtual void RaiseChanged(ValueChangedEventArgs args)
+    {
+        var handlers = Changed?.GetInvocationList().Cast<EventHandler<ValueChangedEventArgs>>().ToArray() ?? [];
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                handler(this, args);
+            }
+            catch (Exception ex)
+            {
+                // log the exception and continue with the next handler
+                Console.Error.WriteLine($"Exception in ValueChanged event handler: {ex}");
+            }
+        }
+    }
 
     /// <summary>
     /// See <see cref="IValueBusEndpointMapping"/> for details on the purpose of this property.
@@ -66,7 +102,7 @@ public abstract class ValueBase : IValue
     }
 }
 
-public class ValueBase<T> : ValueBase, IValue<T>
+public class ValueBase<T>(ILogger<ValueBase<T>> logger) : ValueBase(logger), IValue<T>
 {
     public T Value { get; protected set; } = default!;
 

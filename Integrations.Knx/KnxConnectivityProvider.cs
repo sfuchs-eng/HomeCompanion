@@ -199,38 +199,13 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         var ctx = e.KnxMessageContext;
         if (ctx.GroupEventArgs is not { } args) return;
 
-        // Decode the value if the connection layer didn't already do it.
-        if (ctx.DecodedValue is null )
-        {
-            if (args.Value is not null && args.Value.Value?.Length > 0)
-            {
-                try
-                {
-                    var dpt = _dptResolver.GetDpt(args.DestinationAddress);
-                    ctx.Dpt = dpt;
-                    ctx.DecodedValue = dpt.ToValue(args.Value);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "KnxConnectivityProvider: DPT decode failed for {GA}. GroupValue.Value length: {Length} bytes", args.DestinationAddress, args.Value?.Value?.Length);
-                }
-            }
-            else
-            {
-                _logger.LogTrace("KnxConnectivityProvider: received {EventType} message for {GA} with empty payload, ignoring message.", args.EventType, args.DestinationAddress);
-                return;
-            }
-        }
-
-        if ( args.Value is null )
-        {
-            _logger.LogTrace("KnxConnectivityProvider: received {EventType} message for {GA} with null GroupValue.Value, ignoring message.", args.EventType, args.DestinationAddress);
-            return;
-        }
+        // if there's a payload that can be decoded, the KNX connection layer has decoded it already.
+        // So failure handling onnly needs to cover for unlikely cases, where there should be a payload but either it's missing or invalid, resulting in no deccoded value.
 
         switch (args.EventType)
         {
             case GroupEventType.ValueWrite:
+                // need payload, but event can still be published even if missing/invalid, so listeners at least know that a write was attempted (even if they don't have the new value).
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
                 {
                     DestinationAddress = args.DestinationAddress,
@@ -243,6 +218,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 break;
 
             case GroupEventType.ValueRead:
+                // that's a read request, so no payload expeccted. Just publish the event and trigger a ValueReadReceived so that any listeners can respond with the current value, which should prompt the bus to send a ValueResponse with the current value.
                 _ = _publisher.PublishAsync(new KnxGroupReadReceived
                 {
                     DestinationAddress = args.DestinationAddress,
@@ -253,6 +229,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 break;
 
             case GroupEventType.ValueResponse:
+                // need payload, but even if missing/invalid, we can still publish the event so listeners at least know that a response was received (even if they don't have the current value).
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
                 {
                     DestinationAddress = args.DestinationAddress,

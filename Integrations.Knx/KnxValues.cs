@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Values;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Integrations.Knx;
 
@@ -19,4 +20,4 @@ namespace HomeCompanion.Integrations.Knx;
 /// </list>
 /// Without the generated file the class compiles without any properties (CI-safe).
 /// </remarks>
-public partial class KnxValues : ValueContainerBase { }
+public partial class KnxValues(ILogger<KnxValues> logger, ILoggerFactory loggerFactory) : ValueContainerBase(logger) { }

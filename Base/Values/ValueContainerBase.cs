@@ -1,9 +1,12 @@
 using System;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Base.Values;
 
-public abstract class ValueContainerBase : IValuesContainer
+public abstract class ValueContainerBase(ILogger<ValueContainerBase> logger) : IValuesContainer
 {
+    protected readonly ILogger<ValueContainerBase> logger = logger;
+
     public virtual IEnumerable<IValue> GetValues()
     {
         // retrieve all values from this container via reflection by looking for all properties of type IValue

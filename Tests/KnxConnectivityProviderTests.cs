@@ -4,6 +4,7 @@ using HomeCompanion.Base.Values;
 using HomeCompanion.Core;
 using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Integrations.Knx.Events;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SRF.Knx.Core;
 using SRF.Knx.Core.DPT;
@@ -91,7 +92,7 @@ public class KnxConnectivityProviderTests
 
     private sealed class TestContainer : IValuesContainer
     {
-        public ValueBase<bool> Light { get; } = new()
+        public ValueBase<bool> Light { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
         {
             BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0") },
         };
