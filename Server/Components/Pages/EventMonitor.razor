@@ -1,0 +1,124 @@
+@page "/events"
+@rendermode InteractiveServer
+
+@using System.Text.RegularExpressions
+@using HomeCompanion.Server.Services
+
+@inject EventBusMonitor Monitor
+
+@implements IDisposable
+
+<PageTitle>Event Monitor</PageTitle>
+
+<h1>Event Bus Monitor</h1>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <button class="btn btn-sm @(_paused ? "btn-success" : "btn-warning")" @onclick="TogglePause">
+        @(_paused ? "Resume" : "Pause")
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Clear">Clear</button>
+
+    <div class="d-flex align-items-center gap-1 flex-grow-1" style="min-width: 240px; max-width: 480px;">
+        <label class="form-label mb-0 text-nowrap" for="filter-input">Filter (regex):</label>
+        <input id="filter-input"
+               type="text"
+               class="form-control form-control-sm @(_filterError is not null ? "is-invalid" : "")"
+               placeholder="e.g. ValueChanged|LightValue"
+               value="@_filterPattern"
+               @oninput="OnFilterInput" />
+        @if (_filterError is not null)
+        {
+            <span class="invalid-feedback d-block">@_filterError</span>
+        }
+    </div>
+
+    <span class="badge text-bg-secondary ms-auto">@_entries.Count entries (@FilteredCount shown)</span>
+</div>
+
+<div style="overflow-x: auto;">
+    <table class="table table-sm table-hover table-bordered font-monospace" style="font-size: 0.8rem;">
+        <thead class="table-dark sticky-top">
+            <tr>
+                <th style="white-space: nowrap; width: 9em;">Time</th>
+                <th style="white-space: nowrap; width: 20em;">Event Type</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in FilteredEntries)
+            {
+                <tr>
+                    <td style="white-space: nowrap;">@entry.Timestamp.ToString("HH:mm:ss.fff")</td>
+                    <td style="white-space: nowrap;"><code>@entry.EventType</code></td>
+                    <td style="white-space: nowrap;">@entry.Details</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (_entries.Count == 0)
+{
+    <p class="text-muted">No events captured yet.</p>
+}
+
+@code {
+    private const int MaxEntries = 500;
+
+    private IDisposable? _registration;
+    private readonly List<EventEntry> _entries = [];
+    private bool _paused;
+    private string _filterPattern = string.Empty;
+    private string? _filterError;
+    private Regex? _filterRegex;
+
+    private IEnumerable<EventEntry> FilteredEntries =>
+        _filterRegex is null ? _entries : _entries.Where(e => _filterRegex.IsMatch($"{e.EventType} {e.Details}"));
+
+    private int FilteredCount => _filterRegex is null ? _entries.Count : _entries.Count(e => _filterRegex.IsMatch($"{e.EventType} {e.Details}"));
+
+    protected override void OnInitialized()
+    {
+        _registration = Monitor.Register(OnEvent);
+    }
+
+    private void OnEvent(EventEntry entry)
+    {
+        if (_paused) return;
+        InvokeAsync(() =>
+        {
+            _entries.Insert(0, entry);
+            if (_entries.Count > MaxEntries)
+                _entries.RemoveRange(MaxEntries, _entries.Count - MaxEntries);
+            StateHasChanged();
+        });
+    }
+
+    private void TogglePause() => _paused = !_paused;
+
+    private void Clear() => _entries.Clear();
+
+    private void OnFilterInput(ChangeEventArgs e)
+    {
+        _filterPattern = e.Value?.ToString() ?? string.Empty;
+        if (string.IsNullOrEmpty(_filterPattern))
+        {
+            _filterRegex = null;
+            _filterError = null;
+            return;
+        }
+
+        try
+        {
+            _filterRegex = new Regex(_filterPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+            _filterError = null;
+        }
+        catch (ArgumentException ex)
+        {
+            _filterRegex = null;
+            _filterError = ex.Message;
+        }
+    }
+
+    public void Dispose() => _registration?.Dispose();
+}
