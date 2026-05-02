@@ -2,8 +2,12 @@ namespace HomeCompanion.Base.Events;
 
 /// <summary>
 /// Published by <see cref="ValueBase{T}.Write"/> when a logic writes a new value.
-/// Connectivity providers subscribe to this event to forward the write to the connected bus.
+/// Also raised by <see cref="ValueBase{T}.ReceiveWrite"/> when a write is received from the event bus.
 /// </summary>
+/// <remarks>
+/// Connectivity providers subscribe to <see cref="ValueWriteRequest"/> to receive write requests from logics and forward them to the connected bus.
+/// Subscribing to this event would lead to a potential event loop.
+/// </remarks>
 public class ValueWritten : ValueEvent
 {
     /// <summary>The value object that was written to.</summary>

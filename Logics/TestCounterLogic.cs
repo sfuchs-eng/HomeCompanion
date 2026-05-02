@@ -19,25 +19,18 @@ namespace HomeCompanion.Logics;
 /// </list>
 /// <para>Serves as an end-to-end proof that the path KNX → <see cref="IValue.Changed"/> → logic reaction works.</para>
 /// </remarks>
-public class TestCounterLogic : LogicBase
+/// <remarks>
+/// Initializes a new <see cref="TestCounterLogic"/>.
+/// </remarks>
+public class TestCounterLogic(
+    KnxValues values,
+    IEventPublisher publisher,
+    IEventSubscriber subscriber,
+    TimeProvider timeProvider) : LogicBase(publisher, subscriber)
 {
-    private readonly KnxValues _values;
-    private readonly TimeProvider _timeProvider;
+    private readonly KnxValues _values = values;
+    private readonly TimeProvider _timeProvider = timeProvider;
     private DateTimeOffset? _switchOnAt;
-
-    /// <summary>
-    /// Initializes a new <see cref="TestCounterLogic"/>.
-    /// </summary>
-    public TestCounterLogic(
-        KnxValues values,
-        IEventPublisher publisher,
-        IEventSubscriber subscriber,
-        TimeProvider timeProvider)
-        : base(publisher, subscriber)
-    {
-        _values = values;
-        _timeProvider = timeProvider;
-    }
 
     /// <inheritdoc/>
     protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
@@ -48,21 +41,20 @@ public class TestCounterLogic : LogicBase
 
     private void OnTestSwitchChanged(object? sender, ValueChangedEventArgs e)
     {
-        /*
         if (_values.TestSwitch.Value)
         {
             // Rising edge: record start time
             _switchOnAt = _timeProvider.GetUtcNow();
-        }*/
-        //else
+        }
+        else
         {
             // Falling edge: compute duration, write results
             if (_switchOnAt.HasValue)
             {
-                var duration = (_timeProvider.GetUtcNow() - _switchOnAt.Value).TotalSeconds;
+                float duration = (float)(_timeProvider.GetUtcNow() - _switchOnAt.Value).TotalSeconds;
                 _switchOnAt = null;
-            //    _values.TestDuration.Write(duration);
-            //    _values.TestCount.Write(_values.TestCount.Value + 1);
+                _values.TestValueFloat.Write(duration);
+                _values.TestValueInt32.Write(_values.TestValueInt32.Value + 1);
             }
         }
     }

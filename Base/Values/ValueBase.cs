@@ -11,7 +11,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
     protected readonly ILogger<ValueBase> logger = logger;
 
     public abstract Type ValueType { get; }
-    public ValueStatus Status { get; protected set; }
+    public ValueStatus Status { get; protected set; } = ValueStatus.Default;
     public string? Name { get; set; }
     public string? Label { get; set; }
 
@@ -31,7 +31,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
             catch (Exception ex)
             {
                 // log the exception and continue with the next handler
-                Console.Error.WriteLine($"Exception in ValueWritten event handler: {ex}");
+                logger.LogWarning(ex, "Exception in ValueWritten event handler");
             }
         }
     }
@@ -48,7 +48,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
             catch (Exception ex)
             {
                 // log the exception and continue with the next handler
-                Console.Error.WriteLine($"Exception in ValueChanged event handler: {ex}");
+                logger.LogWarning(ex, "Exception in ValueChanged event handler");
             }
         }
     }
@@ -81,32 +81,54 @@ public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
     {
         _publisher = publisher;
         subscriber.Subscribe(new WriteReceivedHandler(this));
+        subscriber.Subscribe(new ValueReadAnswerReceivedHandler(this)); // also listen to read answers to update the value based on bus events, if needed
     }
 
     /// <summary>
-    /// Updates the stored value from a bus event payload. Called by the internal <see cref="WriteReceivedHandler"/>.
+    /// Updates the stored value from a bus event payload. Called by the internal <see cref="ValueReadAnswerReceivedHandler"/> when a value read answer event is received for this value.
+    /// The raw value from the event is passed in and the method is responsible for parsing it and updating the stored value accordingly.
     /// </summary>
-    protected virtual void ReceiveUpdate(object? rawValue) { }
+    protected abstract void ReceiveUpdate(object? rawValue);
+
+    /// <summary>
+    /// Handles a write received from the event bus (e.g. from a logic or an API call). Called by the internal <see cref="WriteReceivedHandler"/> when a value write event is received for this value.
+    /// </summary>
+    /// <param name="newValue"></param>
+    protected abstract void ReceiveWrite(object? newValue);
 
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
-    protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event);
+    protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
 
     private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
     {
         public ValueTask HandleAsync(ValueWriteReceived e, CancellationToken cancellationToken = default)
         {
             if (!ReferenceEquals(e.Target, owner)) return ValueTask.CompletedTask;
-            owner.ReceiveUpdate(e.NewValue);
+            owner.ReceiveWrite(e.NewValue);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ValueReadAnswerReceivedHandler(ValueBase owner) : IEventHandler<ValueReadAnswerReceived>
+    {
+        public ValueTask HandleAsync(ValueReadAnswerReceived e, CancellationToken cancellationToken = default)
+        {
+            if (!ReferenceEquals(e.Target, owner)) return ValueTask.CompletedTask;
+            owner.ReceiveUpdate(e.Value);
             return ValueTask.CompletedTask;
         }
     }
 }
 
-public class ValueBase<T>(ILogger<ValueBase<T>> logger) : ValueBase(logger), IValue<T>
+public class ValueBase<T> : ValueBase, IValue<T>
 {
     public T Value { get; protected set; } = default!;
 
     public override Type ValueType { get => typeof(T); }
+
+    public ValueBase(ILogger<ValueBase<T>> logger) : base(logger)
+    {
+    }
 
     /// <inheritdoc/>
     public virtual void Write(T value)
@@ -131,11 +153,13 @@ public class ValueBase<T>(ILogger<ValueBase<T>> logger) : ValueBase(logger), IVa
         if (rawValue is null)
         {
             Status |= ValueStatus.Error;
+            logger.LogDebug("Received null value for {ValueName}, which is not allowed. Ignoring the update.", Name);
             return;
         }
         if (rawValue is not T typed)
         {
             Status |= ValueStatus.Error;
+            logger.LogDebug("Received value of incorrect type for {ValueName}. Expected {ExpectedType}, but got {ActualType}. Ignoring the update.", Name, typeof(T), rawValue.GetType());
             return;
         }
 
@@ -148,6 +172,40 @@ public class ValueBase<T>(ILogger<ValueBase<T>> logger) : ValueBase(logger), IVa
         {
             RaiseChanged(new ValueChangedEventArgs(this, this));
             Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed });
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override void ReceiveWrite(object? newValue)
+    {
+        if (newValue is null)
+        {
+            Status |= ValueStatus.Error;
+            logger.LogDebug("Received null value for {ValueName}, which is not allowed. Ignoring the update.", Name);
+            return;
+        }
+        if (newValue is not T typed)
+        {
+            Status |= ValueStatus.Error;
+            logger.LogDebug("Received value of incorrect type for {ValueName}. Expected {ExpectedType}, but got {ActualType}. Ignoring the update.", Name, typeof(T), newValue.GetType());
+            return;
+        }
+
+        // Write(typed) is for internal write that go towards the bus. Here we handle a bus write to wards internal.
+        bool isFirst = !Status.HasFlag(ValueStatus.Initialized);
+        var old = Value;
+        Value = typed;
+        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+
+        // Raise the same events as Write to ensure that entities subscribed to Written or Changed get notified
+        // regardless of whether the update came from an internal Write call or an external bus event.
+        Publish(new ValueWritten<T> { Source = this, Value = typed });
+        RaiseWritten(new ValueWrittenEventArgs(this, this));
+
+        if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
+        {
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed });
+            RaiseChanged(new ValueChangedEventArgs(this, this));
         }
     }
 }

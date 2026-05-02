@@ -13,7 +13,9 @@ namespace HomeCompanion.Base.Values;
 /// - Values can be of any type (e.g. <see cref="bool"/>, <see cref="float"/>, custom classes, etc.) and are typed via the generic <see cref="IValue{T}"/> interface
 /// - Values expose events for <see cref="ILogic"/> to subscribe to changes and react accordingly
 /// - Values listen to the event bus for updates from connectivity providers (e.g. KNX bus telegrams) and update their stored value and publish change events as needed
-/// - Values can be written to by logics or connectivity providers, which triggers update propagation (e.g. writing to a bus, updating dependent values, etc.)
+/// - Values can be written to by logics calling <see cref="IValue{T}.Write"/>, which triggers update propagation (e.g. writing to a bus, updating dependent values, etc.)
+/// - Values publish write requests via the <see cref="ValueWriteRequest"/> event to let connectivity providers know that a new value needs to be sent to mapped bus endpoints.
+/// - <see cref="IConnectivityProvider"/> register themselves to the <see cref="IValue.BusMappings"/> via <see cref="IValue.AddBusEndpoint"/> with the bus entity identifier corresponding to the value. E.g. a KNX Group Address. This allows the provider to listen to value events and forward them to the bus with correct bus specific addressing.
 /// </remarks>
 public interface IValue
 {
@@ -27,6 +29,11 @@ public interface IValue
     /// Connnectivity providers shall listen to event bus instead of subscribing to individual value events, and filter as needed.
     /// </summary>
     public event EventHandler<ValueWrittenEventArgs>? Written;
+
+    /// <summary>
+    /// Value change by whatever means (e.g. bus update, API call, logic write, etc.). Published by the value object when its stored value changes.
+    /// Connnectivity providers shall listen to event bus instead of subscribing to individual value events, and filter as needed.
+    /// </summary>
     public event EventHandler<ValueChangedEventArgs>? Changed;
 
     public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping);
