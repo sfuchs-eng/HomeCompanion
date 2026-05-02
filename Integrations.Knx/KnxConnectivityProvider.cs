@@ -114,7 +114,8 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     {
         // in case the initialization is still running, cancel it to avoid waiting for missing read responses during shutdown
         ValueInitializationCts?.Cancel();
-        await ValueInitializationTask;
+        try { await ValueInitializationTask; }
+        catch (OperationCanceledException) { /* expected on cancellation, ignore */ }
 
         foreach (var connection in _connections)
         {
@@ -184,7 +185,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 try { await connection.SendMessageAsync(readRequest, cancellationToken); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Failed to send initial read request for {GA}.", ga); }
             }
-            await Task.Delay(100, cancellationToken);
+            await Task.Delay(250, cancellationToken);
         }
 
         // Wait up to InitializationReadTimeout for all GAs to respond
