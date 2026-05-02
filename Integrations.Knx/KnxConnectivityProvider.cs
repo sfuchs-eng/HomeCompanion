@@ -7,6 +7,7 @@ using SRF.Knx.Core;
 using SRF.Network.Knx;
 using SRF.Network.Knx.Messages;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 
 namespace HomeCompanion.Integrations.Knx;
@@ -59,6 +60,9 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     /// <inheritdoc/>
     public bool IsConnected => _connections.Any(c => c.IsConnected);
 
+    private Task ValueInitializationTask = Task.CompletedTask; // placeholder task to track when initial value population is finished, so that ValueReadReceived events can await it to ensure values are populated before responding to read requests
+    private CancellationTokenSource? ValueInitializationCts; // separate CTS to allow canceling the initialization wait if needed, e.g. on shutdown
+
     /// <inheritdoc/>
     public bool IsInitializationFinished => _isInitializationFinished;
 
@@ -100,16 +104,18 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             await connection.ConnectAsync(cancellationToken);
         }
 
-        // Send GroupValueRead for each registered GA to seed initial values from bus
-        if (_valueMap.Count > 0)
-            _ = SendInitialReadRequestsAsync(cancellationToken);
-        else
-            _isInitializationFinished = true;
+        // spawn a background task to initialize all values by sending GroupValueRead for each registered group address and waiting for responses, while allowing the provider to be marked as "initialization finished" after a timeout even if some responses are missing
+        ValueInitializationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        ValueInitializationTask = Task.Run(() => SendInitialReadRequestsAndMonitorAsync(ValueInitializationCts.Token), cancellationToken);
     }
 
     /// <inheritdoc/>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        // in case the initialization is still running, cancel it to avoid waiting for missing read responses during shutdown
+        ValueInitializationCts?.Cancel();
+        await ValueInitializationTask;
+
         foreach (var connection in _connections)
         {
             connection.MessageReceived -= OnMessageReceived;
@@ -153,14 +159,23 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     }
 
     // -------------------------------------------------------------------------
-    // Initial read requests
+    // Initial read requests, typically a background task at startup to populate values with current bus state
     // -------------------------------------------------------------------------
 
-    private async Task SendInitialReadRequestsAsync(CancellationToken cancellationToken)
+    private async Task SendInitialReadRequestsAndMonitorAsync(CancellationToken cancellationToken)
     {
+        // wait until all connections are established before sending initial read requests
+        while (!_connections.All(c => c.IsConnected))
+            await Task.Delay(200, cancellationToken);
+            
         foreach (var ga in _valueMap.Keys)
             _pendingInitialReads.TryAdd(ga, true);
 
+        // register answer handlers before sending read requests
+        foreach (var connection in _connections)
+            connection.MessageReceived += ProcessInitialReadResponse;
+
+        // send read requests with some delay in between to avoid overwhelming the bus at startup, especially if there are many group addresses to read
         foreach (var ga in _valueMap.Keys)
         {
             var readRequest = new GroupMessageRequest(ga, new SRF.Knx.Core.GroupValue(), GroupEventType.ValueRead);
@@ -169,6 +184,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 try { await connection.SendMessageAsync(readRequest, cancellationToken); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Failed to send initial read request for {GA}.", ga); }
             }
+            await Task.Delay(100, cancellationToken);
         }
 
         // Wait up to InitializationReadTimeout for all GAs to respond
@@ -187,8 +203,29 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                 string.Join(", ", _pendingInitialReads.Keys));
         }
 
+        // unregister answer handlers
+        foreach (var connection in _connections)
+            connection.MessageReceived -= ProcessInitialReadResponse;
+
+        // _pendinginitialReads should now be empty, but just in case, clear it to free memory and avoid potential future confusion
+        _pendingInitialReads.Clear();
+
         _isInitializationFinished = true;
     }
+
+    private void ProcessInitialReadResponse(object? sender, KnxMessageReceivedEventArgs e)
+    {
+        // Whatever sends backa value suitable for initializing we consider accordingly. Means Write and ReadAnswer telegrams, but not Read requests.
+        switch (e.KnxMessageContext.GroupEventArgs?.EventType)
+        {
+            case GroupEventType.ValueWrite:
+            case GroupEventType.ValueResponse:
+                if (e.KnxMessageContext.GroupEventArgs.DestinationAddress is { } ga)
+                    _pendingInitialReads.TryRemove(ga, out _);
+                break;
+        }
+    }
+
 
     // -------------------------------------------------------------------------
     // Inbound: KNX → EventBus

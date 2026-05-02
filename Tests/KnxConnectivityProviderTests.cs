@@ -6,9 +6,12 @@ using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Integrations.Knx.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SRF.Knx.Config;
 using SRF.Knx.Core;
 using SRF.Knx.Core.DPT;
 using SRF.Network.Knx;
+using SRF.Network.Knx.Connection;
 using SRF.Network.Knx.Messages;
 
 namespace HomeCompanion.Tests;
@@ -48,18 +51,27 @@ public class KnxConnectivityProviderTests
             NullLogger<KnxConnectivityProvider>.Instance);
     }
 
+    private static KnxConnection CreateConnection(StubKnxBus knxBus, IDptResolver? dptResolver = null)
+        => new KnxConnection(
+            new KnxLibraryInitializationStub(),
+            knxBus,
+            Options.Create(new KnxConfiguration()),
+            NullLogger<KnxConnection>.Instance,
+            dptResolver ?? new StubDptResolver());
+
     // ── Stubs ─────────────────────────────────────────────────────────────────
 
-    private sealed class StubKnxConnection : IKnxConnection
+    private sealed class StubKnxBus : IKnxBus
     {
         public bool IsConnected { get; private set; }
-        public event EventHandler<KnxConnectionEventArgs>? ConnectionStatusChanged;
+        public BusConnectionState ConnectionState { get; private set; } = BusConnectionState.Closed;
+        public event EventHandler<KnxConnectionEventArgs>? ConnectionStateChanged;
         public event EventHandler<KnxMessageReceivedEventArgs>? MessageReceived;
-        public Task ConnectAsync(CancellationToken cancellationToken = default) { IsConnected = true; return Task.CompletedTask; }
-        public Task DisconnectAsync(CancellationToken cancellationToken = default) { IsConnected = false; return Task.CompletedTask; }
+        public Task ConnectAsync(CancellationToken cancellationToken = default) { IsConnected = true; ConnectionState = BusConnectionState.Connected; return Task.CompletedTask; }
+        public Task DisconnectAsync(CancellationToken cancellationToken = default) { IsConnected = false; ConnectionState = BusConnectionState.Closed; return Task.CompletedTask; }
 
         public List<IKnxMessage> SentMessages { get; } = [];
-        public Task SendMessageAsync(IKnxMessage message, CancellationToken token) { SentMessages.Add(message); return Task.CompletedTask; }
+        public Task SendGroupMessageAsync(IKnxMessage message, CancellationToken cancellationToken = default) { SentMessages.Add(message); return Task.CompletedTask; }
 
         public void RaiseMessageReceived(GroupEventArgs args, DateTimeOffset? at = null)
             => MessageReceived?.Invoke(this, new KnxMessageReceivedEventArgs(args, at ?? DateTimeOffset.UtcNow));
@@ -67,7 +79,8 @@ public class KnxConnectivityProviderTests
         internal void RaiseConnectionStatusChanged(bool isConnected)
         {
             IsConnected = isConnected;
-            ConnectionStatusChanged?.Invoke(this, new KnxConnectionEventArgs());
+            ConnectionState = isConnected ? BusConnectionState.Connected : BusConnectionState.Closed;
+            ConnectionStateChanged?.Invoke(this, new KnxConnectionEventArgs());
         }
     }
 
@@ -106,7 +119,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundWrite_PublishesKnxGroupWriteReceived()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var provider = CreateProvider(connection, bus);
 
         KnxGroupWriteReceived? received = null;
@@ -116,7 +130,7 @@ public class KnxConnectivityProviderTests
         {
             await provider.StartAsync(CancellationToken.None);
 
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/0"),
                 SourceAddress      = new IndividualAddress("1.1.1"),
@@ -135,7 +149,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundRead_PublishesKnxGroupReadReceived()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var provider = CreateProvider(connection, bus);
 
         KnxGroupReadReceived? received = null;
@@ -145,7 +160,7 @@ public class KnxConnectivityProviderTests
         {
             await provider.StartAsync(CancellationToken.None);
 
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/1"),
                 SourceAddress      = new IndividualAddress("1.1.2"),
@@ -164,7 +179,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundResponse_PublishesKnxGroupResponseReceived()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var provider = CreateProvider(connection, bus);
 
         KnxGroupResponseReceived? received = null;
@@ -174,7 +190,7 @@ public class KnxConnectivityProviderTests
         {
             await provider.StartAsync(CancellationToken.None);
 
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/2"),
                 SourceAddress      = new IndividualAddress("1.1.3"),
@@ -194,7 +210,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundWrite_WithRegisteredGA_UpdatesValue()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var container = new TestContainer();
         var provider = CreateProvider(connection, bus, container);
 
@@ -203,7 +220,7 @@ public class KnxConnectivityProviderTests
             await provider.StartAsync(CancellationToken.None);
 
             // Simulate bus writing "true" to 1/0/0
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/0"),
                 SourceAddress      = new IndividualAddress("1.1.1"),
@@ -223,7 +240,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundResponse_WithRegisteredGA_UpdatesValueAndSetsInitialized()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var container = new TestContainer();
         var provider = CreateProvider(connection, bus, container);
 
@@ -231,7 +249,7 @@ public class KnxConnectivityProviderTests
         {
             await provider.StartAsync(CancellationToken.None);
 
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/0"),
                 SourceAddress      = new IndividualAddress("1.1.1"),
@@ -253,8 +271,10 @@ public class KnxConnectivityProviderTests
     public async Task ValueWrite_SendsGroupMessageWriteOnAllConnections()
     {
         var bus = CreateBus();
-        var conn1 = new StubKnxConnection();
-        var conn2 = new StubKnxConnection();
+        var knxBus1 = new StubKnxBus();
+        var knxBus2 = new StubKnxBus();
+        var conn1 = CreateConnection(knxBus1);
+        var conn2 = CreateConnection(knxBus2);
         var container = new TestContainer();
 
         // Build provider with two connections
@@ -275,10 +295,10 @@ public class KnxConnectivityProviderTests
             await Task.Delay(200);
         });
 
-        Assert.That(conn1.SentMessages, Has.Some.Matches<IKnxMessage>(m =>
+        Assert.That(knxBus1.SentMessages, Has.Some.Matches<IKnxMessage>(m =>
             m.EventType == GroupEventType.ValueWrite &&
             m.DestinationAddress.ToString() == "1/0/0"));
-        Assert.That(conn2.SentMessages, Has.Some.Matches<IKnxMessage>(m =>
+        Assert.That(knxBus2.SentMessages, Has.Some.Matches<IKnxMessage>(m =>
             m.EventType == GroupEventType.ValueWrite &&
             m.DestinationAddress.ToString() == "1/0/0"));
     }
@@ -287,7 +307,8 @@ public class KnxConnectivityProviderTests
     public async Task ValueWrite_PublishesValueWrittenEvent()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var container = new TestContainer();
         var provider = CreateProvider(connection, bus, container);
 
@@ -310,7 +331,8 @@ public class KnxConnectivityProviderTests
     public async Task InboundWrite_WithValueChange_PublishesValueChangedEvent()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
         var container = new TestContainer();
         var provider = CreateProvider(connection, bus, container);
 
@@ -323,7 +345,7 @@ public class KnxConnectivityProviderTests
             await provider.StartAsync(CancellationToken.None);
 
             // First inbound write: default is false, sending true — value changes
-            connection.RaiseMessageReceived(new GroupEventArgs
+            knxBus.RaiseMessageReceived(new GroupEventArgs
             {
                 DestinationAddress = new GroupAddress("1/0/0"),
                 SourceAddress      = new IndividualAddress("1.1.1"),
@@ -343,7 +365,7 @@ public class KnxConnectivityProviderTests
     public async Task IsConnected_True_AfterStartAsync()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var connection = CreateConnection(new StubKnxBus());
         var provider = CreateProvider(connection, bus);
 
         await provider.StartAsync(CancellationToken.None);
@@ -357,7 +379,7 @@ public class KnxConnectivityProviderTests
     public async Task IsConnected_False_AfterStopAsync()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var connection = CreateConnection(new StubKnxBus());
         var provider = CreateProvider(connection, bus);
 
         await provider.StartAsync(CancellationToken.None);
@@ -370,7 +392,7 @@ public class KnxConnectivityProviderTests
     public async Task NoContainers_IsInitializationFinished_SetImmediately()
     {
         var bus = CreateBus();
-        var connection = new StubKnxConnection();
+        var connection = CreateConnection(new StubKnxBus());
         var provider = CreateProvider(connection, bus);
 
         await provider.StartAsync(CancellationToken.None);
