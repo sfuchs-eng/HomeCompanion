@@ -181,7 +181,8 @@ public class KnxConnectivityProviderTests
         var bus = CreateBus();
         var knxBus = new StubKnxBus();
         var connection = CreateConnection(knxBus);
-        var provider = CreateProvider(connection, bus);
+        var container = new TestContainer();
+        var provider = CreateProvider(connection, bus, container);
 
         KnxGroupResponseReceived? received = null;
         bus.Subscribe<KnxGroupResponseReceived>(new LambdaHandler<KnxGroupResponseReceived>(e => received = e));
@@ -192,7 +193,7 @@ public class KnxConnectivityProviderTests
 
             knxBus.RaiseMessageReceived(new GroupEventArgs
             {
-                DestinationAddress = new GroupAddress("1/0/2"),
+                DestinationAddress = new GroupAddress("1/0/0"),
                 SourceAddress      = new IndividualAddress("1.1.3"),
                 EventType          = GroupEventType.ValueResponse,
                 Value              = new GroupValue([0x00]),
@@ -202,6 +203,7 @@ public class KnxConnectivityProviderTests
         });
 
         Assert.That(received, Is.Not.Null);
+        Assert.That(received!.Target, Is.SameAs(container.Light));
     }
 
     // ── Tests: IValuesContainer scanning + value update via event bus ─────────
@@ -383,6 +385,40 @@ public class KnxConnectivityProviderTests
                 DestinationAddress = inboundAddress,
                 SourceAddress = new IndividualAddress("1.1.1"),
                 EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue([0x01]),
+            });
+
+            await Task.Delay(200);
+        });
+
+        Assert.That(received, Is.Not.Null);
+        Assert.That(received!.Target, Is.SameAs(container.Light));
+    }
+
+    [Test]
+    public async Task InboundResponse_GroupAddressCreatedFromUShort_ResolvesMappedTarget()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
+        var container = new TestContainer();
+        var provider = CreateProvider(connection, bus, container);
+
+        KnxGroupResponseReceived? received = null;
+        bus.Subscribe<KnxGroupResponseReceived>(new LambdaHandler<KnxGroupResponseReceived>(e => received = e));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var mappedAddress = new GroupAddress("1/0/0");
+            var inboundAddress = new GroupAddress(mappedAddress.Address);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = inboundAddress,
+                SourceAddress = new IndividualAddress("1.1.1"),
+                EventType = GroupEventType.ValueResponse,
                 Value = new GroupValue([0x01]),
             });
 

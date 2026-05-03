@@ -239,6 +239,26 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Inbound: KNX → EventBus
     // -------------------------------------------------------------------------
 
+    private IValue? ResolveTarget(GroupAddress destinationAddress)
+    {
+        if (_valueMap.TryGetValue(destinationAddress, out var target))
+            return target;
+
+        // Fallback for rare cases where a GroupAddress instance used as dictionary key
+        // was mutated after insertion, causing hash-based lookup to miss.
+        foreach (var (groupAddress, value) in _valueMap)
+        {
+            if (groupAddress.Address == destinationAddress.Address)
+            {
+                // force update hash key by re-inserting with the same key instance, so that future lookups will find it
+                _valueMap[groupAddress] = value;
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private void OnMessageReceived(object? sender, KnxMessageReceivedEventArgs e)
     {
         var ctx = e.KnxMessageContext;
@@ -247,7 +267,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         // Lookup registered IValue for this GA — null when no mapping exists.
         // Events are always published; Target being null allows bus-aware listeners to observe
         // telegrams for group addresses that have no corresponding IValue registered.
-        _valueMap.TryGetValue(args.DestinationAddress, out var target);
+        var target = ResolveTarget(args.DestinationAddress);
 
         switch (args.EventType)
         {

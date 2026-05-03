@@ -100,3 +100,56 @@ The other projects in the solution are class libraries for the framework and the
 2. Build the application: ...
 3. Configure the application: ...
 4. Run for testing: ...
+
+### Configuration
+
+HomeCompanion reads configuration from the normal ASP.NET Core sources and additionally from these optional JSON files:
+
+- `/etc/HomeCompanion.json` for system-wide defaults
+- `~/.config/HomeCompanion.json` for per-user overrides on Linux
+
+Those files are loaded after `appsettings.json` and `appsettings.{Environment}.json`, but before environment variables. In practice this means:
+
+- repository defaults live in `Server/appsettings.json`
+- machine-specific settings belong in `/etc/HomeCompanion.json`
+- user-specific or development overrides belong in `~/.config/HomeCompanion.json`
+- environment variables still have the highest precedence
+
+For a KNX/IP Routing setup, a minimal user configuration can look like this:
+
+```json
+{
+  "Knx": {
+    "ConnectionString": "Type=IpRouting;KnxAddress=1.1.10;LocalIpAddress=192.168.200.0/24",
+    "EtsGAExportFile": "/path/to/GroupAddresses.xml",
+    "KnxMasterFolder": "/path/to/knx-master",
+    "KnxDomainConfigFile": "/path/to/KnxDomainConfig.json"
+  }
+}
+```
+
+Notes for KNX configuration:
+
+- `Knx:ConnectionString` uses Falcon-style `key=value` pairs separated by `;` or `,`.
+- `KnxAddress` sets the local KNX individual address used in outbound cEMI frames.
+- `LocalIpAddress` selects the local network interface for KNX multicast. This is useful on hosts with multiple NICs where the default multicast route would otherwise use the wrong interface.
+- `LocalIpAddress` accepts an exact host IP, a subnet base address, or CIDR notation. Examples: `192.168.200.23`, `192.168.200.0`, `192.168.200.0/24`, `fd00:1234::/64`.
+- If multiple interfaces match the same subnet hint, Ethernet is preferred over Wi-Fi.
+- If `LocalIpAddress` is omitted, HomeCompanion uses the operating system's default multicast interface.
+
+The UDP multicast settings for KNX/IP Routing default to the standard multicast endpoint and usually do not need to be configured explicitly:
+
+```json
+{
+  "Knx": {
+    "Connections": {
+      "default": {
+        "MulticastAddress": "224.0.23.12",
+        "Port": 3671
+      }
+    }
+  }
+}
+```
+
+Use `Knx:Connections` when you need to override UDP defaults per connection or connect to multiple KNX/IP Routing segments. If `Knx:Connections` is omitted, HomeCompanion registers a single connection named `default` and falls back to the library defaults for KNX/IP Routing.
