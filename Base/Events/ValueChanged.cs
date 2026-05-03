@@ -21,4 +21,11 @@ public class ValueChanged<T> : ValueChanged
 
     /// <summary>The <see cref="IValue{T}"/> instance whose value changed.</summary>
     public required IValue<T> Source { get; init; }
+
+    /// <summary>
+    /// The object that initiated the change.
+    /// Allow <see cref="ILogic"/> to listen to <see cref="ValueChanged{T}"/>
+    /// events and identify if they were the initiator of the change, to avoid reacting to their own changes and causing event loops.
+    /// </summary>
+    public object? Initiator { get; init; }
 }

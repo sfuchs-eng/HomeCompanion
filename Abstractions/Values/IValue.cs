@@ -58,5 +58,5 @@ public interface IValue<T> : IValue
     public T Value { get; }
 
     /// <summary>Writes a value, triggering update propagation (e.g. to a connected bus).</summary>
-    void Write(T value);
+    void Write(T value, object? initiator = null);
 }

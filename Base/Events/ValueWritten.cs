@@ -10,6 +10,14 @@ namespace HomeCompanion.Base.Events;
 /// </remarks>
 public class ValueWritten : ValueEvent
 {
+    /// <summary>
+    /// The object that initiated the write.
+    /// Allow <see cref="ILogic"/> to listen to <see cref="ValueWritten"/>
+    /// events and identify if they were the initiator of the write, to avoid reacting to their own writes and causing event loops.
+    /// </summary>
+    /// <value></value>
+    public object? Initiator { get; init; }
+
     /// <summary>The value object that was written to.</summary>
     public required IValue Source { get; init; }
 

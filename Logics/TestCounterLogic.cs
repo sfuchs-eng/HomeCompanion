@@ -2,6 +2,7 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Base;
 using HomeCompanion.Base.Values;
 using HomeCompanion.Integrations.Knx;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics;
 
@@ -26,23 +27,27 @@ public class TestCounterLogic(
     KnxValues values,
     IEventPublisher publisher,
     IEventSubscriber subscriber,
-    TimeProvider timeProvider) : LogicBase(publisher, subscriber)
+    TimeProvider timeProvider,
+    ILogger<TestCounterLogic> logger) : LogicBase(publisher, subscriber)
 {
     private readonly KnxValues _values = values;
     private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly ILogger<TestCounterLogic> _logger = logger;
     private DateTimeOffset? _switchOnAt;
 
     /// <inheritdoc/>
     protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
     {
-        //_values.TestSwitch.Changed += OnTestSwitchChanged;
+        _values.TestSwitch.Changed += OnTestSwitchChanged;
         return Task.CompletedTask;
     }
 
     private void OnTestSwitchChanged(object? sender, ValueChangedEventArgs e)
     {
-        if (_values.TestSwitch.Value)
+        _logger.LogTrace("Received TestSwitch change event. New value: {NewValue}, Status: {Status}", _values.TestSwitch.Value, _values.TestSwitch.Status);
+        if (_values.TestSwitch.Value && _values.TestSwitch.Status.HasFlag(ValueStatus.Initialized))
         {
+            _logger.LogInformation("Test switch turned ON. Recording start time.");
             // Rising edge: record start time
             _switchOnAt = _timeProvider.GetUtcNow();
         }
@@ -51,10 +56,11 @@ public class TestCounterLogic(
             // Falling edge: compute duration, write results
             if (_switchOnAt.HasValue)
             {
+                _logger.LogInformation("Test switch turned OFF. Computing duration and updating values.");
                 float duration = (float)(_timeProvider.GetUtcNow() - _switchOnAt.Value).TotalSeconds;
                 _switchOnAt = null;
-                _values.TestValueFloat.Write(duration);
-                _values.TestValueInt32.Write(_values.TestValueInt32.Value + 1);
+                _values.TestValueFloat.Write(duration, this);
+                _values.TestValueInt32.Write(_values.TestValueInt32.Value + 1, this);
             }
         }
     }
