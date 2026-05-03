@@ -5,10 +5,11 @@ namespace HomeCompanion.Base.Values;
 /// <summary>
 /// The value type agnostic part for <see cref="ValueBase{T}"/>.
 /// </summary>
-public abstract class ValueBase(ILogger<ValueBase> logger) : IValue
+public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timeProvider = null) : IValue
 {
     private IEventPublisher? _publisher;
     protected readonly ILogger<ValueBase> logger = logger;
+    protected readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public abstract Type ValueType { get; }
     public ValueStatus Status { get; protected set; } = ValueStatus.Default;
@@ -126,7 +127,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
 
     public override Type ValueType { get => typeof(T); }
 
-    public ValueBase(ILogger<ValueBase<T>> logger) : base(logger)
+    public ValueBase(ILogger<ValueBase<T>> logger, TimeProvider? timeProvider = null) : base(logger, timeProvider)
     {
     }
 
@@ -137,13 +138,14 @@ public class ValueBase<T> : ValueBase, IValue<T>
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
 
+        Publish(new ValueWriteRequest<T> { Source = this, NewValue = value, Timestamp = _timeProvider.GetUtcNow() });
         RaiseWritten(new ValueWrittenEventArgs(this, this));
-        Publish(new ValueWritten<T> { Source = this, Value = value });
+        Publish(new ValueWritten<T> { Source = this, Value = value, Timestamp = _timeProvider.GetUtcNow() });
 
         if (!EqualityComparer<T>.Default.Equals(old, value))
         {
             RaiseChanged(new ValueChangedEventArgs(this, this));
-            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = value });
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = value, Timestamp = _timeProvider.GetUtcNow() });
         }
     }
 
@@ -171,7 +173,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
             RaiseChanged(new ValueChangedEventArgs(this, this));
-            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed });
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Timestamp = _timeProvider.GetUtcNow() });
         }
     }
 
@@ -199,12 +201,12 @@ public class ValueBase<T> : ValueBase, IValue<T>
 
         // Raise the same events as Write to ensure that entities subscribed to Written or Changed get notified
         // regardless of whether the update came from an internal Write call or an external bus event.
-        Publish(new ValueWritten<T> { Source = this, Value = typed });
+        Publish(new ValueWritten<T> { Source = this, Value = typed, Timestamp = _timeProvider.GetUtcNow() });
         RaiseWritten(new ValueWrittenEventArgs(this, this));
 
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
-            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed });
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Timestamp = _timeProvider.GetUtcNow() });
             RaiseChanged(new ValueChangedEventArgs(this, this));
         }
     }

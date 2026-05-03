@@ -5,7 +5,7 @@ namespace HomeCompanion.Base.Values;
 
 /// <summary>
 /// A datapoint value in the HomeCompanion system. Values are managed by the <see cref="IValuesManager"/> and can be written to by logics or connectivity providers, and read by logics or connectivity providers.
-/// Values can be initialized with a default value or updated based on bus telegrams or API calls. See also <see cref="ValueInitialization"/> and <see cref="ValueWritten"/> events as well as <see cref="IValuesContainer"/> for classes
+/// Values can be updated based on bus telegrams or API calls. See also <see cref="ValueWritten"/> events as well as <see cref="IValuesContainer"/> for classes
 /// that contain values.
 /// </summary>
 /// <remarks>

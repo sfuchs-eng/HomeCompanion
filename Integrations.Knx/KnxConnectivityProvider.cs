@@ -18,15 +18,19 @@ namespace HomeCompanion.Integrations.Knx;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Inbound</b> (KNX → EventBus): On each received telegram, the corresponding HC event is published:
+/// <b>Inbound</b> (KNX → EventBus): One event is published per received telegram:
 /// <list type="bullet">
-///   <item><c>GroupValueWrite</c> → <see cref="KnxGroupWriteReceived"/> + <see cref="ValueWriteReceived"/></item>
-///   <item><c>GroupValueRead</c> → <see cref="KnxGroupReadReceived"/> + <see cref="ValueReadReceived"/></item>
-///   <item><c>GroupValueResponse</c> → <see cref="KnxGroupResponseReceived"/> + <see cref="ValueReadAnswerReceived"/> + <see cref="ValueWriteReceived"/></item>
+///   <item><c>GroupValueWrite</c> → <see cref="KnxGroupWriteReceived"/> (extends <see cref="ValueWriteReceived"/>)</item>
+///   <item><c>GroupValueRead</c> → <see cref="KnxGroupReadReceived"/> (extends <see cref="ValueReadReceived"/>)</item>
+///   <item><c>GroupValueResponse</c> → <see cref="KnxGroupResponseReceived"/> (extends <see cref="ValueReadAnswerReceived"/>)</item>
 /// </list>
+/// Events are published for every received telegram. <see cref="ValueWriteReceived.Target"/> (and equivalents) is the
+/// registered <see cref="IValue"/> for the group address, or <see langword="null"/> if none is mapped.
+/// Subscribers to a base type (e.g. <see cref="ValueWriteReceived"/>) receive derived events via the type-hierarchy
+/// dispatch of the event bus.
 /// </para>
 /// <para>
-/// <b>Outbound</b> (EventBus → KNX): Subscribes to <see cref="ValueWritten"/> on the HC event bus.
+/// <b>Outbound</b> (EventBus → KNX): Subscribes to <see cref="ValueWriteRequest"/> on the HC event bus.
 /// When the source value has a <see cref="KnxBusEndpointMapping"/>, the value is encoded and broadcast
 /// as a <c>GroupValueWrite</c> telegram to all registered connections.
 /// </para>
@@ -50,6 +54,8 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private readonly ILogger<KnxConnectivityProvider> _logger;
 
     /// <summary>Group address → registered value map, built at startup.</summary>
+    /// <remarks>In case of full extention to supporting multiple KNX systems in parallel with overlapping group addresses,
+    /// this would need to be changed to also consider the bus/connection, e.g. by using a composite key of (busId, groupAddress) or by maintaining a separate map per bus.</remarks>
     private Dictionary<GroupAddress, IValue> _valueMap = [];
 
     /// <summary>Tracks which group addresses still need an initial read response.</summary>
@@ -89,7 +95,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // Subscribe to outbound write requests from the event bus
-        _subscriber.Subscribe(new ValueWrittenHandler(this));
+        _subscriber.Subscribe(new ValueWriteRequestHandler(this));
 
         // Discover and initialize all IValue properties with a KNX bus mapping
         _valueMap = DiscoverKnxValues();
@@ -168,7 +174,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         // wait until all connections are established before sending initial read requests
         while (!_connections.All(c => c.IsConnected))
             await Task.Delay(200, cancellationToken);
-            
+
         foreach (var ga in _valueMap.Keys)
             _pendingInitialReads.TryAdd(ga, true);
 
@@ -237,69 +243,50 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         var ctx = e.KnxMessageContext;
         if (ctx.GroupEventArgs is not { } args) return;
 
-        // if there's a payload that can be decoded, the KNX connection layer has decoded it already.
-        // So failure handling onnly needs to cover for unlikely cases, where there should be a payload but either it's missing or invalid, resulting in no deccoded value.
+        // Lookup registered IValue for this GA — null when no mapping exists.
+        // Events are always published; Target being null allows bus-aware listeners to observe
+        // telegrams for group addresses that have no corresponding IValue registered.
+        _valueMap.TryGetValue(args.DestinationAddress, out var target);
 
         switch (args.EventType)
         {
             case GroupEventType.ValueWrite:
-                // need payload, but event can still be published even if missing/invalid, so listeners at least know that a write was attempted (even if they don't have the new value).
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
                 {
                     DestinationAddress = args.DestinationAddress,
                     SourceAddress = args.SourceAddress,
                     RawValue = args.Value,
                     DecodedValue = ctx.DecodedValue,
-                    ReceivedAt = ctx.ReceivedAt,
+                    NewValue = ctx.DecodedValue,
+                    Timestamp = ctx.ReceivedAt,
+                    Target = target,
                 });
-                PublishValueWriteReceived(args.DestinationAddress, ctx.DecodedValue);
                 break;
 
             case GroupEventType.ValueRead:
-                // that's a read request, so no payload expeccted. Just publish the event and trigger a ValueReadReceived so that any listeners can respond with the current value, which should prompt the bus to send a ValueResponse with the current value.
                 _ = _publisher.PublishAsync(new KnxGroupReadReceived
                 {
                     DestinationAddress = args.DestinationAddress,
                     SourceAddress = args.SourceAddress,
-                    ReceivedAt = ctx.ReceivedAt,
+                    Timestamp = ctx.ReceivedAt,
+                    Target = target,
                 });
-                PublishValueReadReceived(args.DestinationAddress);
                 break;
 
             case GroupEventType.ValueResponse:
-                // need payload, but even if missing/invalid, we can still publish the event so listeners at least know that a response was received (even if they don't have the current value).
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
                 {
                     DestinationAddress = args.DestinationAddress,
                     SourceAddress = args.SourceAddress,
                     RawValue = args.Value,
                     DecodedValue = ctx.DecodedValue,
-                    ReceivedAt = ctx.ReceivedAt,
+                    Value = ctx.DecodedValue,
+                    Timestamp = ctx.ReceivedAt,
+                    Target = target,
                 });
-                PublishValueReadAnswerReceived(args.DestinationAddress, ctx.DecodedValue);
-                // A read response also carries the current value — publish as write so the value updates.
-                PublishValueWriteReceived(args.DestinationAddress, ctx.DecodedValue);
                 _pendingInitialReads.TryRemove(args.DestinationAddress, out _);
                 break;
         }
-    }
-
-    private void PublishValueWriteReceived(GroupAddress ga, object? decodedValue)
-    {
-        if (_valueMap.TryGetValue(ga, out var value))
-            _ = _publisher.PublishAsync(new ValueWriteReceived { Target = value, NewValue = decodedValue });
-    }
-
-    private void PublishValueReadReceived(GroupAddress ga)
-    {
-        if (_valueMap.TryGetValue(ga, out var value))
-            _ = _publisher.PublishAsync(new ValueReadReceived { Target = value });
-    }
-
-    private void PublishValueReadAnswerReceived(GroupAddress ga, object? decodedValue)
-    {
-        if (_valueMap.TryGetValue(ga, out var value))
-            _ = _publisher.PublishAsync(new ValueReadAnswerReceived { Target = value, Value = decodedValue });
     }
 
     private void OnConnectionStatusChanged(object? sender, KnxConnectionEventArgs e)
@@ -311,9 +298,9 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Outbound: EventBus → KNX
     // -------------------------------------------------------------------------
 
-    private async Task HandleValueWrittenAsync(ValueWritten written, CancellationToken cancellationToken)
+    private async Task HandleValueWriteRequestAsync(ValueWriteRequest request, CancellationToken cancellationToken)
     {
-        if (!written.Source.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping))
+        if (!request.Source.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping))
             return; // not a KNX-backed value
 
         var ga = mapping!.GroupAddress;
@@ -322,16 +309,16 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         try
         {
             var dpt = _dptResolver.GetDpt(ga);
-            if (written.Value is null)
+            if (request.NewValue is null)
             {
-                _logger.LogWarning("ValueWritten for {GA}: value is null, skipping send.", ga);
+                _logger.LogWarning("ValueWriteRequest for {GA}: value is null, skipping send.", ga);
                 return;
             }
-            encoded = dpt.ToGroupValue(written.Value);
+            encoded = dpt.ToGroupValue(request.NewValue);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "ValueWritten for {GA}: DPT encoding failed, skipping send.", ga);
+            _logger.LogWarning(ex, "ValueWriteRequest for {GA}: DPT encoding failed, skipping send.", ga);
             return;
         }
 
@@ -347,11 +334,11 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Inner event handler
     // -------------------------------------------------------------------------
 
-    private sealed class ValueWrittenHandler : IEventHandler<ValueWritten>
+    private sealed class ValueWriteRequestHandler : IEventHandler<ValueWriteRequest>
     {
         private readonly KnxConnectivityProvider _provider;
-        public ValueWrittenHandler(KnxConnectivityProvider provider) => _provider = provider;
-        public ValueTask HandleAsync(ValueWritten @event, CancellationToken cancellationToken = default)
-            => new(_provider.HandleValueWrittenAsync(@event, cancellationToken));
+        public ValueWriteRequestHandler(KnxConnectivityProvider provider) => _provider = provider;
+        public ValueTask HandleAsync(ValueWriteRequest @event, CancellationToken cancellationToken = default)
+            => new(_provider.HandleValueWriteRequestAsync(@event, cancellationToken));
     }
 }

@@ -6,8 +6,8 @@ namespace HomeCompanion.Base.Events;
 /// </summary>
 public class ValueWriteReceived : ValueEvent
 {
-    /// <summary>The value object that should be updated.</summary>
-    public required IValue Target { get; init; }
+    /// <summary>The value object that should be updated, or <see langword="null"/> if no <see cref="IValue"/> is registered for the bus address.</summary>
+    public IValue? Target { get; init; }
 
     /// <summary>The decoded value received from the bus, or <see langword="null"/> if decoding failed.</summary>
     public object? NewValue { get; init; }

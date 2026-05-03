@@ -1,6 +1,6 @@
 namespace HomeCompanion.Base.Events;
 
-public class ValueEvent : IEvent
+/// <summary>Base class for all value-related events published on the event bus.</summary>
+public class ValueEvent : HomeCompanionEvent
 {
-
 }

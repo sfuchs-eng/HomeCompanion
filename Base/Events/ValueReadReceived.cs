@@ -5,6 +5,6 @@ namespace HomeCompanion.Base.Events;
 /// </summary>
 public class ValueReadReceived : ValueEvent
 {
-    /// <summary>The value object that was requested.</summary>
-    public required IValue Target { get; init; }
+    /// <summary>The value object that was requested, or <see langword="null"/> if no <see cref="IValue"/> is registered for the bus address.</summary>
+    public IValue? Target { get; init; }
 }

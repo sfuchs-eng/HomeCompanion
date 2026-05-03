@@ -1,4 +1,3 @@
-using System.Reflection;
 using HomeCompanion.Abstractions;
 using HomeCompanion.Base.Events;
 using HomeCompanion.Base.Values;
@@ -72,6 +71,8 @@ public sealed class EventBusMonitor
 
     private void SubscribeToAllEventTypes(IEventSubscriber subscriber)
     {
+        subscriber.Subscribe(new EventBusMonitorHandler<HomeCompanionEvent>(this));
+        /*
         var iEventType = typeof(IEvent);
         var subscribeMethod = typeof(IEventSubscriber).GetMethod(nameof(IEventSubscriber.Subscribe))
             ?? throw new InvalidOperationException("IEventSubscriber.Subscribe method not found.");
@@ -97,6 +98,7 @@ public sealed class EventBusMonitor
                 concreteSubscribe.Invoke(subscriber, [handler]);
             }
         }
+        */
     }
 
     // ---- Formatting ---------------------------------------------------------
@@ -116,10 +118,9 @@ public sealed class EventBusMonitor
         ValueChanged vc => FormatValueChanged(vc),
         ValueWritten vw => $"{vw.Source.Name ?? vw.Source.GetType().Name} = {vw.Value}",
         ValueWriteRequest vwr => $"→ {vwr.Source.Name ?? vwr.Source.GetType().Name} = {vwr.NewValue}",
-        ValueWriteReceived vwrc => $"← {vwrc.Target.Name ?? vwrc.Target.GetType().Name} = {vwrc.NewValue}",
-        ValueReadReceived vrr => $"? {vrr.Target.Name ?? vrr.Target.GetType().Name}",
-        ValueReadAnswerReceived vrar => $"? {vrar.Target.Name ?? vrar.Target.GetType().Name} ← {vrar.Value}",
-        ValueInitialization vi => FormatValueInitialization(vi),
+        ValueWriteReceived vwrc => $"← {vwrc.Target?.Name ?? vwrc.Target?.GetType().Name ?? "?"} = {vwrc.NewValue}",
+        ValueReadReceived vrr => $"? {vrr.Target?.Name ?? vrr.Target?.GetType().Name ?? "?"}",
+        ValueReadAnswerReceived vrar => $"? {vrar.Target?.Name ?? vrar.Target?.GetType().Name ?? "?"} ← {vrar.Value}",
         _ => evt.ToString() ?? evt.GetType().Name
     };
 
@@ -137,16 +138,6 @@ public sealed class EventBusMonitor
         var source = sourceProp.GetValue(vc) as IValue;
         var name = source?.Name ?? source?.GetType().Name ?? "?";
         return $"{name}: {oldProp.GetValue(vc)} → {newProp.GetValue(vc)}";
-    }
-
-    private static string FormatValueInitialization(ValueInitialization vi)
-    {
-        var type = vi.GetType();
-        var valueProp = type.GetProperty("Value");
-        if (valueProp is null)
-            return GetEventTypeName(type);
-
-        return $"{GetEventTypeName(type)}: {valueProp.GetValue(vi)}";
     }
 
     // ---- Inner types --------------------------------------------------------

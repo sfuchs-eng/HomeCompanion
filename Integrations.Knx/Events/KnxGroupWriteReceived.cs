@@ -1,4 +1,4 @@
-using HomeCompanion.Abstractions;
+using HomeCompanion.Base.Events;
 using SRF.Knx.Core;
 using SRF.Network.Knx.Messages;
 
@@ -7,7 +7,7 @@ namespace HomeCompanion.Integrations.Knx.Events;
 /// <summary>
 /// Published by the KNX connectivity provider when a <c>GroupValueWrite</c> telegram is received from the bus.
 /// </summary>
-public class KnxGroupWriteReceived : IEvent
+public class KnxGroupWriteReceived : ValueWriteReceived
 {
     /// <summary>The KNX group address the telegram was sent to.</summary>
     public required GroupAddress DestinationAddress { get; init; }
@@ -23,6 +23,4 @@ public class KnxGroupWriteReceived : IEvent
     /// </summary>
     public object? DecodedValue { get; init; }
 
-    /// <summary>Timestamp at which the telegram was received from the bus.</summary>
-    public required DateTimeOffset ReceivedAt { get; init; }
 }

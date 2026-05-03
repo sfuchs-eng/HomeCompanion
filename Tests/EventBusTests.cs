@@ -9,7 +9,10 @@ public class EventBusTests
 {
     // ── Minimal test event types ─────────────────────────────────────────────
 
-    private record TestEvent(int Sequence) : IEvent;
+    private record TestEvent(int Sequence) : IEvent
+    {
+        public DateTimeOffset Timestamp { get; init; }
+    }
     private record DerivedEvent(int Sequence) : TestEvent(Sequence);
 
     // ── Helper: run the bus dispatch loop for the duration of an async action ─
