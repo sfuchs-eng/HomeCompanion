@@ -140,6 +140,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         var map = new Dictionary<GroupAddress, IValue>();
         foreach (var container in _containers)
             DiscoverKnxValuesIn(container, container.GetType(), map);
+        _logger.LogInformation("Discovered {Count} KNX values in {Types}.", map.Count, string.Join(", ", _containers.Select(c => c.GetType().FullName)));
         return map;
     }
 

@@ -359,6 +359,40 @@ public class KnxConnectivityProviderTests
         Assert.That(changed, Is.Not.Null);
     }
 
+    [Test]
+    public async Task InboundWrite_GroupAddressCreatedFromUShort_ResolvesMappedTarget()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
+        var container = new TestContainer();
+        var provider = CreateProvider(connection, bus, container);
+
+        KnxGroupWriteReceived? received = null;
+        bus.Subscribe<KnxGroupWriteReceived>(new LambdaHandler<KnxGroupWriteReceived>(e => received = e));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var mappedAddress = new GroupAddress("1/0/0");
+            var inboundAddress = new GroupAddress(mappedAddress.Address);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = inboundAddress,
+                SourceAddress = new IndividualAddress("1.1.1"),
+                EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue([0x01]),
+            });
+
+            await Task.Delay(200);
+        });
+
+        Assert.That(received, Is.Not.Null);
+        Assert.That(received!.Target, Is.SameAs(container.Light));
+    }
+
     // ── Tests: IsConnected / IsInitializationFinished ────────────────────────
 
     [Test]
