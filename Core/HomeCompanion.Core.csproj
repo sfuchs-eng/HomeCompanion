@@ -24,6 +24,7 @@
     <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
     <ProjectReference Include="..\Integrations.Mqtt\HomeCompanion.Integrations.Mqtt.csproj" />
     <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
+    <ProjectReference Include="..\SRF.Network\OpenHab\SRF.Network.OpenHab.csproj" />
   </ItemGroup>
 
 </Project>

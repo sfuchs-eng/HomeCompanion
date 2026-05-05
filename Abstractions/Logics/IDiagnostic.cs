@@ -1,6 +1,6 @@
 using System;
 
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Logics;
 
 /// <summary>
 /// Implemented by components that provide diagnostic functionality (e.g. health checks, metrics, debug endpoints).

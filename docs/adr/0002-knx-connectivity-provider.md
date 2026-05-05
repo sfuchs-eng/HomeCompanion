@@ -54,7 +54,7 @@ public ValueBase<bool> Light { get; } = new()
 On each inbound telegram, the provider publishes two layers of events:
 
 1. **KNX-level** (`HomeCompanion.Knx.Events`): `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` — carry raw bus detail (group address, physical source address, raw payload, decoded value).
-2. **Value-level** (`HomeCompanion.Base.Events`): `ValueWriteReceived`, `ValueReadReceived`, `ValueReadAnswerReceived` — carry a reference to the `IValue` target and the decoded value.
+2. **Value-level** (`HomeCompanion.Events`): `ValueWriteReceived`, `ValueReadReceived`, `ValueReadAnswerReceived` — carry a reference to the `IValue` target and the decoded value.
 
 `ValueBase<T>` subscribes to `ValueWriteReceived` on the event bus (via `IValue.Initialize`) and updates its stored value when the event targets it. It then publishes `ValueChanged<T>` if the value actually changed.
 

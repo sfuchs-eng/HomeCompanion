@@ -40,6 +40,9 @@
   <Folder Name="/SRF.Network/Mqtt/">
     <Project Path="SRF.Network/Mqtt/SRF.Network.Mqtt.csproj" />
   </Folder>
+  <Folder Name="/SRF.Network/OpenHab/">
+    <Project Path="SRF.Network/OpenHab/SRF.Network.OpenHab.csproj" />
+  </Folder>
   <Folder Name="/SRF.Network/Subs/" />
   <Folder Name="/SRF.Network/Subs/SRF.Industrial/" />
   <Folder Name="/SRF.Network/Subs/SRF.Industrial/Packets/">

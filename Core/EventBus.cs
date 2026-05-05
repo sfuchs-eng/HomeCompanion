@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using HomeCompanion.Abstractions;
+using HomeCompanion.Events;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

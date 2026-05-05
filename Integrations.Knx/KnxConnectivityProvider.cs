@@ -1,6 +1,6 @@
-using HomeCompanion.Abstractions;
-using HomeCompanion.Base.Events;
-using HomeCompanion.Base.Values;
+using HomeCompanion;
+using HomeCompanion.Events;
+using HomeCompanion.Values;
 using HomeCompanion.Integrations.Knx.Events;
 using Microsoft.Extensions.Logging;
 using SRF.Knx.Core;

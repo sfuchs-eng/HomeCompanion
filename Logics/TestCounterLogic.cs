@@ -1,8 +1,9 @@
-using HomeCompanion.Abstractions;
-using HomeCompanion.Base;
-using HomeCompanion.Base.Values;
+using HomeCompanion;
+using HomeCompanion.Events;
+using HomeCompanion.Values;
 using HomeCompanion.Integrations.Knx;
 using Microsoft.Extensions.Logging;
+using HomeCompanion.Logics;
 
 namespace HomeCompanion.Logics;
 

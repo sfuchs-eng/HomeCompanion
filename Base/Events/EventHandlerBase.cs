@@ -1,7 +1,7 @@
-namespace HomeCompanion.Base;
+namespace HomeCompanion.Events;
 
 /// <summary>
-/// Convenience base class for event handlers inside logic modules.
+/// Convenience base class for event handlers consuming events from the event bus via <see cref="IEventSubscriber"/>.
 /// </summary>
 /// <remarks>
 /// Derive from this class and implement <see cref="HandleAsync"/> to handle events of type <typeparamref name="T"/>.

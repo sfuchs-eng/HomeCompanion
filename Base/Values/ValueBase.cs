@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 /// <summary>
 /// The value type agnostic part for <see cref="ValueBase{T}"/>.
@@ -99,6 +99,8 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
+
+    public abstract bool InitializeValue(object value, ValuesInitializationStage stage);
 
     private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
     {
@@ -209,5 +211,23 @@ public class ValueBase<T> : ValueBase, IValue<T>
             Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Initiator = null, Timestamp = _timeProvider.GetUtcNow() });
             RaiseChanged(new ValueChangedEventArgs(this, this, null));
         }
+    }
+
+    public override bool InitializeValue(object value, ValuesInitializationStage stage)
+    {
+        if ( value is T typed)
+        {
+            return InitializeValue(typed, stage);
+        }
+        Status |= ValueStatus.Error;
+        logger.LogDebug("Failed to initialize {ValueName} with value of incorrect type. Expected {ExpectedType}, but got {ActualType}.", Name, typeof(T), value?.GetType());
+        return false;
+    }
+
+    public bool InitializeValue(T value, ValuesInitializationStage stage)
+    {
+        Value = value;
+        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        return true;
     }
 }

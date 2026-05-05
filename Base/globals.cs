@@ -1,5 +1,3 @@
-global using HomeCompanion.Abstractions;
-global using HomeCompanion.Base;
-global using HomeCompanion.Base.Events;
-global using HomeCompanion.Base.Values;
+global using HomeCompanion.Events;
+global using HomeCompanion.Values;
 global using HomeCompanion.Logics;

@@ -1,6 +1,6 @@
-using HomeCompanion.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;
 using HomeCompanion.Core;
+using HomeCompanion.Events;
 
 namespace HomeCompanion.Tests;
 

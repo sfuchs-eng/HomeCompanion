@@ -12,4 +12,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Events/" />
+  </ItemGroup>
+
 </Project>

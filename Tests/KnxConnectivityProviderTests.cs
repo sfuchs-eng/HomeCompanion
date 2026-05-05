@@ -1,6 +1,6 @@
-using HomeCompanion.Abstractions;
-using HomeCompanion.Base.Events;
-using HomeCompanion.Base.Values;
+using HomeCompanion;
+using HomeCompanion.Events;
+using HomeCompanion.Values;
 using HomeCompanion.Core;
 using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Integrations.Knx.Events;

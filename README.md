@@ -65,7 +65,7 @@ graph TD
 
     Base[HomeCompanion.Base] --> Abstractions
 
-    Abstractions[HomeCompanion.Abstractions]
+    Abstractions[HomeCompanion]
 ```
 
 ## Development approach

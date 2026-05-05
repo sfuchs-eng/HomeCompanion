@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 [Flags]
 public enum ValueStatus

@@ -1,4 +1,4 @@
-using HomeCompanion.Abstractions;
+using HomeCompanion;
 using HomeCompanion.Core;
 using HomeCompanion.Logics;
 using Microsoft.Extensions.Hosting;

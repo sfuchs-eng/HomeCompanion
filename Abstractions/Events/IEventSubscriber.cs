@@ -1,4 +1,4 @@
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Registers <see cref="IEventHandler{T}"/> instances with the event bus.

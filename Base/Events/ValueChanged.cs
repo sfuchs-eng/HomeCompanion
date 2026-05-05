@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Published when a value's stored data actually changes (old value differs from new value).

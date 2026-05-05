@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Published by a connectivity provider when a bus read request is received for a registered value.

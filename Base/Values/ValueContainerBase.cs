@@ -1,7 +1,7 @@
 using System;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 public abstract class ValueContainerBase(ILogger<ValueContainerBase> logger) : IValuesContainer
 {

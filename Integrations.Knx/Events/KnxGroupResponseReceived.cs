@@ -1,4 +1,4 @@
-using HomeCompanion.Base.Events;
+using HomeCompanion.Events;
 using SRF.Knx.Core;
 using SRF.Network.Knx.Messages;
 

@@ -4,6 +4,23 @@
 
 ---
 
+## Present work focus
+
+- [ ] IValues initialization framework to be finished and tested
+  - [x] Implement `KnxValues` source generator to emit properties from ETS export
+  - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests
+  - [ ] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
+  - [ ] Implement saving values upon terminatino to json storage and loading them on startup
+  - [x] Integrate SRF.Network.OpenHab
+  - [ ] Implement an IConnnectionProvider for OpenHab to manage connectivity and event reception
+  - [ ] Test OpenHab connectivity and item value as well as even reception
+  - [ ] Batch-load values from OpenHab, initializing those which map by name (or other logic? Bus maping? General permission via attribute on the IValuesContainer implementation?)
+- [x] Establish correct communication with the KNX bus, receiving telegrams and raising events accordingly (KNX → event bus)
+- [ ] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
+- [ ] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
+
+---
+
 ## Priority 1 — Blockers (system cannot run without these)
 
 ### ~~1.1 Register `IValuesContainer` implementations in DI~~ ✓

@@ -15,7 +15,7 @@ Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or Infl
 
 | Project | Role |
 |---------|------|
-| `HomeCompanion.Abstractions` | Core interfaces: `ILogic`, `IDiagnostic`, connectivity provider interfaces |
+| `HomeCompanion` | Core interfaces: `ILogic`, `IDiagnostic`, connectivity provider interfaces |
 | `HomeCompanion.Base` | Base class `LogicBase` — implements `ILogic` with common functionality |
 | `HomeCompanion.Core` | `LogicManager`, connectivity managers (KNX, OpenHAB, MQTT, InfluxDB) |
 | `HomeCompanion.Logics` | Built-in `ILogic` module implementations |
@@ -31,12 +31,12 @@ This follows the general pattern of OpenHAB Items/Channels and of KNX group addr
 ### Namespaces
 - Generally, the namespace structure follows the project and folder structure (e.g. `HomeCompanion.Logics` for logic modules).
 - There shall be no Abstractions namespace. Instead, the Abstractions project uses the same namespaces as the other projects (e.g. `HomeCompanion.Logics`) for its interfaces. This allows logic modules to depend on the Abstractions project without needing to reference a separate namespace. Same for `Events` and `Values`.
-- The `Base` project name is stripped from the namespace, resulting e.g. in `HomeCompanion.Events` instead of `HomeCompanion.Base.Events`. `Core`, `Logics`, `Server`, `Tests` and others keep the project name in the namespace.
+- The `Base` project name is stripped from the namespace, resulting e.g. in `HomeCompanion.Events` instead of `HomeCompanion.Events`. `Core`, `Logics`, `Server`, `Tests` and others keep the project name in the namespace.
 
 ## Breaking Changes
 
 - Breaking changes can generally be made to any of the projects as they are being developed together. Backwards compatibility is not a concern at this stage.
-- If a breaking change is made to `HomeCompanion.Abstractions` or `HomeCompanion.Base`, all other projects must be updated to compile with the new version before merging.
+- If a breaking change is made to `HomeCompanion` or `HomeCompanion.Base`, all other projects must be updated to compile with the new version before merging.
 - If a breaking change is made to `HomeCompanion.Core`, `HomeCompanion.Logics`, or `HomeCompanion.Server`, the change must be merged and released before updating the other projects to compile with the new version.
 
 ## Logic Module Pattern

@@ -1,6 +1,6 @@
 using System;
 
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 /// <summary>
 /// Classes implementing this interface can contain <see cref="IValue"/> instances.

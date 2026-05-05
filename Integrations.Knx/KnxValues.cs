@@ -1,4 +1,4 @@
-using HomeCompanion.Base.Values;
+using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Integrations.Knx;

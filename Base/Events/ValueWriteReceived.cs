@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Published by a connectivity provider when an inbound bus write telegram arrives for a registered value.

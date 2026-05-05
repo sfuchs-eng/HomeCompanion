@@ -1,4 +1,4 @@
-using HomeCompanion.Base.Values;
+using HomeCompanion.Values;
 using SRF.Knx.Core;
 using System.Collections;
 

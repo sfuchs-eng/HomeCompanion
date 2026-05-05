@@ -1,8 +1,8 @@
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Represents a generic event in the HomeCompanion system managed via the event bus.
-/// Specific event types should inherit from <see cref="HomeCompanion.Base.Events.HomeCompanionEvent"/>
+/// Specific event types should inherit from <see cref="HomeCompanion.Events.HomeCompanionEvent"/>
 /// instead of implementing this interface directly.
 /// </summary>
 public interface IEvent

@@ -1,6 +1,6 @@
 /*
-using HomeCompanion.Abstractions;
-using HomeCompanion.Base.Values;
+using HomeCompanion;
+using HomeCompanion.Values;
 using HomeCompanion.Logics;
 
 namespace HomeCompanion.Tests;

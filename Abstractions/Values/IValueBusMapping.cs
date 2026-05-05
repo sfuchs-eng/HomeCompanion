@@ -1,6 +1,6 @@
 using System.Collections;
 
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 /// <summary>
 /// Marker interface for bus specific classes keeping track of which values are mapped to which bus addresses (e.g. KNX group addresses).

@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 public class ValueWrittenEventArgs(IValue previousValue, IValue newValue, object? initiator = null) : EventArgs
 {

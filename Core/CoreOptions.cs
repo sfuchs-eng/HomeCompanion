@@ -6,7 +6,7 @@ namespace HomeCompanion.Core;
 public class CoreOptions
 {
     /// <summary>
-    /// Maximum time to wait for all <see cref="HomeCompanion.Abstractions.IConnectivityProvider"/> instances
+    /// Maximum time to wait for all <see cref="HomeCompanion.IConnectivityProvider"/> instances
     /// to report both <c>IsConnected</c> and <c>IsInitializationFinished</c> before logic initialization
     /// proceeds anyway.
     /// </summary>

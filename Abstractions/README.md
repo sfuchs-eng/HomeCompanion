@@ -1,4 +1,4 @@
-# HomeCompanion.Abstractions
+# HomeCompanion
 
 This project contains core interfaces that define the contracts for the HomeCompanion application.
 It includes:

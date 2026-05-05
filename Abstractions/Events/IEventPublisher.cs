@@ -1,4 +1,4 @@
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Publishes events to the event bus for asynchronous, FIFO dispatch to all registered handlers.

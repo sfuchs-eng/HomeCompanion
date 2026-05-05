@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Published by <see cref="ValueBase{T}.Write"/> when a logic writes a new value.

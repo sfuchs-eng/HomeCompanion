@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base;
+namespace HomeCompanion.Logics;
 
 /// <summary>
 /// Base class for all logic modules. Provides access to the event bus for publishing and subscribing to events.

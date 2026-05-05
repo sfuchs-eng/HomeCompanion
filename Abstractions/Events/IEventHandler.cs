@@ -1,4 +1,4 @@
-namespace HomeCompanion.Abstractions;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Handles events of type <typeparamref name="T"/> dispatched by the event bus.

@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 public class HomeCompanionEvent : IEvent
 {

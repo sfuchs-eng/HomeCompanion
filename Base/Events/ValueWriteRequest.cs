@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Events;
+namespace HomeCompanion.Events;
 
 /// <summary>
 /// Raised by <see cref="IValue.Write"/> when a logic writes a new value.

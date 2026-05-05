@@ -1,21 +1,31 @@
-using System.Collections;
-using HomeCompanion.Abstractions;
+using HomeCompanion.Events;
 
-namespace HomeCompanion.Base.Values;
+namespace HomeCompanion.Values;
 
 /// <summary>
 /// A datapoint value in the HomeCompanion system. Values are managed by the <see cref="IValuesManager"/> and can be written to by logics or connectivity providers, and read by logics or connectivity providers.
 /// Values can be updated based on bus telegrams or API calls. See also <see cref="ValueWritten"/> events as well as <see cref="IValuesContainer"/> for classes
-/// that contain values.
+/// that contain values.<br/>
+/// Implementations shall
+/// <list type="bullet">
+/// <item>be thread safe and handle concurrent writes and reads, as well as concurrent subscription to events. E.g. by using locks or concurrent collections as needed.</item>
+/// <item>handle exceptions in event handlers gracefully, e.g. by catching exceptions from handlers and logging them without letting them propagate to other handlers or the main execution flow.</item>
+/// <item>preferrably inherit from <see cref="ValueBase"/> to get a base implementation of the event handling and bus mapping logic, but this is not strictly required.</item>
+/// <item>stay bus-agnostic and not implement any bus specific logic, which should be handled by the respective connectivity provider. E.g. a KNX value should not implement
+/// any KNX specific logic, but rather expose the value and its bus mapping via the <see cref="IValue"/> interface and let the KNX connectivity provider handle the bus communication.
+/// Use <see cref="IValuesContainer"/> to group values and manage their lifecycle.</item>
+/// </list>
 /// </summary>
 /// <remarks>
-/// - Values are the core abstraction for representing state as well as events in the system
-/// - Values can be of any type (e.g. <see cref="bool"/>, <see cref="float"/>, custom classes, etc.) and are typed via the generic <see cref="IValue{T}"/> interface
-/// - Values expose events for <see cref="ILogic"/> to subscribe to changes and react accordingly
-/// - Values listen to the event bus for updates from connectivity providers (e.g. KNX bus telegrams) and update their stored value and publish change events as needed
-/// - Values can be written to by logics calling <see cref="IValue{T}.Write"/>, which triggers update propagation (e.g. writing to a bus, updating dependent values, etc.)
-/// - Values publish write requests via the <see cref="ValueWriteRequest"/> event to let connectivity providers know that a new value needs to be sent to mapped bus endpoints.
-/// - <see cref="IConnectivityProvider"/> register themselves to the <see cref="IValue.BusMappings"/> via <see cref="IValue.AddBusEndpoint"/> with the bus entity identifier corresponding to the value. E.g. a KNX Group Address. This allows the provider to listen to value events and forward them to the bus with correct bus specific addressing.
+/// <list type="bullet">
+/// <item>Values are the core abstraction for representing state as well as events in the system</item>
+/// <item>Values can be of any type (e.g. <see cref="bool"/>, <see cref="float"/>, custom classes, etc.) and are typed via the generic <see cref="IValue{T}"/> interface</item>
+/// <item>Values expose events for <see cref="ILogic"/> to subscribe to changes and react accordingly</item>
+/// <item>Values listen to the event bus for updates from connectivity providers (e.g. KNX bus telegrams) and update their stored value and publish change events as needed</item>
+/// <item>Values can be written to by logics calling <see cref="IValue{T}.Write"/>, which triggers update propagation (e.g. writing to a bus, updating dependent values, etc.)</item>
+/// <item>Values publish write requests via the <see cref="ValueWriteRequest"/> event to let connectivity providers know that a new value needs to be sent to mapped bus endpoints.</item>
+/// <item><see cref="IConnectivityProvider"/> register themselves to the <see cref="IValue.BusMappings"/> via <see cref="IValue.AddBusEndpoint"/> with the bus entity identifier corresponding to the value. E.g. a KNX Group Address. This allows the provider to listen to value events and forward them to the bus with correct bus specific addressing.</item>
+/// </list>
 /// </remarks>
 public interface IValue
 {
@@ -46,17 +56,41 @@ public interface IValue
     public Dictionary<object, IValueBusEndpointMapping> BusMappings { get; init; }
 
     /// <summary>
-    /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Base.Events.ValueWriteReceived"/>)
-    /// and publish outbound requests (via <see cref="HomeCompanion.Base.Events.ValueWritten"/> and <see cref="HomeCompanion.Base.Events.ValueChanged"/>).
+    /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Events.ValueWriteReceived"/>)
+    /// and publish outbound requests (via <see cref="HomeCompanion.Events.ValueWritten"/> and <see cref="HomeCompanion.Events.ValueChanged"/>).
     /// Called at startup by a values manager or connectivity provider for each discovered value.
     /// </summary>
     void Initialize(IEventPublisher publisher, IEventSubscriber subscriber);
+
+    /// <summary>
+    /// Initializes the value with the specified value and stage.
+    /// The implementation must ensure that out-of-order initialization calls are handled gracefully,
+    /// e.g. by ignoring calls for stages that have already passed or by storing the value and applying it
+    /// when the respective stage is reached.
+    /// </summary>
+    /// <param name="value">The value to initialize.</param>
+    /// <param name="stage">The initialization stage.</param>
+    /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
+    bool InitializeValue(object value, ValuesInitializationStage stage);
 }
 
+/// <inheritdoc cref="IValue"/>
 public interface IValue<T> : IValue
 {
     public T Value { get; }
 
     /// <summary>Writes a value, triggering update propagation (e.g. to a connected bus).</summary>
     void Write(T value, object? initiator = null);
+
+    /// <summary>
+    /// Initializes the value with the specified value and stage, returning true if the value was successfully initialized.
+    /// The initialization logic can be implemented in the concrete value class and can differ based on the stage,
+    /// e.g. for loading from a persistent store vs. retrieving from the environment vs. receiving a bus update.<br/>
+    /// The implementation must ensure that out-of-order initialization calls are handled gracefully,
+    /// e.g. by ignoring calls for stages that have already passed or by storing the value and applying it when the respective stage is reached.
+    /// </summary>
+    /// <param name="value">The value to initialize.</param>
+    /// <param name="stage">The initialization stage.</param>
+    /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
+    bool InitializeValue(T value, ValuesInitializationStage stage);
 }
