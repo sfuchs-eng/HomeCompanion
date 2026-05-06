@@ -10,15 +10,20 @@ public enum ValuesInitializationStage
     /// <summary>
     /// Initial values are loaded from a persistent store, e.g. from JSON files via <see cref="JsonFilesStateStore"/>.
     /// </summary>
-    LoadFromStore = 1,
+    InitLoadFromStore = 1,
 
     /// <summary>
     /// Initial values are retrieved from the environment, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.
     /// </summary>
-    RetrieveFromEnvironment = 2,
+    InitRetrieveFromEnvironment = 2,
 
     /// <summary>
     /// A value has been received from the bus, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.
     /// </summary>
-    BusValueReceived = 3
+    InitBusValueReceived = 3,
+
+    /// <summary>
+    /// Values are saved during shutdown, e.g. to a persistent store.
+    /// </summary>
+    ShutDownSave = 20
 }

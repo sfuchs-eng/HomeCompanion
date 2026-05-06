@@ -13,6 +13,7 @@ using SRF.Knx.Core.DPT;
 using SRF.Network.Knx;
 using SRF.Network.Knx.Connection;
 using SRF.Network.Knx.Messages;
+using HomeCompanion.Core.Events;
 
 namespace HomeCompanion.Tests;
 

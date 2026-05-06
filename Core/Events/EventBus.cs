@@ -3,7 +3,7 @@ using HomeCompanion.Events;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Core;
+namespace HomeCompanion.Core.Events;
 
 /// <summary>
 /// Singleton event bus. Implements both <see cref="IEventPublisher"/> and <see cref="IEventSubscriber"/>.

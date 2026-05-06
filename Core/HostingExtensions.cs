@@ -9,6 +9,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SRF.Network.OpenHab;
 using HomeCompanion.Events;
+using HomeCompanion.Core.Values;
+using HomeCompanion.Core.Events;
+using HomeCompanion.Core.Logics;
 
 namespace HomeCompanion.Core;
 

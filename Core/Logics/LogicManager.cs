@@ -1,10 +1,10 @@
-using HomeCompanion;
+using HomeCompanion.Core;
 using HomeCompanion.Logics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace HomeCompanion.Core;
+namespace HomeCompanion.Core.Logics;
 
 /// <summary>
 /// Hosted service that initializes all registered <see cref="ILogic"/> instances after connectivity providers
@@ -42,8 +42,8 @@ internal sealed class LogicManager : BackgroundService
         ILogger<LogicManager> logger,
         TimeProvider timeProvider)
     {
-        _providers = providers.ToList();
-        _logics = logics.ToList();
+        _providers = [.. providers];
+        _logics = [.. logics];
         _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider;
