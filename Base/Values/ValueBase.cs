@@ -216,9 +216,54 @@ public class ValueBase<T> : ValueBase, IValue<T>
 
     public override bool InitializeValue(object value, StateInitializationStage stage)
     {
-        if ( value is T typed)
+        if (value is T typed)
         {
             return InitializeValue(typed, stage);
+        }
+        if (value is string str && typeof(T) != typeof(string))
+        {
+            try
+            {
+                var converted = (T)Convert.ChangeType(str, typeof(T));
+                return InitializeValue(converted, stage);
+            }
+            catch (Exception ex)
+            {
+                Status |= ValueStatus.Error;
+                logger.LogDebug(ex, "Failed to convert string value for {ValueName} during initialization. Expected type {ExpectedType}.", Name, typeof(T));
+                return false;
+            }
+        }
+        // is it a type permitting TryParse / Parse?
+        if (typeof(T) == typeof(bool) && value is bool b)
+            return InitializeValue((T)(object)b, stage);
+        if (typeof(T) == typeof(byte) && value is byte by)
+            return InitializeValue((T)(object)by, stage);
+        if (typeof(T) == typeof(float) && value is float f)
+            return InitializeValue((T)(object)f, stage);
+        if (typeof(T) == typeof(int) && value is int i)
+            return InitializeValue((T)(object)i, stage);
+        if (typeof(T) == typeof(long) && value is long l)
+            return InitializeValue((T)(object)l, stage);
+        if (typeof(T) == typeof(double) && value is double d)
+            return InitializeValue((T)(object)d, stage);
+        if (typeof(T) == typeof(DateTime) && value is DateTime dt)
+            return InitializeValue((T)(object)dt, stage);
+        if (typeof(T) == typeof(TimeSpan) && value is TimeSpan ts)
+            return InitializeValue((T)(object)ts, stage);
+        if (typeof(T).IsEnum && value is string enumStr)
+        {
+            try
+            {
+                var enumValue = (T)Enum.Parse(typeof(T), enumStr);
+                return InitializeValue(enumValue, stage);
+            }
+            catch (Exception ex)
+            {
+                Status |= ValueStatus.Error;
+                logger.LogDebug(ex, "Failed to parse enum value for {ValueName} during initialization. Expected type {ExpectedType}.", Name, typeof(T));
+                return false;
+            }
         }
         Status |= ValueStatus.Error;
         logger.LogDebug("Failed to initialize {ValueName} with value of incorrect type. Expected {ExpectedType}, but got {ActualType}.", Name, typeof(T), value?.GetType());

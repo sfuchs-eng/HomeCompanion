@@ -9,8 +9,8 @@
 - [ ] IValues initialization framework to be finished and tested
   - [x] Implement `KnxValues` source generator to emit properties from ETS export
   - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests
-  - [ ] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
-  - [ ] Implement saving values upon terminatino to json storage and loading them on startup
+  - [x] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
+  - [ ] Implement saving values upon termination to json storage and loading them on startup
   - [x] Integrate SRF.Network.OpenHab
   - [ ] Implement an IConnnectionProvider for OpenHab to manage connectivity and event reception
   - [ ] Test OpenHab connectivity and item value as well as even reception
