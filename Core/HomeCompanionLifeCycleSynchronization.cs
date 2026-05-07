@@ -29,7 +29,8 @@ public class HomeCompanionLifeCycleSynchronization(
             }
             await Task.Delay(TimeSpan.FromSeconds(2), cts.Token).ConfigureAwait(false);
         }
-        throw new OperationCanceledException(token);
+        logger.LogWarning("Timeout or cancellation while waiting for all connectivity providers to be connected.");
+        throw new TimeoutException("Not all connectivity providers could connect within the specified timeout or prior cancellation.");
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

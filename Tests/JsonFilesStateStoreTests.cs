@@ -176,7 +176,6 @@ public class JsonFilesStateStoreTests
     }
 
     [Test]
-    [Explicit("Hardening test: enable when success/recent flags are implemented for successful loads.")]
     public async Task Hardening_recent_valid_load_should_report_success_and_recent()
     {
         using var context = CreateContext();
@@ -199,7 +198,6 @@ public class JsonFilesStateStoreTests
     }
 
     [Test]
-    [Explicit("Hardening test: enable when stateSetName path traversal is rejected or sanitized.")]
     public async Task Hardening_state_set_name_should_not_escape_storage_directory()
     {
         using var context = CreateContext();
@@ -210,7 +208,6 @@ public class JsonFilesStateStoreTests
     }
 
     [Test]
-    [Explicit("Hardening test: enable when JsonFilesStateStore supports deterministic time source injection.")]
     public void Hardening_constructor_should_accept_time_provider()
     {
         var ctor = typeof(JsonFilesStateStore).GetConstructor(
@@ -227,7 +224,7 @@ public class JsonFilesStateStoreTests
     {
         var typeName = typeof(T).FullName ?? typeof(T).Name;
         var fileName = $"{typeName}_{stateSetName}.json";
-        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        foreach (var invalidChar in Path.GetInvalidFileNameChars().Append('.'))
         {
             fileName = fileName.Replace(invalidChar, '_');
         }

@@ -61,17 +61,19 @@ public class JsonFilesStateStore : IStateStore
             return result;
         }
 
-        if ( fi.LastWriteTime < _timeProvider.GetUtcNow() - maxAge)
+        var isRecent = fi.LastWriteTimeUtc >= _timeProvider.GetUtcNow().UtcDateTime - maxAge;
+        result.IsRecent = isRecent;
+        if (!isRecent)
         {
             // too old, deserialize nevertheless
-            _logger.LogInformation("State information for {stateName} is outdated, written {stateTime}", stateSetName, fi.LastWriteTime);
-            result.IsRecent = false;
+            _logger.LogInformation("State information for {stateName} is outdated, written {stateTime}", stateSetName, fi.LastWriteTimeUtc);
         }
         try
         {
             using (var fs = new FileStream(fi.FullName, FileMode.Open, FileAccess.Read))
                 result.StateSet = JsonSerializer.Deserialize<T>(fs, _jsonOptions)
                     ?? throw new JsonException($"Deserialization of state file '{fi.FullName}' for {stateSetName} resulted in null.");
+            result.IsSuccess = true;
             _logger.LogTrace("Loaded state file '{statePath}' for {stateName}.", fi.FullName, stateSetName);
         }
         catch (Exception ex )
@@ -116,7 +118,20 @@ public class JsonFilesStateStore : IStateStore
                 _logger.LogWarning(e, "Serializing state info '{stateSetName}' to '{stateFile}' failed.", stateSetName, fi.FullName);
             }
         }
-        catch ( Exception ex)
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Saving state information for {stateSetName} was canceled.", stateSetName);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "State information for {stateSetName} could not be serialized to JSON.", stateSetName);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "State set name '{stateSetName}' is invalid for state type {stateTypeName}.", stateSetName, typeof(T).FullName);
+            throw;
+        }
+        catch (Exception ex)
         {
             _logger.LogWarning(ex, "Saving state information failed for {stateSetName} / type {stateTypeName}", stateSetName, typeof(T).FullName);
         }
@@ -132,10 +147,19 @@ public class JsonFilesStateStore : IStateStore
 
     FileInfo GetStateFile<T>(string stateSetName)
     {
+        if (string.IsNullOrWhiteSpace(stateSetName))
+            throw new ArgumentException("State set name cannot be null or whitespace.", nameof(stateSetName));
+        // does it contain any path travesal or absolute path characters? If so, reject it by throwing an exception to avoid security issues.
+        if (stateSetName.IndexOfAny(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, Path.VolumeSeparatorChar }) >= 0)
+            throw new ArgumentException($"State set name '{stateSetName}' cannot contain path traversal or absolute path characters.", nameof(stateSetName));
+        // cover .. too, even if it doesn't contain directory separator chars, to be extra safe against path traversal
+        if (stateSetName.Contains(".."))
+            throw new ArgumentException($"State set name '{stateSetName}' cannot contain '..' to avoid path traversal.", nameof(stateSetName));
+
         var typeName = typeof(T).FullName ?? typeof(T).Name;
         var fileName = $"{typeName}_{stateSetName}.json";
         // ensure the file name is valid by replacing invalid characters with underscores
-        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        foreach (var invalidChar in Path.GetInvalidFileNameChars().Append('.'))
         {
             fileName = fileName.Replace(invalidChar, '_');
         }

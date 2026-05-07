@@ -1,4 +1,5 @@
 using HomeCompanion.Events;
+using HomeCompanion.Persistence;
 
 namespace HomeCompanion.Values;
 

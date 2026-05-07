@@ -1,3 +1,4 @@
+using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Values;
