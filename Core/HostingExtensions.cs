@@ -9,9 +9,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SRF.Network.OpenHab;
 using HomeCompanion.Events;
-using HomeCompanion.Core.Values;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Core.Logics;
+using HomeCompanion.Abstractions;
+using HomeCompanion.Core.Persistence;
 
 namespace HomeCompanion.Core;
 
@@ -34,9 +35,11 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddEventBus();
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
-        builder.Services.TryAddSingleton<IValuesInitializationManager, ValuesInitializationManager>();
-        builder.Services.AddHostedService<ValuesInitializationManagerHostedService>();
+        builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
+        builder.Services.AddHostedService<StateInitializationManagerHostedService>();
         builder.Services.AddOpenHabConnector();
+        builder.Services.AddHostedService<HomeCompanionLifeCycleSynchronization>();
+        builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
 
         // Load assemblies from the application base directory and optional extensions directory before scanning.
         // Reference-walk via AppDomain is unreliable (assemblies load lazily; entry assembly is null under dotnet watch).

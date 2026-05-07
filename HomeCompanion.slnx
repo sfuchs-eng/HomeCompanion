@@ -53,6 +53,9 @@
     <Project Path="SRF.Network/Subs/SRF.Knx/SRF.Knx.Config/SRF.Knx.Config.csproj" />
     <Project Path="SRF.Network/Subs/SRF.Knx/SRF.Knx.Core/SRF.Knx.Core.csproj" />
   </Folder>
+  <Folder Name="/SRF.Network/Test/">
+    <Project Path="SRF.Network/Test/SRF.Network.Test.csproj" />
+  </Folder>
   <Folder Name="/SRF.Network/Udp/">
     <Project Path="SRF.Network/Udp/SRF.Network.Udp.csproj" />
   </Folder>

@@ -17,10 +17,13 @@ public class JsonFilesStateStore : IStateStore
         WriteIndented = true,
     };
 
-    public JsonFilesStateStore(IOptions<StateStoreOptions> options, ILogger<JsonFilesStateStore> logger)
+    readonly TimeProvider _timeProvider;
+
+    public JsonFilesStateStore(IOptions<StateStoreOptions> options, ILogger<JsonFilesStateStore> logger, TimeProvider? timeProvider = null)
     {
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
         var di = new DirectoryInfo(_options.Directory);
         if (!di.Exists)
@@ -47,7 +50,7 @@ public class JsonFilesStateStore : IStateStore
     /// <returns><see langword="true"/> if the file exists and is recent enough, <see langword="false"/> otherwise</returns>
     public async Task<StateLoadingResult<T>> LoadAsync<T>(string stateSetName, TimeSpan maxAge) where T : class, new()
     {
-        var fi = GetStateFile(stateSetName);
+        var fi = GetStateFile<T>(stateSetName);
         var result = new StateLoadingResult<T>();
         if (!fi.Exists)
         {
@@ -58,7 +61,7 @@ public class JsonFilesStateStore : IStateStore
             return result;
         }
 
-        if ( fi.LastWriteTime < DateTime.Now - maxAge)
+        if ( fi.LastWriteTime < _timeProvider.GetUtcNow() - maxAge)
         {
             // too old, deserialize nevertheless
             _logger.LogInformation("State information for {stateName} is outdated, written {stateTime}", stateSetName, fi.LastWriteTime);
@@ -99,7 +102,7 @@ public class JsonFilesStateStore : IStateStore
         }
         try
         {
-            var fi = GetStateFile(stateSetName);
+            var fi = GetStateFile<T>(stateSetName);
             using var fs = new FileStream(fi.FullName, FileMode.Create, FileAccess.Write);
             _logger.LogTrace("Saving state info '{stateSetName}' to '{stateFile}'", stateSetName, fi.FullName);
             try
@@ -127,6 +130,15 @@ public class JsonFilesStateStore : IStateStore
         }
     }
 
-    FileInfo GetStateFile(string stateSetName)
-        => new(Path.Combine(new DirectoryInfo(_options.Directory).FullName, $"{stateSetName}.json"));
+    FileInfo GetStateFile<T>(string stateSetName)
+    {
+        var typeName = typeof(T).FullName ?? typeof(T).Name;
+        var fileName = $"{typeName}_{stateSetName}.json";
+        // ensure the file name is valid by replacing invalid characters with underscores
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        {
+            fileName = fileName.Replace(invalidChar, '_');
+        }
+        return new FileInfo(Path.Combine(new DirectoryInfo(_options.Directory).FullName, fileName));
+    }
 }

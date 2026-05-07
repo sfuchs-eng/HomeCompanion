@@ -100,7 +100,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
 
-    public abstract bool InitializeValue(object value, ValuesInitializationStage stage);
+    public abstract bool InitializeValue(object value, StateInitializationStage stage);
 
     private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
     {
@@ -213,7 +213,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         }
     }
 
-    public override bool InitializeValue(object value, ValuesInitializationStage stage)
+    public override bool InitializeValue(object value, StateInitializationStage stage)
     {
         if ( value is T typed)
         {
@@ -224,7 +224,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         return false;
     }
 
-    public bool InitializeValue(T value, ValuesInitializationStage stage)
+    public bool InitializeValue(T value, StateInitializationStage stage)
     {
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;

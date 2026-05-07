@@ -1,6 +1,6 @@
-namespace HomeCompanion.Values;
+namespace HomeCompanion.Persistence;
 
-public enum ValuesInitializationStage
+public enum StateInitializationStage
 {
     /// <summary>
     /// The default value from object construction, no specific initialization.

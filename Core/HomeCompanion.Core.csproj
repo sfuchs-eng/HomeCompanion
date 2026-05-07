@@ -27,4 +27,8 @@
     <ProjectReference Include="..\SRF.Network\OpenHab\SRF.Network.OpenHab.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Values/" />
+  </ItemGroup>
+
 </Project>
