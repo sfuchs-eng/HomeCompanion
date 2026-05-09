@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Abstractions\HomeCompanion.Abstractions.csproj" />
     <ProjectReference Include="..\SRF.Network\OpenHab\SRF.Network.OpenHab.csproj" />
+    <ProjectReference Include="..\SRF.Network\Subs\SRF.Knx\SRF.Knx.Config\SRF.Knx.Config.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

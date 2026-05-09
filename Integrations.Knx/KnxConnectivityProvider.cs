@@ -49,6 +49,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
 
     private readonly IReadOnlyList<IKnxConnection> _connections;
     private readonly KnxConfiguration knxConfig;
+    private readonly IKnxSystemConfiguration knxSystemConfiguration;
     private readonly IEnumerable<IKnxConnection> connections;
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;
@@ -83,7 +84,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     /// </summary>
     public KnxConnectivityProvider(
         IOptions<KnxConfiguration> knxConfig,
-        //IKnxSystemConfiguration knxSystemConfiguration,
+        IKnxSystemConfiguration knxSystemConfiguration,
         IEnumerable<IKnxConnection> connections,
         IEventPublisher publisher,
         IEventSubscriber subscriber,
@@ -95,6 +96,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     {
         _connections = [.. connections];
         this.knxConfig = knxConfig.Value;
+        this.knxSystemConfiguration = knxSystemConfiguration;
         this.connections = connections;
         _publisher = publisher;
         _subscriber = subscriber;
@@ -208,9 +210,34 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         foreach (var connection in _connections)
             connection.MessageReceived += ProcessInitialReadResponse;
 
+        var dptToSkipReading = new[] {
+            "DPST-1-15", // Reset
+            "DPST-1-17", // Trigger
+            "DPT-3",      // shutter moves
+            "DPST-5-10", // 8bit trigger counter pulses
+            "DPST-1-16", // Acknowledge
+            "DPST-17-1", // Scene control
+            "DPST-18-1", // Scene control
+        }.Select(s => knxSystemConfiguration.GetDptFromId(s))
+        .ToArray(); // reading these doesn't make much sense, as they typically represent momentary events (e.g. button press) where the current value is not relevant and might not even be updated on the bus
+
         // send read requests with some delay in between to avoid overwhelming the bus at startup, especially if there are many group addresses to read
         foreach (var ga in _valueMap.Keys)
         {
+            try
+            {
+                var dpt = knxSystemConfiguration.GetDpt(ga);
+                if (dptToSkipReading.Any(d => d.GetType() == dpt.GetType()))
+                {
+                    _logger.LogTrace("Skipping initial read request for {GA} with DPT {DPT} as it's configured to be skipped.", ga, dpt.GetType().Name);
+                    _pendingInitialReads.TryRemove(ga, out _);
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get DPT for {GA} during initial read request. Sending read request anyway.", ga);
+            }
             var readRequest = new GroupMessageRequest(ga, new SRF.Knx.Core.GroupValue(), GroupEventType.ValueRead);
             foreach (var connection in _connections)
             {

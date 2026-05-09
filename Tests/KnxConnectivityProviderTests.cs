@@ -47,6 +47,7 @@ public class KnxConnectivityProviderTests
             : Array.Empty<IValuesContainer>();
         return new KnxConnectivityProvider(
             Options.Create(new KnxConfiguration()),
+            new StubKnxSystemConfiguration(),
             [connection],
             bus,
             bus,
@@ -99,6 +100,19 @@ public class KnxConnectivityProviderTests
         };
 
         public void ClearCache() { }
+    }
+
+    /// <summary>Stub <see cref="IKnxSystemConfiguration"/> that maps every group address to a <see cref="BoolDpt"/>.</summary>
+    private sealed class StubKnxSystemConfiguration : IKnxSystemConfiguration
+    {
+        public DptBase GetDpt(GroupAddress groupAddress) => new BoolDpt { Id = new DataPointTypeId { Main = 1, Sub = 1 } };
+        public void ClearCache() { }
+        public DptBase GetDptFromId(string dptId) => new BoolDpt { Id = new DataPointTypeId { Main = 1, Sub = 1 } };
+        public GroupAddressMeta GetGroupAddressMeta(GroupAddress groupAddress) => throw new NotSupportedException();
+        public GroupAddressMeta GetGroupAddressMeta(string name) => throw new NotSupportedException();
+        public GroupAddressMeta? GetGroupAddressMetaOrNull(GroupAddress groupAddress) => null;
+        public GroupAddressMeta? GetGroupAddressMetaOrNull(string name) => null;
+        public bool TryGetGroupAddressMeta(GroupAddress ga, out GroupAddressMeta? gaConfig) { gaConfig = null; return false; }
     }
 
     /// <summary>Minimal DPT for <see cref="bool"/> (DPT-1.x): 1 byte, non-zero = true.</summary>
@@ -319,6 +333,7 @@ public class KnxConnectivityProviderTests
         // Build provider with two connections
         var provider = new KnxConnectivityProvider(
             Options.Create(new KnxConfiguration()),
+            new StubKnxSystemConfiguration(),
             [conn1, conn2],
             bus,
             bus,

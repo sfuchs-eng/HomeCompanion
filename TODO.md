@@ -10,14 +10,15 @@
   - [x] Implement `KnxValues` source generator to emit properties from ETS export
   - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests
   - [x] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
-  - [ ] Implement saving values upon termination to json storage and loading them on startup
+  - [x] Implement saving values upon termination to json storage and loading them on startup
   - [x] Integrate SRF.Network.OpenHab
   - [ ] Implement an IConnnectionProvider for OpenHab to manage connectivity and event reception
-  - [ ] Test OpenHab connectivity and item value as well as even reception
+  - [ ] Test OpenHab connectivity and item value as well as event reception
   - [ ] Batch-load values from OpenHab, initializing those which map by name (or other logic? Bus maping? General permission via attribute on the IValuesContainer implementation?)
 - [x] Establish correct communication with the KNX bus, receiving telegrams and raising events accordingly (KNX → event bus)
 - [ ] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
 - [ ] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
+- [ ] IValue.Initialize approach doesn't seem used. Initialization framework as implemented uses direct method calls to initialize the IValue.Value and ValueStatus. Review and clean-up, likely removing the initialization via bus events and just doing it directly from the connectivity provider calling IValue value initialization methods.
 
 ---
 
