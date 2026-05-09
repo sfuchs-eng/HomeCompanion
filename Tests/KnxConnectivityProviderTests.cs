@@ -92,11 +92,15 @@ public class KnxConnectivityProviderTests
         {
             Id = new DataPointTypeId { Main = 1, Sub = 1 },
         };
+
+        public void ClearCache() { }
     }
 
     /// <summary>Minimal DPT for <see cref="bool"/> (DPT-1.x): 1 byte, non-zero = true.</summary>
     private sealed class BoolDpt : DptBase
     {
+        public override Type ValueType => typeof(bool);
+
         public override object ToValue(GroupValue groupValue)
             => groupValue.Value.Length > 0 && groupValue.Value[^1] != 0;
 
