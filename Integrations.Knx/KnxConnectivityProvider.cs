@@ -1,4 +1,3 @@
-using HomeCompanion;
 using HomeCompanion.Events;
 using HomeCompanion.Values;
 using HomeCompanion.Integrations.Knx.Events;
@@ -7,8 +6,10 @@ using SRF.Knx.Core;
 using SRF.Network.Knx;
 using SRF.Network.Knx.Messages;
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Reflection;
+using Microsoft.Extensions.Options;
+using SRF.Knx.Config;
+using HomeCompanion.Abstractions;
+using HomeCompanion.Persistence;
 
 namespace HomeCompanion.Integrations.Knx;
 
@@ -47,8 +48,13 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private static readonly TimeSpan InitializationReadTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IReadOnlyList<IKnxConnection> _connections;
+    private readonly KnxConfiguration knxConfig;
+    private readonly IEnumerable<IKnxConnection> connections;
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;
+    private readonly IEnumerable<IValuesContainer> containers;
+    private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSync;
+    private readonly IStateInitializationManager stateInitializationManager;
     private readonly IReadOnlyList<IValuesContainer> _containers;
     private readonly IDptResolver _dptResolver;
     private readonly ILogger<KnxConnectivityProvider> _logger;
@@ -76,17 +82,26 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     /// Initializes a new <see cref="KnxConnectivityProvider"/>.
     /// </summary>
     public KnxConnectivityProvider(
+        IOptions<KnxConfiguration> knxConfig,
+        //IKnxSystemConfiguration knxSystemConfiguration,
         IEnumerable<IKnxConnection> connections,
         IEventPublisher publisher,
         IEventSubscriber subscriber,
         IEnumerable<IValuesContainer> containers,
+        IHomeCompanionLifeCycleSynchronization lifeCycleSync,
+        IStateInitializationManager stateInitializationManager,
         IDptResolver dptResolver,
         ILogger<KnxConnectivityProvider> logger)
     {
-        _connections = connections.ToList();
+        _connections = [.. connections];
+        this.knxConfig = knxConfig.Value;
+        this.connections = connections;
         _publisher = publisher;
         _subscriber = subscriber;
-        _containers = containers.ToList();
+        this.containers = containers;
+        this.lifeCycleSync = lifeCycleSync;
+        this.stateInitializationManager = stateInitializationManager;
+        _containers = [.. containers];
         _dptResolver = dptResolver;
         _logger = logger;
     }
@@ -139,25 +154,25 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     {
         var map = new Dictionary<GroupAddress, IValue>();
         foreach (var container in _containers)
-            DiscoverKnxValuesIn(container, container.GetType(), map);
+            DiscoverKnxValuesIn(container, map);
         _logger.LogInformation("Discovered {Count} KNX values in {Types}.", map.Count, string.Join(", ", _containers.Select(c => c.GetType().FullName)));
         return map;
     }
 
-    private void DiscoverKnxValuesIn(object instance, Type type, Dictionary<GroupAddress, IValue> map)
+    private void DiscoverKnxValuesIn(object instance, Dictionary<GroupAddress, IValue> map)
     {
-        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var type = instance.GetType();
+        var properties = type.GetIValueProperties();
         foreach (var prop in properties)
         {
             if (!prop.CanRead) continue;
-            if (prop.GetIndexParameters().Length > 0) continue;
 
             if (prop.GetValue(instance) is not IValue value) continue;
             if (!value.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping)) continue;
 
             value.Initialize(_publisher, _subscriber);
 
-            if (map.TryGetValue(mapping!.GroupAddress, out _))
+            if (map.ContainsKey(mapping!.GroupAddress))
                 _logger.LogWarning(
                     "Duplicate KNX group address {GA} found on property '{Prop}' of {Type}; already registered by another value. Skipping.",
                     mapping.GroupAddress, prop.Name, type.FullName);
@@ -172,7 +187,17 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
 
     private async Task SendInitialReadRequestsAndMonitorAsync(CancellationToken cancellationToken)
     {
-        // wait until all connections are established before sending initial read requests
+        if ( !knxConfig.ReadGroupAddressesOnStartup || _valueMap.Count == 0)
+        {
+            _logger.LogInformation("Skipping initial read requests for KNX values because ReadGroupAddressesOnStartup is disabled or no values were discovered.");
+            _isInitializationFinished = true;
+            return;
+        }
+
+        // wait until the right initialization level is reached.
+        await lifeCycleSync.WaitForInitializationStageCompletedAsync(StateInitializationStage.InitLoadFromStore, TimeSpan.FromSeconds(10), cancellationToken);
+
+        // wait until all KNX connections are established before sending initial read requests
         while (!_connections.All(c => c.IsConnected))
             await Task.Delay(200, cancellationToken);
 

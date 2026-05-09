@@ -1,9 +1,11 @@
 using HomeCompanion;
 using HomeCompanion.Events;
 using HomeCompanion.Values;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Integrations.Knx.Events;
+using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -44,10 +46,13 @@ public class KnxConnectivityProviderTests
             ? [container]
             : Array.Empty<IValuesContainer>();
         return new KnxConnectivityProvider(
+            Options.Create(new KnxConfiguration()),
             [connection],
             bus,
             bus,
             containers,
+            new StubLifecycleSync(),
+            new StubStateInitializationManager(),
             dptResolver ?? new StubDptResolver(),
             NullLogger<KnxConnectivityProvider>.Instance);
     }
@@ -116,6 +121,33 @@ public class KnxConnectivityProviderTests
         };
 
         public IEnumerable<IValue> GetValues() => [Light];
+    }
+
+    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+            => Task.CompletedTask;
+
+        public Task SignalInitializationStageCompletedAsync(StateInitializationStage level) => Task.CompletedTask;
+    }
+
+    private sealed class StubStateInitializationManager : IStateInitializationManager
+    {
+        public StateInitializationStage CurrentStage => StateInitializationStage.Default;
+
+        public Task InitializeStateAsync(CancellationToken token = default) => Task.CompletedTask;
+
+        public void RegisterInitialization(StateInitializationStage stage, StateInitializationDelegate initialization) { }
+
+        public void RemoveInitialization(StateInitializationStage stage, StateInitializationDelegate initialization) { }
+
+        public void RegisterSave(StateInitializationDelegate save) { }
+
+        public void RemoveSave(StateInitializationDelegate save) { }
+
+        public Task SaveStateAsync(CancellationToken token = default) => Task.CompletedTask;
     }
 
     // ── Tests: inbound KNX → EventBus ────────────────────────────────────────
@@ -286,9 +318,13 @@ public class KnxConnectivityProviderTests
 
         // Build provider with two connections
         var provider = new KnxConnectivityProvider(
+            Options.Create(new KnxConfiguration()),
             [conn1, conn2],
-            bus, bus,
+            bus,
+            bus,
             [container],
+            new StubLifecycleSync(),
+            new StubStateInitializationManager(),
             new StubDptResolver(),
             NullLogger<KnxConnectivityProvider>.Instance);
 

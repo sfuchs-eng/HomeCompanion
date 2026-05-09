@@ -216,6 +216,17 @@ public class ValueBase<T> : ValueBase, IValue<T>
 
     public override bool InitializeValue(object value, StateInitializationStage stage)
     {
+        if (value is null)
+        {
+            // Null is a valid payload for nullable value types and reference types.
+            if (default(T) is null)
+                return InitializeValue(default!, stage);
+
+            Status |= ValueStatus.Error;
+            logger.LogDebug("Received null value for {ValueName} during initialization, but {ExpectedType} is not nullable.", Name, typeof(T));
+            return false;
+        }
+
         if (value is T typed)
         {
             return InitializeValue(typed, stage);

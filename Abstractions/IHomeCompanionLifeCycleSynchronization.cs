@@ -1,4 +1,5 @@
 using System;
+using HomeCompanion.Persistence;
 
 namespace HomeCompanion.Abstractions;
 
@@ -12,4 +13,6 @@ namespace HomeCompanion.Abstractions;
 public interface IHomeCompanionLifeCycleSynchronization
 {
     Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default);
+    Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default);
+    Task SignalInitializationStageCompletedAsync(StateInitializationStage level);
 }
