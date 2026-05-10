@@ -71,6 +71,9 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private volatile bool _isInitializationFinished;
 
     /// <inheritdoc/>
+    public bool IsEnabled => knxConfig.Enable && _connections.Count > 0;
+
+    /// <inheritdoc/>
     public bool IsConnected => _connections.Any(c => c.IsConnected);
 
     private Task ValueInitializationTask = Task.CompletedTask; // placeholder task to track when initial value population is finished, so that ValueReadReceived events can await it to ensure values are populated before responding to read requests
@@ -197,7 +200,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         }
 
         // wait until the right initialization level is reached.
-        await lifeCycleSync.WaitForInitializationStageCompletedAsync(StateInitializationStage.InitLoadFromStore, TimeSpan.FromSeconds(10), cancellationToken);
+        await lifeCycleSync.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitLoadFromStore, TimeSpan.FromSeconds(10), cancellationToken);
 
         // wait until all KNX connections are established before sending initial read requests
         while (!_connections.All(c => c.IsConnected))

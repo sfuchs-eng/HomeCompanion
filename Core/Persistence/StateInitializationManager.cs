@@ -27,7 +27,7 @@ public class StateInitializationManager : IStateInitializationManager
     private readonly IEnumerable<IValuesContainer> _valuesContainers;
     private readonly TimeProvider _timeProvider;
 
-    private readonly Dictionary<StateInitializationStage, List<StateInitializationDelegate>> Initializations;
+    private readonly Dictionary<AppInitializationStage, List<StateInitializationDelegate>> Initializations;
     private readonly object _initializationLock = new();
 
     public StateInitializationManager(
@@ -43,14 +43,14 @@ public class StateInitializationManager : IStateInitializationManager
         StateStore = stateStore;
         _valuesContainers = valuesContainers;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        Initializations = Enum.GetValues<StateInitializationStage>()
+        Initializations = Enum.GetValues<AppInitializationStage>()
             .ToDictionary(stage => stage, stage => new List<StateInitializationDelegate>());
-        Initializations[StateInitializationStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
-        Initializations[StateInitializationStage.ShutDownSave].Add(SaveValuesStateAsync);
-        lifeCycleSynchronization.SignalInitializationStageCompletedAsync(StateInitializationStage.Default).GetAwaiter().GetResult();
+        Initializations[AppInitializationStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
+        Initializations[AppInitializationStage.ShutDownSave].Add(SaveValuesStateAsync);
+        lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.Default).GetAwaiter().GetResult();
     }
 
-    public void RegisterInitialization(StateInitializationStage stage, StateInitializationDelegate initialization)
+    public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
     {
         ArgumentNullException.ThrowIfNull(initialization);
         lock (_initializationLock)
@@ -59,7 +59,7 @@ public class StateInitializationManager : IStateInitializationManager
         }
     }
 
-    public void RemoveInitialization(StateInitializationStage stage, StateInitializationDelegate initialization)
+    public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
     {
         ArgumentNullException.ThrowIfNull(initialization);
         lock (_initializationLock)
@@ -100,13 +100,13 @@ public class StateInitializationManager : IStateInitializationManager
     public async Task InitializeStateAsync(CancellationToken token = default)
     {
         Logger.LogInformation("Starting values initialization.");
-        var skipStages = new HashSet<StateInitializationStage>()
+        var skipStages = new HashSet<AppInitializationStage>()
         {
-            StateInitializationStage.Default,
-            StateInitializationStage.ShutDownSave
+            AppInitializationStage.Default,
+            AppInitializationStage.ShutDownSave
         };
 
-        foreach (var stage in Enum.GetValues<StateInitializationStage>())
+        foreach (var stage in Enum.GetValues<AppInitializationStage>())
         {
             if ( skipStages.Contains(stage)) continue;
             if (Initializations[stage].Count == 0)
@@ -129,8 +129,8 @@ public class StateInitializationManager : IStateInitializationManager
     /// <returns></returns>
     public async Task SaveStateAsync(CancellationToken token = default)
     {
-        await ExecuteInitializationDelegatesAsync(Initializations[StateInitializationStage.ShutDownSave].ToAsyncEnumerable(), token).ConfigureAwait(false);
-        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(StateInitializationStage.ShutDownSave);
+        await ExecuteInitializationDelegatesAsync(Initializations[AppInitializationStage.ShutDownSave].ToAsyncEnumerable(), token).ConfigureAwait(false);
+        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave);
     }
 
     protected virtual async Task InitializeValuesFromStoreAsync(CancellationToken token = default)
@@ -192,7 +192,7 @@ public class StateInitializationManager : IStateInitializationManager
             try
             {
                 var deserialized = JsonSerializer.Deserialize(stateEntry.PayloadJson, binding.Value.ValueType, SnapshotJsonOptions);
-                if (!binding.Value.InitializeValue(deserialized!, StateInitializationStage.InitLoadFromStore))
+                if (!binding.Value.InitializeValue(deserialized!, AppInitializationStage.InitLoadFromStore))
                 {
                     failed++;
                     Logger.LogWarning(
@@ -341,7 +341,7 @@ public class StateInitializationManager : IStateInitializationManager
         ArgumentNullException.ThrowIfNull(save);
         lock (_initializationLock)
         {
-            Initializations[StateInitializationStage.ShutDownSave].Add(save);
+            Initializations[AppInitializationStage.ShutDownSave].Add(save);
         }
     }
 
@@ -350,9 +350,9 @@ public class StateInitializationManager : IStateInitializationManager
         ArgumentNullException.ThrowIfNull(save);
         lock (_initializationLock)
         {
-            Initializations[StateInitializationStage.ShutDownSave].Remove(save);
+            Initializations[AppInitializationStage.ShutDownSave].Remove(save);
         }
     }
 
-    public StateInitializationStage CurrentStage { get; private set; }
+    public AppInitializationStage CurrentStage { get; private set; }
 }

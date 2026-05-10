@@ -6,7 +6,7 @@ using SRF.Knx.Config;
 
 namespace HomeCompanion.Integrations.Knx;
 
-public class KnxValueContainerBase : ValueContainerBase
+public abstract class KnxValueContainerBase : ValueContainerBase
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="KnxValueContainerBase"/> class.
@@ -53,6 +53,7 @@ public static class KnxValueContainerHelpers
 
     public static bool IsIValuePropertiesWithCorrectValueType(this Type type, IKnxSystemConfiguration knxConfig, ILogger logger)
     {
+        logger.LogTrace("Checking IValue properties of type {TypeName} for correct value types based on KNX configuration.", type.Name);
         var properties = type.GetIValueProperties();
         var allValid = true;
 
@@ -80,6 +81,7 @@ public static class KnxValueContainerHelpers
             }
         }
 
+        logger.LogTrace("Completed checking IValue properties of type {TypeName}. All valid: {AllValid}", type.Name, allValid);
         return allValid;
     }
 }

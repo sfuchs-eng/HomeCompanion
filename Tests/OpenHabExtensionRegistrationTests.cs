@@ -1,10 +1,7 @@
 using HomeCompanion.Abstractions;
-using HomeCompanion.Extensions;
 using HomeCompanion.Integrations.OpenHab;
 using HomeCompanion.Persistence;
 using HomeCompanion.Values;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SRF.Knx.Config;
@@ -27,7 +24,7 @@ public class OpenHabExtensionRegistrationTests
 
             var container = new TestContainer();
             var stateManager = new CapturingStateInitializationManager();
-            var registration = CreateRegistration(
+            _ = CreateBackgroundService(
                 stateManager,
                 [container],
                 new StubRestApiClient(
@@ -36,7 +33,7 @@ public class OpenHabExtensionRegistrationTests
                     new Item { Name = "PropertyMatchOnly", State = "21" },
                     new Item { Name = nameof(TestContainer.SameNameAndMapping), State = "OFF" },
                 ]),
-                disableOpenHab: false,
+                enableOpenHab: true,
                 integrationOptions: new OpenHabIntegrationOptions
                 {
                     EnablePropertyNameMatching = true,
@@ -50,7 +47,6 @@ public class OpenHabExtensionRegistrationTests
                     },
                 });
 
-            registration.RegisterServices(new TestExtensionRegistrationContext { Builder = Host.CreateApplicationBuilder() });
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
             await stateManager.Initialization!(CancellationToken.None);
@@ -77,7 +73,7 @@ public class OpenHabExtensionRegistrationTests
         {
             var container = new NullAndUndefContainer();
             var stateManager = new CapturingStateInitializationManager();
-            var registration = CreateRegistration(
+            _ = CreateBackgroundService(
                 stateManager,
                 [container],
                 new StubRestApiClient(
@@ -85,7 +81,7 @@ public class OpenHabExtensionRegistrationTests
                     new Item { Name = "NullValueItem", State = "NULL" },
                     new Item { Name = "UndefValueItem", State = "UNDEF" },
                 ]),
-                disableOpenHab: false,
+                enableOpenHab: true,
                 integrationOptions: new OpenHabIntegrationOptions(),
                 new KnxConfiguration
                 {
@@ -95,7 +91,6 @@ public class OpenHabExtensionRegistrationTests
                     },
                 });
 
-            registration.RegisterServices(new TestExtensionRegistrationContext { Builder = Host.CreateApplicationBuilder() });
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
             await stateManager.Initialization!(CancellationToken.None);
@@ -124,11 +119,11 @@ public class OpenHabExtensionRegistrationTests
             var stateManager = new CapturingStateInitializationManager();
             var restClient = new StubRestApiClient([new Item { Name = "MappedBoolItem", State = "ON" }]);
 
-            var registration = CreateRegistration(
+            _ = CreateBackgroundService(
                 stateManager,
                 [container],
                 restClient,
-                disableOpenHab: true,
+                enableOpenHab: false,
                 integrationOptions: new OpenHabIntegrationOptions { EnablePropertyNameMatching = true },
                 new KnxConfiguration
                 {
@@ -138,7 +133,6 @@ public class OpenHabExtensionRegistrationTests
                     },
                 });
 
-            registration.RegisterServices(new TestExtensionRegistrationContext { Builder = Host.CreateApplicationBuilder() });
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
             await stateManager.Initialization!(CancellationToken.None);
@@ -164,55 +158,60 @@ public class OpenHabExtensionRegistrationTests
         return path;
     }
 
-    private static OpenHabExtensionRegistration CreateRegistration(
+    private static OpenHabExtensionRegistrationBackgroundService CreateBackgroundService(
         CapturingStateInitializationManager stateManager,
         IEnumerable<IValuesContainer> containers,
         StubRestApiClient restApiClient,
-        bool disableOpenHab,
+        bool enableOpenHab,
         OpenHabIntegrationOptions integrationOptions,
         KnxConfiguration knxConfiguration)
     {
-        return new OpenHabExtensionRegistration(
+        return new OpenHabExtensionRegistrationBackgroundService(
             new StubLifeCycleSync(),
             stateManager,
             containers,
             restApiClient,
-            Options.Create(new EventBusClientOptions { Disable = disableOpenHab }),
+            Options.Create(new EventBusClientOptions { Enable = enableOpenHab }),
             Options.Create(integrationOptions),
             Options.Create(knxConfiguration),
-            NullLogger<OpenHabExtensionRegistration>.Instance);
-    }
-
-    private sealed class TestExtensionRegistrationContext : IExtensionRegistrationContext
-    {
-        public required IHostApplicationBuilder Builder { get; init; }
+            NullLogger<OpenHabExtensionRegistrationBackgroundService>.Instance);
     }
 
     private sealed class StubLifeCycleSync : IHomeCompanionLifeCycleSynchronization
     {
         public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
 
-        public Task SignalInitializationStageCompletedAsync(StateInitializationStage level) => Task.CompletedTask;
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level)
+        {
+            throw new NotImplementedException();
+        }
     }
 
-    private sealed class CapturingStateInitializationManager : IStateInitializationManager
+    private sealed class CapturingStateInitializationManager : HomeCompanion.Persistence.IStateInitializationManager
     {
         public StateInitializationDelegate? Initialization { get; private set; }
 
-        public StateInitializationStage CurrentStage => StateInitializationStage.Default;
+        public AppInitializationStage CurrentStage => AppInitializationStage.Default;
 
         public Task InitializeStateAsync(CancellationToken token = default) => Task.CompletedTask;
 
-        public void RegisterInitialization(StateInitializationStage stage, StateInitializationDelegate initialization)
+        public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
         {
-            if (stage == StateInitializationStage.InitRetrieveFromEnvironment)
+            if (stage == AppInitializationStage.InitRetrieveFromEnvironment)
                 Initialization = initialization;
         }
 
-        public void RemoveInitialization(StateInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
 
         public void RegisterSave(StateInitializationDelegate save) { }
 
@@ -236,7 +235,7 @@ public class OpenHabExtensionRegistrationTests
     {
         public int InitializeCalls { get; private set; }
 
-        public override bool InitializeValue(object value, StateInitializationStage stage)
+        public override bool InitializeValue(object value, AppInitializationStage stage)
         {
             InitializeCalls++;
             return base.InitializeValue(value, stage);

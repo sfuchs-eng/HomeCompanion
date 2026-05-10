@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
+    <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

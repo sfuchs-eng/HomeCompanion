@@ -6,6 +6,18 @@
 
 ## Present work focus
 
+### ~~Extension registrations, particularly OpenHAB~~ ✓
+
+OpenHabExtensionRegistration is instanciating many services, yet doing so on a temporary service collection that is not used for the actual application DI container. This means that none of the OpenHab related services are actually registered in the real DI container and thus not available at runtime. This needs to be fixed to have the OpenHab integration working.
+
+ExtensionsRegistration constructors must not consume DI services except configuration ... but no bus services or values containers.
+There needs to be a app start coordination mechanism "DI container built" event or similar to allow Extensions to initilize before other stages.
+Use IHomeCompanionLifeCycleSynchronization for this purpose.
+
+Introduce a scheme to resolve Extension dependencies on other Extensions (via constructor parameters or similar) to allow for correct initialization order of Extensions. E.g. OpenHabExtension might depend on KnxExtension to be initialized first, so it can consume the KNX values and bus services.
+
+### Furthermore
+
 - [ ] IValues initialization framework to be finished and tested
   - [x] Implement `KnxValues` source generator to emit properties from ETS export
   - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests

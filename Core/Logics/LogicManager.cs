@@ -1,4 +1,4 @@
-using HomeCompanion.Core;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Logics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -29,22 +29,22 @@ internal sealed class LogicManager : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
 
-    private readonly IReadOnlyList<IConnectivityProvider> _providers;
     private readonly IReadOnlyList<ILogic> _logics;
     private readonly CoreOptions _options;
+    private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization;
     private readonly ILogger<LogicManager> _logger;
     private readonly TimeProvider _timeProvider;
 
     public LogicManager(
-        IEnumerable<IConnectivityProvider> providers,
         IEnumerable<ILogic> logics,
         IOptions<CoreOptions> options,
+        IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
         ILogger<LogicManager> logger,
         TimeProvider timeProvider)
     {
-        _providers = [.. providers];
         _logics = [.. logics];
         _options = options.Value;
+        this.lifeCycleSynchronization = lifeCycleSynchronization;
         _logger = logger;
         _timeProvider = timeProvider;
     }
@@ -58,7 +58,10 @@ internal sealed class LogicManager : BackgroundService
             return;
         }
 
-        await WaitForProvidersAsync(stoppingToken);
+        _logger.LogTrace("LogicManager awaiting bus connection value initialization. {LogicCount} logic(s) pending initialization.", _logics.Count);
+
+        await lifeCycleSynchronization.AwaitBusesConnectedAsync(_options.BusInitializationTimeout, stoppingToken);
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitRetrieveFromEnvironment, _options.BusInitializationTimeout, stoppingToken);
 
         if (stoppingToken.IsCancellationRequested)
             return;
@@ -66,44 +69,6 @@ internal sealed class LogicManager : BackgroundService
         var levels = BuildInitializationLevels(_logics);
         await InitializeLevelsAsync(levels, stoppingToken);
     }
-
-    private async Task WaitForProvidersAsync(CancellationToken stoppingToken)
-    {
-        if (_providers.Count == 0)
-        {
-            _logger.LogDebug("No IConnectivityProvider instances registered; proceeding with logic initialization immediately.");
-            return;
-        }
-
-        using var timeoutCts = new CancellationTokenSource(_options.BusInitializationTimeout, _timeProvider);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, timeoutCts.Token);
-
-        while (!AllProvidersReady())
-        {
-            try
-            {
-                await Task.Delay(PollInterval, _timeProvider, linkedCts.Token);
-            }
-            catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
-            {
-                // Timeout fired (not host shutdown) — warn and proceed.
-                _logger.LogWarning(
-                    "Timed out after {Timeout} waiting for all connectivity providers to become ready. Proceeding with logic initialization.",
-                    _options.BusInitializationTimeout);
-                return;
-            }
-            catch (OperationCanceledException)
-            {
-                // Host is shutting down — abort.
-                return;
-            }
-        }
-
-        _logger.LogDebug("All connectivity providers are ready.");
-    }
-
-    private bool AllProvidersReady()
-        => _providers.All(p => p.IsConnected && p.IsInitializationFinished);
 
     /// <summary>
     /// Builds initialization levels using Kahn's topological sort, mapping type levels back to logic instances.
@@ -186,7 +151,7 @@ internal sealed class LogicManager : BackgroundService
         for (int i = 0; i < levels.Count; i++)
         {
             var level = levels[i];
-            _logger.LogDebug("Initializing logic level {Level}/{Total} ({Count} logic(s)).", i + 1, levels.Count, level.Count);
+            _logger.LogDebug("Initializing logics at dependency level {Level}/{Total} ({Count} logic(s)).", i + 1, levels.Count, level.Count);
             await Task.WhenAll(level.Select(l => InitializeSafeAsync(l, cancellationToken)));
         }
     }

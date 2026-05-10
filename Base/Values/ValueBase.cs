@@ -1,3 +1,4 @@
+using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 
@@ -101,7 +102,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
 
-    public abstract bool InitializeValue(object value, StateInitializationStage stage);
+    public abstract bool InitializeValue(object value, AppInitializationStage stage);
 
     private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
     {
@@ -214,7 +215,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         }
     }
 
-    public override bool InitializeValue(object value, StateInitializationStage stage)
+    public override bool InitializeValue(object value, AppInitializationStage stage)
     {
         if (value is null)
         {
@@ -281,7 +282,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         return false;
     }
 
-    public bool InitializeValue(T value, StateInitializationStage stage)
+    public virtual bool InitializeValue(T value, AppInitializationStage stage)
     {
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;

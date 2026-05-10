@@ -16,7 +16,7 @@ public class StateInitializationManagerSnapshotTests
         var lifecycle = new StubLifecycleSync();
 
         var sourceContainer = new RoundtripContainer();
-        sourceContainer.Counter.InitializeValue(42, StateInitializationStage.InitBusValueReceived);
+        sourceContainer.Counter.InitializeValue(42, AppInitializationStage.InitBusValueReceived);
 
         var saveManager = new StateInitializationManager(
             lifecycle,
@@ -93,7 +93,7 @@ public class StateInitializationManagerSnapshotTests
         var lifecycle = new StubLifecycleSync();
 
         var source = new SaveNameFallbackContainer();
-        source.OldCounter.InitializeValue(99, StateInitializationStage.InitBusValueReceived);
+        source.OldCounter.InitializeValue(99, AppInitializationStage.InitBusValueReceived);
 
         var saver = new StateInitializationManager(
             lifecycle,
@@ -126,12 +126,12 @@ public class StateInitializationManagerSnapshotTests
         var source = new MultiTypeRoundtripContainer();
         var expectedTimestamp = new DateTimeOffset(2026, 5, 9, 13, 45, 0, TimeSpan.FromHours(2));
 
-        source.Mode.InitializeValue(ModeState.Online, StateInitializationStage.InitBusValueReceived);
-        source.LastSeen.InitializeValue(expectedTimestamp, StateInitializationStage.InitBusValueReceived);
-        source.OptionalLevel.InitializeValue(7, StateInitializationStage.InitBusValueReceived);
+        source.Mode.InitializeValue(ModeState.Online, AppInitializationStage.InitBusValueReceived);
+        source.LastSeen.InitializeValue(expectedTimestamp, AppInitializationStage.InitBusValueReceived);
+        source.OptionalLevel.InitializeValue(7, AppInitializationStage.InitBusValueReceived);
         source.SensorPayload.InitializeValue(
             new SensorReading { Value = 21.5, Unit = "C" },
-            StateInitializationStage.InitBusValueReceived);
+            AppInitializationStage.InitBusValueReceived);
 
         var saver = new StateInitializationManager(
             lifecycle,
@@ -170,7 +170,7 @@ public class StateInitializationManagerSnapshotTests
         var lifecycle = new StubLifecycleSync();
 
         var source = new NullableNullRoundtripContainer();
-        source.OptionalLevel.InitializeValue((int?)null, StateInitializationStage.InitBusValueReceived);
+        source.OptionalLevel.InitializeValue((int?)null, AppInitializationStage.InitBusValueReceived);
 
         var saver = new StateInitializationManager(
             lifecycle,
@@ -208,7 +208,7 @@ public class StateInitializationManagerSnapshotTests
         var lifecycle = new StubLifecycleSync();
 
         var source = new EnumRoundtripContainer();
-        source.Mode.InitializeValue(ModeState.Online, StateInitializationStage.InitBusValueReceived);
+        source.Mode.InitializeValue(ModeState.Online, AppInitializationStage.InitBusValueReceived);
 
         var saver = new StateInitializationManager(
             lifecycle,
@@ -285,10 +285,14 @@ public class StateInitializationManagerSnapshotTests
     {
         public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
 
-        public Task SignalInitializationStageCompletedAsync(StateInitializationStage level) => Task.CompletedTask;
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
     }
 
     private sealed class RoundtripContainer : IValuesContainer

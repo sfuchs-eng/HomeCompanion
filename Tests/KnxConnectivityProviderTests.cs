@@ -141,21 +141,25 @@ public class KnxConnectivityProviderTests
     {
         public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
 
-        public Task SignalInitializationStageCompletedAsync(StateInitializationStage level) => Task.CompletedTask;
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
     }
 
     private sealed class StubStateInitializationManager : IStateInitializationManager
     {
-        public StateInitializationStage CurrentStage => StateInitializationStage.Default;
+        public AppInitializationStage CurrentStage => AppInitializationStage.Default;
 
         public Task InitializeStateAsync(CancellationToken token = default) => Task.CompletedTask;
 
-        public void RegisterInitialization(StateInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
 
-        public void RemoveInitialization(StateInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
 
         public void RegisterSave(StateInitializationDelegate save) { }
 

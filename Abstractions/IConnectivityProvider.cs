@@ -22,6 +22,12 @@ namespace HomeCompanion;
 public interface IConnectivityProvider : IHostedService
 {
     /// <summary>
+    /// Indicates whether this connectivity provider is enabled by configuration and should
+    /// participate in startup/readiness synchronization.
+    /// </summary>
+    bool IsEnabled { get; }
+
+    /// <summary>
     /// Are we connected to the bus(es)? Can messages be sent/received?
     /// </summary>
     bool IsConnected { get; }

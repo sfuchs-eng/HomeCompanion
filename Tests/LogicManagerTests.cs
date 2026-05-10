@@ -1,4 +1,5 @@
 using HomeCompanion;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Core.Logics;
 using HomeCompanion.Logics;
@@ -15,6 +16,7 @@ public class LogicManagerTests
 
     private sealed class StubProvider : IConnectivityProvider
     {
+        public bool IsEnabled { get; set; } = true;
         public bool IsConnected { get; set; }
         public bool IsInitializationFinished { get; set; }
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -121,18 +123,103 @@ public class LogicManagerTests
         public Task DisableAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
+    private sealed class StubLifeCycleSynchronization(IEnumerable<IConnectivityProvider> providers)
+        : IHomeCompanionLifeCycleSynchronization
+    {
+        private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(10);
+
+        private readonly IConnectivityProvider[] _providers = [.. providers];
+        private readonly HashSet<AppInitializationStage> _completedStages =
+        [
+            AppInitializationStage.Default,
+            AppInitializationStage.InitRetrieveFromEnvironment,
+        ];
+
+        public async Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
+        {
+            var enabledProviders = _providers.Where(provider => provider.IsEnabled).ToArray();
+
+            if (enabledProviders.Length == 0 || enabledProviders.All(provider => provider.IsConnected))
+                return;
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeoutCts.CancelAfter(timeout);
+
+            try
+            {
+                while (!timeoutCts.Token.IsCancellationRequested)
+                {
+                    if (enabledProviders.All(provider => provider.IsConnected))
+                        return;
+
+                    await Task.Delay(PollInterval, timeoutCts.Token);
+                }
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                // In these tests, provider-timeout behavior should still allow logic initialization.
+            }
+        }
+
+        public async Task WaitForInitializationStageCompletedAsync(
+            AppInitializationStage level,
+            TimeSpan timeout,
+            CancellationToken token = default)
+        {
+            if (IsInitializationStageCompleted(level))
+                return;
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeoutCts.CancelAfter(timeout);
+
+            try
+            {
+                while (!timeoutCts.Token.IsCancellationRequested)
+                {
+                    if (IsInitializationStageCompleted(level))
+                        return;
+
+                    await Task.Delay(PollInterval, timeoutCts.Token);
+                }
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                await SignalInitializationStageCompletedAsync(level);
+            }
+        }
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        {
+            _completedStages.Add(level);
+            return Task.CompletedTask;
+        }
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level)
+            => _completedStages.Contains(level);
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level)
+            => Enum.GetValues<AppInitializationStage>()
+                .Where(stage => stage <= level)
+                .All(_completedStages.Contains);
+    }
+
     // ── Factory ───────────────────────────────────────────────────────────────
 
     private static LogicManager CreateManager(
         IEnumerable<ILogic> logics,
         IEnumerable<IConnectivityProvider>? providers = null,
+        IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null,
         TimeSpan? timeout = null)
-        => new(
-            providers ?? [],
+    {
+        var providerList = providers?.ToArray() ?? [];
+
+        return new(
             logics,
             Options.Create(new CoreOptions { BusInitializationTimeout = timeout ?? TimeSpan.FromSeconds(30) }),
+            lifeCycleSynchronization ?? new StubLifeCycleSynchronization(providerList),
             NullLogger<LogicManager>.Instance,
             TimeProvider.System);
+    }
 
     // ── Structural tests — BuildInitializationLevelsFromTypes ─────────────────
 

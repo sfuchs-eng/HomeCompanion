@@ -3,6 +3,7 @@ using HomeCompanion.Extensions;
 using HomeCompanion.Persistence;
 using HomeCompanion.Values;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SRF.Knx.Config;
@@ -15,31 +16,55 @@ using System.Text.Json;
 namespace HomeCompanion.Integrations.OpenHab;
 
 public class OpenHabExtensionRegistration(
-    IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
-    IStateInitializationManager stateInitializationManager,
-    IEnumerable<IValuesContainer> valueContainers,
-    IRestApiClient restApiClient,
-    IOptions<EventBusClientOptions> openHabOptions,
-    IOptions<OpenHabIntegrationOptions> openHabIntegrationOptions,
-    IOptions<KnxConfiguration> knxConfig,
     ILogger<OpenHabExtensionRegistration> logger
 ) : IExtensionRegistration
 {
-    private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization = lifeCycleSynchronization;
-    private readonly IStateInitializationManager stateInitializationManager = stateInitializationManager;
-    private readonly IEnumerable<IValuesContainer> valueContainers = valueContainers;
-    private readonly IRestApiClient restApiClient = restApiClient;
-    private readonly EventBusClientOptions openHabOptions = openHabOptions.Value;
-    private readonly OpenHabIntegrationOptions openHabIntegrationOptions = openHabIntegrationOptions.Value;
-    private readonly KnxConfiguration knxConfig = knxConfig.Value;
     private readonly ILogger<OpenHabExtensionRegistration> logger = logger;
 
     public void RegisterServices(IExtensionRegistrationContext context)
     {
         context.Builder.Services.AddOpenHabConnector();
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
-        stateInitializationManager.RegisterInitialization(StateInitializationStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
+        context.Builder.Services.AddHostedService<OpenHabExtensionRegistrationBackgroundService>();
         logger.LogInformation("Registered OpenHAB connectivity extension");
+    }
+}
+
+internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
+{
+    private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization;
+    private readonly IStateInitializationManager stateInitializationManager;
+    private readonly IEnumerable<IValuesContainer> valueContainers;
+    private readonly IRestApiClient restApiClient;
+    private readonly EventBusClientOptions openHabOptions;
+    private readonly OpenHabIntegrationOptions openHabIntegrationOptions;
+    private readonly KnxConfiguration knxConfig;
+    private readonly ILogger<OpenHabExtensionRegistrationBackgroundService> logger;
+
+    public OpenHabExtensionRegistrationBackgroundService(
+        IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
+        IStateInitializationManager stateInitializationManager,
+        IEnumerable<IValuesContainer> valueContainers,
+        IRestApiClient restApiClient,
+        IOptions<EventBusClientOptions> openHabOptions,
+        IOptions<OpenHabIntegrationOptions> openHabIntegrationOptions,
+        IOptions<KnxConfiguration> knxConfig,
+        ILogger<OpenHabExtensionRegistrationBackgroundService> logger)
+    {
+        this.lifeCycleSynchronization = lifeCycleSynchronization;
+        this.stateInitializationManager = stateInitializationManager;
+        this.valueContainers = valueContainers;
+        this.restApiClient = restApiClient;
+        this.openHabOptions = openHabOptions.Value;
+        this.openHabIntegrationOptions = openHabIntegrationOptions.Value;
+        this.knxConfig = knxConfig.Value;
+        this.logger = logger;
+        stateInitializationManager.RegisterInitialization(AppInitializationStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
+    }
+
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -50,11 +75,13 @@ public class OpenHabExtensionRegistration(
     /// <returns></returns>
     private async Task InitializeValuesFromOpenHabAsync(CancellationToken token)
     {
-        if (openHabOptions.Disable)
+        if (!openHabOptions.Enable)
         {
             logger.LogInformation("Skipping OpenHAB initialization because OpenHAB connector is disabled.");
             return;
         }
+
+        logger.LogInformation("Starting OpenHAB initialization: fetching items and initializing values from OpenHAB state.");
 
         Item[] items;
         try
@@ -89,7 +116,7 @@ public class OpenHabExtensionRegistration(
             if (!TryGetPreparedState(item, stateMap, out var preparedState))
                 continue;
 
-            if (value.InitializeValue(preparedState, StateInitializationStage.InitRetrieveFromEnvironment))
+            if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
             {
                 initializedValues.Add(value);
                 initializedByMapping++;
@@ -113,7 +140,7 @@ public class OpenHabExtensionRegistration(
                 if (!TryGetPreparedState(item, stateMap, out var preparedState))
                     continue;
 
-                if (value.InitializeValue(preparedState, StateInitializationStage.InitRetrieveFromEnvironment))
+                if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
                 {
                     initializedByPropertyName++;
                 }

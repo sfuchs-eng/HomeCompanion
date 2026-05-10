@@ -38,7 +38,8 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
         builder.Services.AddHostedService<StateInitializationManagerHostedService>();
         builder.Services.AddOpenHabConnector();
-        builder.Services.AddHostedService<HomeCompanionLifeCycleSynchronization>();
+        builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
 
         // Load assemblies from the application base directory and optional extensions directory before scanning.
@@ -49,9 +50,9 @@ public static class HostingExtensions
             LoadAssembliesFromDirectory(extensionsPath);
 
         // Custom discovery-based registrations
-        builder.AddExtensions();
         builder.Services.AddConnectivityProviders();
         builder.Services.AddValuesContainers();
+        builder.AddExtensions();
         builder.Services.AddLogics();
         builder.Services.AddLogicManager();
 
@@ -121,13 +122,29 @@ public static class HostingExtensions
     /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
     public static IHostApplicationBuilder AddExtensions(this IHostApplicationBuilder builder)
     {
+        var extensionInterface = typeof(IExtensionRegistration);
+        var extensionTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic)
+            .SelectMany(GetExportedTypesSafe)
+            .Where(t => t.IsClass && !t.IsAbstract && extensionInterface.IsAssignableFrom(t));
+
+        using var tempProvider = builder.Services.BuildServiceProvider();
         var context = new ExtensionRegistrationContext(builder);
-        foreach (var extension in AppDomain.CurrentDomain.GetAssemblies()
-                     .SelectMany(a => a.GetTypes())
-                     .Where(t => typeof(IExtensionRegistration).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                     .Select(Activator.CreateInstance)
-                     .Cast<IExtensionRegistration>())
+
+        foreach (var extensionType in extensionTypes)
         {
+            IExtensionRegistration extension;
+            try
+            {
+                extension = (IExtensionRegistration)ActivatorUtilities.CreateInstance(tempProvider, extensionType);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to instantiate extension '{extensionType.FullName}'.",
+                    ex);
+            }
+
             extension.RegisterServices(context);
         }
         return builder;

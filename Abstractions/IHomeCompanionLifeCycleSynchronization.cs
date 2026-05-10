@@ -13,6 +13,8 @@ namespace HomeCompanion.Abstractions;
 public interface IHomeCompanionLifeCycleSynchronization
 {
     Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default);
-    Task WaitForInitializationStageCompletedAsync(StateInitializationStage level, TimeSpan timeout, CancellationToken token = default);
-    Task SignalInitializationStageCompletedAsync(StateInitializationStage level);
+    Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default);
+    Task SignalInitializationStageCompletedAsync(AppInitializationStage level);
+    bool IsInitializationStageCompleted(AppInitializationStage level);
+    bool IsAllUpToStageCompleted(AppInitializationStage level);
 }
