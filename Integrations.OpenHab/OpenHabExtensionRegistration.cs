@@ -25,6 +25,7 @@ public class OpenHabExtensionRegistration(
     {
         context.Builder.Services.AddOpenHabConnector();
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
+        context.Builder.Services.AddSingleton<OpenHabStateConverter>();
         context.Builder.Services.AddHostedService<OpenHabExtensionRegistrationBackgroundService>();
         logger.LogInformation("Registered OpenHAB connectivity extension");
     }
@@ -39,6 +40,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
     private readonly EventBusClientOptions openHabOptions;
     private readonly OpenHabIntegrationOptions openHabIntegrationOptions;
     private readonly KnxConfiguration knxConfig;
+    private readonly OpenHabStateConverter stateConverter;
     private readonly ILogger<OpenHabExtensionRegistrationBackgroundService> logger;
 
     public OpenHabExtensionRegistrationBackgroundService(
@@ -49,6 +51,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         IOptions<EventBusClientOptions> openHabOptions,
         IOptions<OpenHabIntegrationOptions> openHabIntegrationOptions,
         IOptions<KnxConfiguration> knxConfig,
+        OpenHabStateConverter stateConverter,
         ILogger<OpenHabExtensionRegistrationBackgroundService> logger)
     {
         this.lifeCycleSynchronization = lifeCycleSynchronization;
@@ -58,6 +61,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         this.openHabOptions = openHabOptions.Value;
         this.openHabIntegrationOptions = openHabIntegrationOptions.Value;
         this.knxConfig = knxConfig.Value;
+        this.stateConverter = stateConverter;
         this.logger = logger;
         stateInitializationManager.RegisterInitialization(AppInitializationStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
     }
@@ -116,7 +120,20 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
             if (!TryGetPreparedState(item, stateMap, out var preparedState))
                 continue;
 
-            if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
+            // Try DPT-aware conversion first if value has KNX mapping
+            if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
+            {
+                if (value.InitializeValue(convertedValue, AppInitializationStage.InitRetrieveFromEnvironment))
+                {
+                    initializedValues.Add(value);
+                    initializedByMapping++;
+                }
+                else
+                {
+                    logger.LogDebug("Failed to initialize value '{PropertyName}' from OpenHAB item '{ItemName}'.", propertyName, item.Name);
+                }
+            }
+            else if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
             {
                 initializedValues.Add(value);
                 initializedByMapping++;
@@ -140,7 +157,19 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                 if (!TryGetPreparedState(item, stateMap, out var preparedState))
                     continue;
 
-                if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
+                // Try DPT-aware conversion first if value has KNX mapping
+                if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
+                {
+                    if (value.InitializeValue(convertedValue, AppInitializationStage.InitRetrieveFromEnvironment))
+                    {
+                        initializedByPropertyName++;
+                    }
+                    else
+                    {
+                        logger.LogDebug("Failed to initialize value '{PropertyName}' from property-name matched OpenHAB item '{ItemName}'.", propertyName, item.Name);
+                    }
+                }
+                else if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
                 {
                     initializedByPropertyName++;
                 }

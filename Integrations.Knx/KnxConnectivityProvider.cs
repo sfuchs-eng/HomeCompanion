@@ -21,13 +21,13 @@ namespace HomeCompanion.Integrations.Knx;
 /// <para>
 /// <b>Inbound</b> (KNX → EventBus): One event is published per received telegram:
 /// <list type="bullet">
-///   <item><c>GroupValueWrite</c> → <see cref="KnxGroupWriteReceived"/> (extends <see cref="ValueWriteReceived"/>)</item>
+///   <item><c>GroupValueWrite</c> → <see cref="KnxGroupWriteReceived"/> (extends <see cref="ValueUpdateReceived"/>)</item>
 ///   <item><c>GroupValueRead</c> → <see cref="KnxGroupReadReceived"/> (extends <see cref="ValueReadReceived"/>)</item>
 ///   <item><c>GroupValueResponse</c> → <see cref="KnxGroupResponseReceived"/> (extends <see cref="ValueReadAnswerReceived"/>)</item>
 /// </list>
-/// Events are published for every received telegram. <see cref="ValueWriteReceived.Target"/> (and equivalents) is the
+/// Events are published for every received telegram. <see cref="ValueUpdateReceived.Target"/> (and equivalents) is the
 /// registered <see cref="IValue"/> for the group address, or <see langword="null"/> if none is mapped.
-/// Subscribers to a base type (e.g. <see cref="ValueWriteReceived"/>) receive derived events via the type-hierarchy
+/// Subscribers to a base type (e.g. <see cref="ValueUpdateReceived"/>) receive derived events via the type-hierarchy
 /// dispatch of the event bus.
 /// </para>
 /// <para>
@@ -333,7 +333,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                     SourceAddress = args.SourceAddress,
                     RawValue = args.Value,
                     DecodedValue = ctx.DecodedValue,
-                    NewValue = ctx.DecodedValue,
+                    Value = ctx.DecodedValue,
                     Timestamp = ctx.ReceivedAt,
                     Target = target,
                 });

@@ -119,8 +119,9 @@ public sealed class EventBusMonitor
         ValueWritten vw => $"{vw.Source.Name ?? vw.Source.GetType().Name} = {vw.Value}",
         ValueWriteRequest vwr => $"→ {vwr.Source.Name ?? vwr.Source.GetType().Name} = {vwr.NewValue}",
         ValueWriteReceived vwrc => $"← {vwrc.Target?.Name ?? vwrc.Target?.GetType().Name ?? "?"} = {vwrc.NewValue}",
-        ValueReadReceived vrr => $"? {vrr.Target?.Name ?? vrr.Target?.GetType().Name ?? "?"}",
         ValueReadAnswerReceived vrar => $"? {vrar.Target?.Name ?? vrar.Target?.GetType().Name ?? "?"} ← {vrar.Value}",
+        ValueUpdateReceived vur => $"↻ {vur.Target?.Name ?? vur.Target?.GetType().Name ?? "?"} = {vur.Value}",
+        ValueReadReceived vrr => $"? {vrr.Target?.Name ?? vrr.Target?.GetType().Name ?? "?"}",
         _ => evt.ToString() ?? evt.GetType().Name
     };
 

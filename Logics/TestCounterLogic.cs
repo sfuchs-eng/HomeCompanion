@@ -60,6 +60,7 @@ public class TestCounterLogic(
                 _logger.LogInformation("Test switch turned OFF. Computing duration and updating values.");
                 float duration = (float)(_timeProvider.GetUtcNow() - _switchOnAt.Value).TotalSeconds;
                 _switchOnAt = null;
+                _values.TestCounter.Write((byte)(_values.TestCounter.Value + 1), this);
                 _values.TestValueFloat.Write(duration, this);
                 _values.TestValueInt32.Write(_values.TestValueInt32.Value + 1, this);
             }

@@ -84,11 +84,11 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     {
         _publisher = publisher;
         subscriber.Subscribe(new WriteReceivedHandler(this));
-        subscriber.Subscribe(new ValueReadAnswerReceivedHandler(this)); // also listen to read answers to update the value based on bus events, if needed
+        subscriber.Subscribe(new ValueUpdateReceivedHandler(this));
     }
 
     /// <summary>
-    /// Updates the stored value from a bus event payload. Called by the internal <see cref="ValueReadAnswerReceivedHandler"/> when a value read answer event is received for this value.
+    /// Updates the stored value from a bus event payload. Called by the internal <see cref="ValueUpdateReceivedHandler"/> when an update event is received for this value.
     /// The raw value from the event is passed in and the method is responsible for parsing it and updating the stored value accordingly.
     /// </summary>
     protected abstract void ReceiveUpdate(object? rawValue);
@@ -114,9 +114,9 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
-    private sealed class ValueReadAnswerReceivedHandler(ValueBase owner) : IEventHandler<ValueReadAnswerReceived>
+    private sealed class ValueUpdateReceivedHandler(ValueBase owner) : IEventHandler<ValueUpdateReceived>
     {
-        public ValueTask HandleAsync(ValueReadAnswerReceived e, CancellationToken cancellationToken = default)
+        public ValueTask HandleAsync(ValueUpdateReceived e, CancellationToken cancellationToken = default)
         {
             if (!ReferenceEquals(e.Target, owner)) return ValueTask.CompletedTask;
             owner.ReceiveUpdate(e.Value);

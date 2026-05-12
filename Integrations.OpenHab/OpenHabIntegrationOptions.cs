@@ -8,7 +8,7 @@ public sealed class OpenHabIntegrationOptions
     /// <summary>
     /// Configuration section name.
     /// </summary>
-    public const string SectionName = "OpenHabIntegration";
+    public const string SectionName = "OpenHAB";
 
     /// <summary>
     /// If true, values are also initialized by matching OpenHAB item names against

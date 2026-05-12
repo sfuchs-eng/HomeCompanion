@@ -58,7 +58,7 @@ public interface IValue
     public Dictionary<object, IValueBusEndpointMapping> BusMappings { get; init; }
 
     /// <summary>
-    /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Events.ValueWriteReceived"/>)
+    /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Events.ValueUpdateReceived"/>)
     /// and publish outbound requests (via <see cref="HomeCompanion.Events.ValueWritten"/> and <see cref="HomeCompanion.Events.ValueChanged"/>).
     /// Called at startup by a values manager or connectivity provider for each discovered value.
     /// </summary>

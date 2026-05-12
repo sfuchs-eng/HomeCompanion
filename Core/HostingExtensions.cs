@@ -84,21 +84,35 @@ public static class HostingExtensions
 
         var sources = builder.Configuration.Sources;
 
-        // Find the index of the first EnvironmentVariables source so we can insert before it.
-        // If none is found (e.g. test host), append at the end.
-        int insertAt = sources.Count;
-        for (int i = 0; i < sources.Count; i++)
+        // Keep env vars and command line as highest-precedence sources by temporarily
+        // removing and re-adding them after the custom JSON files.
+        var tailSources = sources
+            .Where(s => s is EnvironmentVariablesConfigurationSource || s.GetType().Name == "CommandLineConfigurationSource")
+            .ToArray();
+
+        foreach (var source in tailSources)
+            sources.Remove(source);
+
+        // Remove previous HomeCompanion JSON sources to keep this operation idempotent.
+        for (int i = sources.Count - 1; i >= 0; i--)
         {
-            if (sources[i] is EnvironmentVariablesConfigurationSource)
+            if (sources[i] is JsonConfigurationSource jsonSource)
             {
-                insertAt = i;
-                break;
+                var path = jsonSource.Path;
+                if (string.Equals(path, systemPath, StringComparison.Ordinal) ||
+                    string.Equals(path, userPath, StringComparison.Ordinal))
+                {
+                    sources.RemoveAt(i);
+                }
             }
         }
 
-        // Insert system config first, user config second — user overrides system.
-        sources.Insert(insertAt, BuildJsonSource(systemPath));
-        sources.Insert(insertAt + 1, BuildJsonSource(userPath));
+        // Append system config first, user config second — user overrides system.
+        sources.Add(BuildJsonSource(systemPath));
+        sources.Add(BuildJsonSource(userPath));
+
+        foreach (var source in tailSources)
+            sources.Add(source);
 
         return builder;
     }

@@ -17,7 +17,7 @@ path not only for other devices but also for integration with other home automat
 
 - **Modular automation logic**: implement your automation logic as `ILogic` modules, which are loaded at runtime and can be enabled/disabled via configuration
 - **KNX connectivity**: connect via KNX/net IP routing (UDP multicast) to a KNX system and receive/transmit Group Address write, read and read response telegrams
-- **OpenHAB connectivity**: connect via OpenHAB REST API (item commands) and Websocket (event bus) to an OpenHAB instance and receive/transmit item state changes and commands
+- **OpenHAB connectivity**: connect via OpenHAB REST API (item commands) and Websocket (event bus) to an OpenHAB instance and receive/transmit item state changes and commands. Inbound OpenHAB `ItemState*` events are mapped to `ValueUpdateReceived`-based events, while inbound `ItemCommandEvent` is mapped to `ValueWriteReceived`-based events.
 - **MQTT connectivity**: connect to a MQTT broker and receive/transmit messages on specified topics
 - **InfluxDB connectivity**: connect to an InfluxDB instance and write data points to specified measurements
 - **User alerting**: send user notifications via email or channel them to an MQTT topic for using OpenHAB push notifications

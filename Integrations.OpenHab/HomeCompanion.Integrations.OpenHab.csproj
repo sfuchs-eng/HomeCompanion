@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\Abstractions\HomeCompanion.Abstractions.csproj" />
     <ProjectReference Include="..\SRF.Network\OpenHab\SRF.Network.OpenHab.csproj" />
     <ProjectReference Include="..\SRF.Network\Subs\SRF.Knx\SRF.Knx.Config\SRF.Knx.Config.csproj" />
