@@ -15,6 +15,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
     public abstract Type ValueType { get; }
     public ValueStatus Status { get; protected set; } = ValueStatus.Default;
+    public AppInitializationStage InitializationStage { get; protected set; } = AppInitializationStage.Default;
     public string? Name { get; set; }
     public string? Label { get; set; }
 
@@ -101,6 +102,12 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
+
+    protected virtual bool TryParse(string str, out object? value)
+    {
+        value = null;
+        return false;
+    }
 
     public abstract bool InitializeValue(object value, AppInitializationStage stage);
 
@@ -215,8 +222,13 @@ public class ValueBase<T> : ValueBase, IValue<T>
         }
     }
 
+    /// <summary>
+    /// Implemented as type aware proxy to <see cref="ValueBase{T}.InitializeValue(T, AppInitializationStage)"/> incl. typical conversion paths.
+    /// Yet missing: abilitty to register custom conversion functions, e.g. for complex types or special string formats.
+    /// </summary>
     public override bool InitializeValue(object value, AppInitializationStage stage)
     {
+        // nullable?
         if (value is null)
         {
             // Null is a valid payload for nullable value types and reference types.
@@ -228,11 +240,14 @@ public class ValueBase<T> : ValueBase, IValue<T>
             return false;
         }
 
+        // direct type match? This is the most common case and should be handled first for performance reasons.
         if (value is T typed)
         {
             return InitializeValue(typed, stage);
         }
-        if (value is string str && typeof(T) != typeof(string))
+
+        // IConvertible from string?
+        if (value is string str && typeof(T) != typeof(string) && typeof(IConvertible).IsAssignableFrom(typeof(T)))
         {
             try
             {
@@ -246,37 +261,24 @@ public class ValueBase<T> : ValueBase, IValue<T>
                 return false;
             }
         }
-        // is it a type permitting TryParse / Parse?
-        if (typeof(T) == typeof(bool) && value is bool b)
-            return InitializeValue((T)(object)b, stage);
-        if (typeof(T) == typeof(byte) && value is byte by)
-            return InitializeValue((T)(object)by, stage);
-        if (typeof(T) == typeof(float) && value is float f)
-            return InitializeValue((T)(object)f, stage);
-        if (typeof(T) == typeof(int) && value is int i)
-            return InitializeValue((T)(object)i, stage);
-        if (typeof(T) == typeof(long) && value is long l)
-            return InitializeValue((T)(object)l, stage);
-        if (typeof(T) == typeof(double) && value is double d)
-            return InitializeValue((T)(object)d, stage);
-        if (typeof(T) == typeof(DateTime) && value is DateTime dt)
-            return InitializeValue((T)(object)dt, stage);
-        if (typeof(T) == typeof(TimeSpan) && value is TimeSpan ts)
-            return InitializeValue((T)(object)ts, stage);
-        if (typeof(T).IsEnum && value is string enumStr)
+
+        // Try generic conversion via ComponentModel.TypeConverter
+        var converter = System.ComponentModel.TypeDescriptor.GetConverter(typeof(T));
+        if (converter != null && converter.CanConvertFrom(value.GetType()))
         {
             try
             {
-                var enumValue = (T)Enum.Parse(typeof(T), enumStr);
-                return InitializeValue(enumValue, stage);
+                var converted = (T)converter.ConvertFrom(value)!;
+                return InitializeValue(converted, stage);
             }
             catch (Exception ex)
             {
                 Status |= ValueStatus.Error;
-                logger.LogDebug(ex, "Failed to parse enum value for {ValueName} during initialization. Expected type {ExpectedType}.", Name, typeof(T));
+                logger.LogDebug(ex, "Failed to convert value using TypeConverter for {ValueName} during initialization. Expected type {ExpectedType}, but got {ActualType}.", Name, typeof(T), value.GetType());
                 return false;
             }
         }
+
         Status |= ValueStatus.Error;
         logger.LogDebug("Failed to initialize {ValueName} with value of incorrect type. Expected {ExpectedType}, but got {ActualType}.", Name, typeof(T), value?.GetType());
         return false;
@@ -284,8 +286,27 @@ public class ValueBase<T> : ValueBase, IValue<T>
 
     public virtual bool InitializeValue(T value, AppInitializationStage stage)
     {
+        if (Status.HasFlag(ValueStatus.Initialized))
+        {
+            if ( InitializationStage >= stage)
+            {
+                logger.LogTrace("Attempted to initialize {ValueName} at stage {Stage}, but it is already initialized for stage {InitializationStage}. Skipping downgrade.", Name, stage, InitializationStage);
+                return false;
+            }
+            else
+            {
+                logger.LogTrace("Re-initializing {ValueName} with new value. Previous initialization stage: {PreviousStage}, new initialization stage: {NewStage}.", Name, InitializationStage, stage);
+            }
+        }
+        if (value is null && default(T) is not null)
+        {
+            Status |= ValueStatus.Error;
+            logger.LogDebug("Attempted to initialize {ValueName} with null, but {ExpectedType} is not nullable.", Name, typeof(T));
+            return false;
+        }
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        InitializationStage = stage;
         return true;
     }
 }

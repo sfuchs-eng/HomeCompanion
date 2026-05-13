@@ -15,6 +15,12 @@ using System.Text.Json;
 
 namespace HomeCompanion.Integrations.OpenHab;
 
+/// <summary>
+/// Registers the OpenHAB connector and related services, and performs initial synchronization of values with OpenHAB items on application startup.
+/// This OpenHAB extension is KNX aware. Means it's initializing KNX-mapped IValues with the corresponding OpenHAB item state converted to the KNX DPT value type. See <see cref="OpenHabStateConverter"/> for details on supported conversions.
+/// If no KNX mapping is present, it will try to initialize the value with the raw item state string if the property name matches or if there's a corresponding OpenHAB bus mapping defined via <see cref="OpenHabBusEndpointMapping"/>.
+/// This allows basic integration of non-KNX-mapped values as well, which can be useful for simple state monitoring or for integrations that don't require KNX-specific value types.
+/// </summary>
 public class OpenHabExtensionRegistration(
     ILogger<OpenHabExtensionRegistration> logger
 ) : IExtensionRegistration
@@ -109,6 +115,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         int initializedByMapping = 0;
         int initializedByPropertyName = 0;
 
+        // First pass: try to initialize values that have an explicit OpenHAB bus mapping defined via OpenHabBusEndpointMapping
         foreach (var (propertyName, value) in EnumerateContainerValues())
         {
             if (!value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping) || mapping is null)
@@ -144,6 +151,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
             }
         }
 
+        // Second pass: try to initialize values by matching property names to item names, but only if they haven't been initialized in the first pass
         if (openHabIntegrationOptions.EnablePropertyNameMatching)
         {
             foreach (var (propertyName, value) in EnumerateContainerValues())
@@ -178,6 +186,10 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                     logger.LogDebug("Failed to initialize value '{PropertyName}' from property-name matched OpenHAB item '{ItemName}'.", propertyName, item.Name);
                 }
             }
+        }
+        else
+        {
+            logger.LogInformation("Property name matching for OpenHAB item to value initialization is disabled. Skipping this step.");
         }
 
         logger.LogInformation(

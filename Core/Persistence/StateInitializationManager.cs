@@ -74,7 +74,7 @@ public class StateInitializationManager : IStateInitializationManager
         {
             try
             {
-                Logger.LogInformation("Executing {DeclaringType}.{MethodName} for stage {Stage}", initialization.Method.DeclaringType?.Name, initialization.Method.Name, CurrentStage);
+                Logger.LogInformation("Executing {DeclaringType}.{MethodName} post stage {Stage}", initialization.Method.DeclaringType?.Name, initialization.Method.Name, CurrentStage);
                 await initialization(token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -87,7 +87,7 @@ public class StateInitializationManager : IStateInitializationManager
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Unhandled failure during invocation of {DeclaringType}.{MethodName} for stage {Stage}.", initialization.Method.DeclaringType?.Name, initialization.Method.Name, CurrentStage);
+                Logger.LogWarning(ex, "Unhandled failure during invocation of {DeclaringType}.{MethodName} post stage {Stage}.", initialization.Method.DeclaringType?.Name, initialization.Method.Name, CurrentStage);
             }
         }
     }
