@@ -490,3 +490,6 @@ $RECYCLE.BIN/
 # Template files
 Class1.cs
 UnitTest1.cs
+
+# persistence and local folders
+Server/States/
