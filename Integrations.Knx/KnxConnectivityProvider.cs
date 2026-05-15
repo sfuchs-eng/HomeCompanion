@@ -144,12 +144,36 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         ValueInitializationCts?.Cancel();
         try { await ValueInitializationTask; }
         catch (OperationCanceledException) { /* expected on cancellation, ignore */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "KNX value initialization task failed during shutdown.");
+        }
 
         foreach (var connection in _connections)
         {
             connection.MessageReceived -= OnMessageReceived;
             connection.ConnectionStatusChanged -= OnConnectionStatusChanged;
-            await connection.DisconnectAsync(cancellationToken);
+
+            try
+            {
+                await connection.DisconnectAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Disconnecting KNX connection was canceled by host shutdown token.");
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogDebug("Disconnecting KNX connection canceled during shutdown.");
+            }
+            catch (ObjectDisposedException)
+            {
+                _logger.LogDebug("KNX connection already disposed during shutdown.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to disconnect KNX connection during shutdown.");
+            }
         }
     }
 

@@ -114,6 +114,28 @@ public class EventBusTests
         Assert.That(derivedHandlerCalled, Is.False);
     }
 
+    [Test]
+    public async Task StopAsync_Completes_WhenNoEventsArePending()
+    {
+        var bus = CreateBus();
+
+        await bus.StartAsync(CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        Assert.DoesNotThrowAsync(async () => await bus.StopAsync(cts.Token));
+    }
+
+    [Test]
+    public async Task PublishAsync_AfterStop_DoesNotThrow()
+    {
+        var bus = CreateBus();
+
+        await bus.StartAsync(CancellationToken.None);
+        await bus.StopAsync(CancellationToken.None);
+
+        Assert.DoesNotThrowAsync(async () => await bus.PublishAsync(new TestEvent(1)));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private sealed class LambdaHandler<T>(Func<T, ValueTask> fn) : IEventHandler<T> where T : IEvent

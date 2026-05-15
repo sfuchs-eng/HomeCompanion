@@ -247,7 +247,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         }
 
         // IConvertible from string?
-        if (value is string str && typeof(T) != typeof(string) && typeof(IConvertible).IsAssignableFrom(typeof(T)))
+        if (value is string str && typeof(T) != typeof(string) && !string.IsNullOrEmpty(str) && typeof(IConvertible).IsAssignableFrom(typeof(T)))
         {
             try
             {

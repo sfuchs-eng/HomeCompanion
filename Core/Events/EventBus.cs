@@ -29,7 +29,12 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
 
     /// <inheritdoc/>
     public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
-        => _channel.Writer.WriteAsync(@event, cancellationToken);
+    {
+        if (_channel.Writer.TryWrite(@event))
+            return ValueTask.CompletedTask;
+
+        return WriteWithShutdownHandlingAsync(@event, cancellationToken);
+    }
 
     /// <inheritdoc/>
     public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
@@ -47,9 +52,43 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var @event in _channel.Reader.ReadAllAsync(stoppingToken))
+        try
         {
-            await DispatchAsync(@event, stoppingToken);
+            await foreach (var @event in _channel.Reader.ReadAllAsync(stoppingToken))
+            {
+                await DispatchAsync(@event, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Event bus dispatch loop stopped due to host shutdown.");
+        }
+    }
+
+    /// <inheritdoc/>
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _channel.Writer.TryComplete();
+
+        try
+        {
+            await base.StopAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Event bus shutdown was canceled by host timeout.");
+        }
+    }
+
+    private async ValueTask WriteWithShutdownHandlingAsync(IEvent @event, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _channel.Writer.WriteAsync(@event, cancellationToken);
+        }
+        catch (ChannelClosedException)
+        {
+            _logger.LogDebug("Event bus is already closed; dropping event {EventType}.", @event.GetType().Name);
         }
     }
 
