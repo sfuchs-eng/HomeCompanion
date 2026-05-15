@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\SRF.Network\Knx\SRF.Network.Knx.csproj" />
+    <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
   </ItemGroup>
 
 </Project>

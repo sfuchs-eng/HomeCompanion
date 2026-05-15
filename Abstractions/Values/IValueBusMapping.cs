@@ -12,6 +12,12 @@ public interface IValueBusEndpointMapping : IEqualityComparer
 {
     string BusId { get; }
     string Address { get; }
+
+    /// <summary>
+    /// Must be managed by the corresponding <see cref="IConnectivityProvider"/>. The <see cref="IValue"/> generally ignores this property.
+    /// </summary>
+    /// <value></value>
+    BusCommunication Communication { get; init; }
 }
 
 public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TBus : notnull where TAddress : notnull
@@ -23,6 +29,7 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
     }
     public TBus Bus { get; init; }
     public TAddress Address { get; init; }
+    public BusCommunication Communication { get; init; } = BusCommunication.Full;
 
     string IValueBusEndpointMapping.BusId => Bus?.ToString() ?? string.Empty;
     string IValueBusEndpointMapping.Address => Address?.ToString() ?? string.Empty;

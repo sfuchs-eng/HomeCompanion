@@ -1,4 +1,3 @@
-using HomeCompanion.Abstractions;
 using HomeCompanion.Events;
 using HomeCompanion.Integrations.OpenHab.Events;
 using HomeCompanion.Values;
@@ -43,8 +42,10 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     private readonly OpenHabStateConverter _stateConverter;
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
+    private record OpenHabItemValueMapping(string ItemName, IValue Value, OpenHabBusEndpointMapping Mapping);
+
     /// <summary>Item name → registered value map, built at startup.</summary>
-    private Dictionary<string, IValue> _valueMap = [];
+    private Dictionary<string, OpenHabItemValueMapping> _valueMap = [];
 
     private volatile bool _isInitializationFinished;
     private volatile bool _isConnected;
@@ -115,16 +116,16 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     // Value discovery
     // -------------------------------------------------------------------------
 
-    private Dictionary<string, IValue> DiscoverOpenHabValues()
+    private Dictionary<string, OpenHabItemValueMapping> DiscoverOpenHabValues()
     {
-        var map = new Dictionary<string, IValue>();
+        var map = new Dictionary<string, OpenHabItemValueMapping>();
         foreach (var container in _containers)
             DiscoverOpenHabValuesIn(container, map);
         _logger.LogInformation("Discovered {Count} OpenHab values.", map.Count);
         return map;
     }
 
-    private void DiscoverOpenHabValuesIn(object instance, Dictionary<string, IValue> map)
+    private void DiscoverOpenHabValuesIn(object instance, Dictionary<string, OpenHabItemValueMapping> map)
     {
         var type = instance.GetType();
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -144,7 +145,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
                     "Duplicate OpenHab item name '{ItemName}' found on property '{Prop}' of {Type}; already registered by another value. Skipping.",
                     itemName, prop.Name, type.FullName);
             else
-                map[itemName] = value;
+                map[itemName] = new OpenHabItemValueMapping(itemName, value, mapping);
         }
     }
 
@@ -152,7 +153,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     // Inbound: OpenHab → EventBus
     // -------------------------------------------------------------------------
 
-    private IValue? ResolveTarget(string itemName)
+    private OpenHabItemValueMapping? ResolveTarget(string itemName)
     {
         if (_valueMap.TryGetValue(itemName, out var target))
             return target;
@@ -182,7 +183,19 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         var itemName = stateChanged.ItemName;
         var stateChange = stateChanged.StateChange;
         var target = ResolveTarget(itemName);
-        var decodedValue = ConvertStateValue(itemName, stateChange.Value, target);
+
+        if (target is null)
+        {
+            _logger.LogTrace("Received ItemStateChangedEvent for item '{ItemName}' with new state '{NewState}', but no target value found. Skipping.", itemName, stateChange.Value);
+            return;
+        }
+        if (!target.Mapping.Communication.HasFlag(BusCommunication.Receive))
+        {
+            //_logger.LogTrace("Received ItemStateChangedEvent for item '{ItemName}' with new state '{NewState}', but target value does not allow read communication. Skipping.", itemName, stateChange.Value);
+            return;
+        }
+
+        var decodedValue = ConvertStateValue(itemName, stateChange.Value, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemStateChanged
         {
@@ -190,7 +203,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
             RawState = stateChange.Value,
             OldRawState = stateChange.OldValue,
             Value = decodedValue,
-            Target = target,
+            Target = target?.Value,
             Timestamp = DateTimeOffset.UtcNow,
         });
     }
@@ -200,14 +213,26 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         var itemName = stateEvent.ItemName;
         var rawState = stateEvent.State.Value;
         var target = ResolveTarget(itemName);
-        var decodedValue = ConvertStateValue(itemName, rawState, target);
+
+        if (target is null)
+        {
+            _logger.LogTrace("Received ItemStateEvent for item '{ItemName}' with state '{State}', but no target value found. Skipping.", itemName, rawState);
+            return;
+        }
+        if (!target.Mapping.Communication.HasFlag(BusCommunication.Receive))
+        {
+            _logger.LogTrace("Received ItemStateEvent for item '{ItemName}' with state '{State}', but target value does not allow read communication. Skipping.", itemName, rawState);
+            return;
+        }
+
+        var decodedValue = ConvertStateValue(itemName, rawState, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemState
         {
             ItemName = itemName,
             RawState = rawState,
             Value = decodedValue,
-            Target = target,
+            Target = target?.Value,
             Timestamp = DateTimeOffset.UtcNow,
         });
     }
@@ -217,14 +242,26 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         var itemName = commandEvent.ItemName;
         var rawCommand = commandEvent.State.Value;
         var target = ResolveTarget(itemName);
-        var decodedValue = ConvertStateValue(itemName, rawCommand, target);
+
+        if (target is null)
+        {
+            _logger.LogTrace("Received ItemCommandEvent for item '{ItemName}' with command '{Command}', but no target value found. Skipping.", itemName, rawCommand);
+            return;
+        }
+        if (!target.Mapping.Communication.HasFlag(BusCommunication.Receive))
+        {
+            _logger.LogTrace("Received ItemCommandEvent for item '{ItemName}' with command '{Command}', but target value does not allow read communication. Skipping.", itemName, rawCommand);
+            return;
+        }
+
+        var decodedValue = ConvertStateValue(itemName, rawCommand, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemCommandReceived
         {
             ItemName = itemName,
             RawCommand = rawCommand,
             NewValue = decodedValue,
-            Target = target,
+            Target = target?.Value,
             Timestamp = DateTimeOffset.UtcNow,
         });
     }
@@ -306,6 +343,12 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     {
         if (!request.Source.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping))
             return; // not an OpenHab-backed value
+
+        if ( !(mapping?.Communication.HasFlag(BusCommunication.Transmit) ?? false) )
+        {
+            _logger.LogTrace("Received ValueWriteRequest for '{ValueName}', but its OpenHab mapping does not allow send communication. Skipping.", request.Source.Name);
+            return;
+        }
 
         var itemName = mapping!.ItemName;
 

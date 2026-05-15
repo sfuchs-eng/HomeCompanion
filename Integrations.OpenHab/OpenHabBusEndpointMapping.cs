@@ -4,6 +4,8 @@ namespace HomeCompanion.Integrations.OpenHab;
 
 /// <summary>
 /// Maps an <see cref="IValue"/> to an OpenHAB item name.
+/// Conceptually, it would make more sense to map to channels instead of items.
+/// But for simplicity reasons mapping directly to items cuts on efforts to add new items, e.g. related to <see cref="Logics.ILogic"/> parameterization needs.
 /// </summary>
 /// <remarks>
 /// Add this mapping to <see cref="IValue.BusMappings"/> under the key <see cref="BusId"/> to register

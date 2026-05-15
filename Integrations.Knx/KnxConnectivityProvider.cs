@@ -60,10 +60,12 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private readonly IDptResolver _dptResolver;
     private readonly ILogger<KnxConnectivityProvider> _logger;
 
+    private record ValueMapping(IValue Value, KnxBusEndpointMapping Mapping);
+
     /// <summary>Group address → registered value map, built at startup.</summary>
     /// <remarks>In case of full extention to supporting multiple KNX systems in parallel with overlapping group addresses,
     /// this would need to be changed to also consider the bus/connection, e.g. by using a composite key of (busId, groupAddress) or by maintaining a separate map per bus.</remarks>
-    private Dictionary<GroupAddress, IValue> _valueMap = [];
+    private Dictionary<GroupAddress, ValueMapping> _valueMap = [];
 
     /// <summary>Tracks which group addresses still need an initial read response.</summary>
     private readonly ConcurrentDictionary<GroupAddress, bool> _pendingInitialReads = [];
@@ -155,16 +157,16 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Value discovery
     // -------------------------------------------------------------------------
 
-    private Dictionary<GroupAddress, IValue> DiscoverKnxValues()
+    private Dictionary<GroupAddress, ValueMapping> DiscoverKnxValues()
     {
-        var map = new Dictionary<GroupAddress, IValue>();
+        var map = new Dictionary<GroupAddress, ValueMapping>();
         foreach (var container in _containers)
             DiscoverKnxValuesIn(container, map);
         _logger.LogInformation("Discovered {Count} KNX values in {Types}.", map.Count, string.Join(", ", _containers.Select(c => c.GetType().FullName)));
         return map;
     }
 
-    private void DiscoverKnxValuesIn(object instance, Dictionary<GroupAddress, IValue> map)
+    private void DiscoverKnxValuesIn(object instance, Dictionary<GroupAddress, ValueMapping> map)
     {
         var type = instance.GetType();
         var properties = type.GetIValueProperties();
@@ -182,7 +184,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                     "Duplicate KNX group address {GA} found on property '{Prop}' of {Type}; already registered by another value. Skipping.",
                     mapping.GroupAddress, prop.Name, type.FullName);
             else
-                map[mapping.GroupAddress] = value;
+                map[mapping.GroupAddress] = new ValueMapping(value, mapping);
         }
     }
 
@@ -227,6 +229,16 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         // send read requests with some delay in between to avoid overwhelming the bus at startup, especially if there are many group addresses to read
         foreach (var ga in _valueMap.Keys)
         {
+            // does the bus mapping allow for communication?
+            var mapping = _valueMap[ga].Mapping;
+            if (!mapping.Communication.HasFlag(BusCommunication.Transmit | BusCommunication.Receive))
+            {
+                _logger.LogInformation("Skipping initial read request for {GA} because its KnxBusEndpointMapping does not allow transmit & receive communication.", ga);
+                _pendingInitialReads.TryRemove(ga, out _);
+                continue;
+            }
+
+            // DPT to be skipped generally?
             try
             {
                 var dpt = knxSystemConfiguration.GetDpt(ga);
@@ -241,6 +253,8 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             {
                 _logger.LogWarning(ex, "Failed to get DPT for {GA} during initial read request. Sending read request anyway.", ga);
             }
+            
+            // send read request
             var readRequest = new GroupMessageRequest(ga, new SRF.Knx.Core.GroupValue(), GroupEventType.ValueRead);
             foreach (var connection in _connections)
             {
@@ -289,7 +303,6 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         }
     }
 
-
     // -------------------------------------------------------------------------
     // Inbound: KNX → EventBus
     // -------------------------------------------------------------------------
@@ -297,7 +310,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private IValue? ResolveTarget(GroupAddress destinationAddress)
     {
         if (_valueMap.TryGetValue(destinationAddress, out var target))
-            return target;
+            return target.Value;
 
         // Fallback for rare cases where a GroupAddress instance used as dictionary key
         // was mutated after insertion, causing hash-based lookup to miss.
@@ -307,7 +320,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             {
                 // force update hash key by re-inserting with the same key instance, so that future lookups will find it
                 _valueMap[groupAddress] = value;
-                return value;
+                return value.Value;
             }
         }
 
