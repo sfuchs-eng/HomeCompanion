@@ -1,6 +1,7 @@
 # ADR-0001: Bus Values Framework
 
 **Date:** 2026-04-28
+**Revised:** 2026-05-15
 
 ## Context
 
@@ -9,7 +10,7 @@ HomeCompanion's core event system revolves around values that represent the stat
 - Provide a clear contract for logic modules to interact with values
 - Support multiple connectivity providers (KNX, OpenHAB, MQTT, etc.) without coupling logic modules to specific implementations
 - Enable unit testing of logic modules without requiring a real bus connection
-- Allow values to be discoverable and manageable by the connectivity providers
+- Allow values to be discoverable and manageable centrally while keeping connectivity providers bus-focused
 
 ## Decision
 
@@ -21,17 +22,19 @@ A new framework for "bus values" was introduced in `HomeCompanion.Base` that def
 `IValuesContainer` is implemented as singletons that are registered in DI and can be injected into logic modules.
 
 `IValue<T>` properties are defined in these container classes. Each property is identified by its name and parent class name.
-IValue connect to the event bus in order to receive updates (BusWriteReceived, BusReadReceived, BusReadResponseReceived) and
-to request transmissions to buses on which the value resides (BusWriteRequested, BusReadRequested, BusReadResponseRequested).
+IValue connects to the event bus through centralized startup initialization and receives routed payload updates.
+Values request outbound transmissions through value events handled by connectivity providers.
 
-The `IValue<T>` implementations shall remain bus-agnostic and not contain any bus-specific logic or dependencies. The connectivity providers will subscribe to the event bus for value write requests and propagate them to the actual bus (e.g. KNX telegrams).
+The `IValue<T>` implementations remain bus-agnostic and do not contain bus-specific logic or dependencies.
+`ValuesManager` initializes all values at startup and routes inbound value update/write events to their target value.
+Connectivity providers subscribe to outbound value write requests and propagate them to their bus (e.g. KNX telegrams).
 
 ## Consequences
 
 ### General value framework
 
 - Logic modules can interact with values as plain C# properties (e.g. `myValues.Temperature.Value`) and write to them via the `Write()` method (e.g. `myValues.Temperature.Write(22.5)`).
-- Connectivity providers can discover all `IValue<T>` properties in registered `IValuesContainer` classes via reflection at startup and subscribe to the event bus to update their values based on incoming bus telegrams.
+- `ValuesManager` discovers all `IValue<T>` properties in registered `IValuesContainer` classes via reflection at startup, initializes them, and performs centralized target-based routing for inbound value update/write events.
 - Values publish events when they are written to, allowing connectivity providers to listen to the bus for write requests and propagate them to the actual bus (e.g. KNX telegrams).
 - Unit testing of logic modules is possible by using mock implementations of `IValuesContainer` and `IValue<T>` that do not require a real bus connection.
 

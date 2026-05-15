@@ -7,7 +7,7 @@ namespace HomeCompanion.Values;
 /// <summary>
 /// The value type agnostic part for <see cref="ValueBase{T}"/>.
 /// </summary>
-public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timeProvider = null) : IValue
+public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timeProvider = null) : IValue, IValueEventReceiver
 {
     private IEventPublisher? _publisher;
     protected readonly ILogger<ValueBase> logger = logger;
@@ -81,24 +81,27 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     }
 
     /// <inheritdoc/>
-    public virtual void Initialize(IEventPublisher publisher, IEventSubscriber subscriber)
+    public virtual void Initialize(IEventPublisher publisher, IValuesManager manager)
     {
         _publisher = publisher;
-        subscriber.Subscribe(new WriteReceivedHandler(this));
-        subscriber.Subscribe(new ValueUpdateReceivedHandler(this));
+        manager.RegisterValue(this);
     }
 
     /// <summary>
-    /// Updates the stored value from a bus event payload. Called by the internal <see cref="ValueUpdateReceivedHandler"/> when an update event is received for this value.
+    /// Updates the stored value from a bus event payload. Called by the <see cref="IValuesManager"/> when an update event is received for this value.
     /// The raw value from the event is passed in and the method is responsible for parsing it and updating the stored value accordingly.
     /// </summary>
-    protected abstract void ReceiveUpdate(object? rawValue);
+    protected abstract void ReceiveUpdateCore(object? rawValue);
 
     /// <summary>
-    /// Handles a write received from the event bus (e.g. from a logic or an API call). Called by the internal <see cref="WriteReceivedHandler"/> when a value write event is received for this value.
+    /// Handles a write received from the event bus (e.g. from a logic or an API call). Called by the <see cref="IValuesManager"/> when a value write event is received for this value.
     /// </summary>
     /// <param name="newValue"></param>
-    protected abstract void ReceiveWrite(object? newValue);
+    protected abstract void ReceiveWriteCore(object? newValue);
+
+    void IValueEventReceiver.ReceiveUpdate(object? rawValue) => ReceiveUpdateCore(rawValue);
+
+    void IValueEventReceiver.ReceiveWrite(object? newValue) => ReceiveWriteCore(newValue);
 
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
@@ -110,26 +113,6 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     }
 
     public abstract bool InitializeValue(object value, AppInitializationStage stage);
-
-    private sealed class WriteReceivedHandler(ValueBase owner) : IEventHandler<ValueWriteReceived>
-    {
-        public ValueTask HandleAsync(ValueWriteReceived e, CancellationToken cancellationToken = default)
-        {
-            if (!ReferenceEquals(e.Target, owner)) return ValueTask.CompletedTask;
-            owner.ReceiveWrite(e.NewValue);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class ValueUpdateReceivedHandler(ValueBase owner) : IEventHandler<ValueUpdateReceived>
-    {
-        public ValueTask HandleAsync(ValueUpdateReceived e, CancellationToken cancellationToken = default)
-        {
-            if (!ReferenceEquals(e.Target, owner)) return ValueTask.CompletedTask;
-            owner.ReceiveUpdate(e.Value);
-            return ValueTask.CompletedTask;
-        }
-    }
 }
 
 public class ValueBase<T> : ValueBase, IValue<T>
@@ -161,7 +144,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
     }
 
     /// <inheritdoc/>
-    protected override void ReceiveUpdate(object? rawValue)
+    protected override void ReceiveUpdateCore(object? rawValue)
     {
         if (rawValue is null)
         {
@@ -189,7 +172,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
     }
 
     /// <inheritdoc/>
-    protected override void ReceiveWrite(object? newValue)
+    protected override void ReceiveWriteCore(object? newValue)
     {
         if (newValue is null)
         {

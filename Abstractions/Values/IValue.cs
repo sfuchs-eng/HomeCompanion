@@ -60,9 +60,9 @@ public interface IValue
     /// <summary>
     /// Wires the value to the event bus so it can receive inbound updates (via <see cref="HomeCompanion.Events.ValueUpdateReceived"/>)
     /// and publish outbound requests (via <see cref="HomeCompanion.Events.ValueWritten"/> and <see cref="HomeCompanion.Events.ValueChanged"/>).
-    /// Called at startup by a values manager or connectivity provider for each discovered value.
+    /// Called at startup by the <see cref="IValuesManager"/> for discovered values. The manager also handles centralized event subscription routing.
     /// </summary>
-    void Initialize(IEventPublisher publisher, IEventSubscriber subscriber);
+    void Initialize(IEventPublisher publisher, IValuesManager manager);
 
     /// <summary>
     /// Initializes the value with the specified value and stage.

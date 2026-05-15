@@ -34,6 +34,9 @@ public static class HostingExtensions
         // Core services
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.AddEventBus();
+        builder.Services.TryAddSingleton<ValuesManager>();
+        builder.Services.TryAddSingleton<IValuesManager>(sp => sp.GetRequiredService<ValuesManager>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
         builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
         builder.Services.AddHostedService<StateInitializationManagerHostedService>();

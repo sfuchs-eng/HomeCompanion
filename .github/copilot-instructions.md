@@ -17,7 +17,7 @@ Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or Infl
 |---------|------|
 | `HomeCompanion` | Core interfaces: `ILogic`, `IDiagnostic`, connectivity provider interfaces |
 | `HomeCompanion.Base` | Base class `LogicBase` — implements `ILogic` with common functionality |
-| `HomeCompanion.Core` | `LogicManager`, connectivity managers (KNX, OpenHAB, MQTT, InfluxDB) |
+| `HomeCompanion.Core` | `LogicManager`, `ValuesManager`, connectivity managers (KNX, OpenHAB, MQTT, InfluxDB) |
 | `HomeCompanion.Logics` | Built-in `ILogic` module implementations |
 | `HomeCompanion.Server` | Blazor Server app — entry point |
 | `HomeCompanion.Tests` | NUnit test suite |
@@ -27,6 +27,11 @@ Full dependency graph: [README.md § Structure](../README.md#structure).
 
 The application is a strongly event based system, receiving, processing and sending events related to values of distributed data points.
 This follows the general pattern of OpenHAB Items/Channels and of KNX group addresses with their objects in devices' memory.
+
+### Value Lifecycle And Routing
+- `ValuesManager` is the single place that initializes `IValue` instances (`IValue.Initialize(...)`) at startup.
+- Connectivity providers must not call `IValue.Initialize(...)`; they only map bus endpoints and publish/consume bus-related events.
+- Inbound `ValueUpdateReceived` and `ValueWriteReceived` are routed centrally by `ValuesManager` using `Target`.
 
 ### Namespaces
 - Generally, the namespace structure follows the project and folder structure (e.g. `HomeCompanion.Logics` for logic modules).

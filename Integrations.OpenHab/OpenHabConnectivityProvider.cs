@@ -86,7 +86,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         // Subscribe to outbound write requests from the event bus
         _subscriber.Subscribe(new ValueWriteRequestHandler(this));
 
-        // Discover and initialize all IValue properties with an OpenHab bus mapping
+        // Discover all IValue properties with an OpenHab bus mapping
         _valueMap = DiscoverOpenHabValues();
         _logger.LogInformation("OpenHabConnectivityProvider: discovered {Count} OpenHab values.", _valueMap.Count);
 
@@ -136,8 +136,6 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
 
             if (prop.GetValue(instance) is not IValue value) continue;
             if (!value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)) continue;
-
-            value.Initialize(_publisher, _subscriber);
 
             var itemName = mapping!.ItemName;
             if (map.ContainsKey(itemName))

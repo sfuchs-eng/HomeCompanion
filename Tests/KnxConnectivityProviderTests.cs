@@ -16,6 +16,7 @@ using SRF.Network.Knx;
 using SRF.Network.Knx.Connection;
 using SRF.Network.Knx.Messages;
 using HomeCompanion.Core.Events;
+using System.Collections.Concurrent;
 
 namespace HomeCompanion.Tests;
 
@@ -45,6 +46,8 @@ public class KnxConnectivityProviderTests
         var containers = container is not null
             ? [container]
             : Array.Empty<IValuesContainer>();
+        var valuesManager = new TestValuesManager(bus);
+        InitializeValues(containers, bus, valuesManager);
         return new KnxConnectivityProvider(
             Options.Create(new KnxConfiguration()),
             new StubKnxSystemConfiguration(),
@@ -65,6 +68,18 @@ public class KnxConnectivityProviderTests
             Options.Create(new KnxConfiguration()),
             NullLogger<KnxConnection>.Instance,
             dptResolver ?? new StubDptResolver());
+
+    private static void InitializeValues(IEnumerable<IValuesContainer> containers, IEventPublisher publisher, IValuesManager manager)
+    {
+        foreach (var container in containers)
+        {
+            foreach (var property in container.GetType().GetIValueProperties())
+            {
+                if (property.GetValue(container) is IValue value)
+                    value.Initialize(publisher, manager);
+            }
+        }
+    }
 
     // ── Stubs ─────────────────────────────────────────────────────────────────
 
@@ -88,6 +103,51 @@ public class KnxConnectivityProviderTests
             IsConnected = isConnected;
             ConnectionState = isConnected ? BusConnectionState.Connected : BusConnectionState.Closed;
             ConnectionStateChanged?.Invoke(this, new KnxConnectionEventArgs());
+        }
+    }
+
+    private sealed class TestValuesManager : IValuesManager
+    {
+        private readonly ConcurrentDictionary<IValue, bool> _values = [];
+
+        public TestValuesManager(IEventSubscriber subscriber)
+        {
+            subscriber.Subscribe(new ValueUpdateHandler(this));
+            subscriber.Subscribe(new ValueWriteHandler(this));
+        }
+
+        public void RegisterValue(IValue value) => _values.TryAdd(value, true);
+
+        public void UnregisterValue(IValue value) => _values.TryRemove(value, out _);
+
+        private void Route(ValueUpdateReceived @event)
+        {
+            if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
+                receiver.ReceiveUpdate(@event.Value);
+        }
+
+        private void Route(ValueWriteReceived @event)
+        {
+            if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
+                receiver.ReceiveWrite(@event.NewValue);
+        }
+
+        private sealed class ValueUpdateHandler(TestValuesManager owner) : IEventHandler<ValueUpdateReceived>
+        {
+            public ValueTask HandleAsync(ValueUpdateReceived @event, CancellationToken cancellationToken = default)
+            {
+                owner.Route(@event);
+                return ValueTask.CompletedTask;
+            }
+        }
+
+        private sealed class ValueWriteHandler(TestValuesManager owner) : IEventHandler<ValueWriteReceived>
+        {
+            public ValueTask HandleAsync(ValueWriteReceived @event, CancellationToken cancellationToken = default)
+            {
+                owner.Route(@event);
+                return ValueTask.CompletedTask;
+            }
         }
     }
 
@@ -346,6 +406,7 @@ public class KnxConnectivityProviderTests
             new StubStateInitializationManager(),
             new StubDptResolver(),
             NullLogger<KnxConnectivityProvider>.Instance);
+        InitializeValues([container], bus, new TestValuesManager(bus));
 
         await RunWithBusAsync(bus, async () =>
         {

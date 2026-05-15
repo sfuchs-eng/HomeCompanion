@@ -33,7 +33,7 @@ Introduce a scheme to resolve Extension dependencies on other Extensions (via co
 - [x] The log message "SRF.Network.OpenHab.Client.EventBusClient[0] Starting WatchDog..." is logged only upon application shutdown. Find & fix the root cause.
 - [ ] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
 - [ ] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
-- [ ] IValue.Initialize approach doesn't seem used. Initialization framework as implemented uses direct method calls to initialize the IValue.Value and ValueStatus. Review and clean-up, likely removing the initialization via bus events and just doing it directly from the connectivity provider calling IValue value initialization methods.
+- [x] Centralize `IValue.Initialize` lifecycle in `ValuesManager` and remove `IValue.Initialize` calls from connectivity providers. Connectivity providers now only bridge bus payload/events and resolve mapped targets.
 
 ---
 

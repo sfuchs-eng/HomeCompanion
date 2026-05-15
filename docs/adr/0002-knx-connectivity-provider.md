@@ -1,7 +1,7 @@
 # ADR-0002: KNX Connectivity Provider Design
 
 **Date:** 2026-04-29  
-**Revised:** 2026-04-30
+**Revised:** 2026-05-15
 
 ---
 
@@ -49,14 +49,14 @@ public ValueBase<bool> Light { get; } = new()
 
 **Decision:** Use `KnxBusEndpointMapping` in `IValue.BusMappings`. The mapping is the discovery marker — the provider checks for it via reflection and `TryGetBusEndpoint<KnxBusEndpointMapping>` at startup.
 
-### 3. Inbound flow: KNX → EventBus → IValue
+### 3. Inbound flow: KNX → EventBus → ValuesManager → IValue
 
 On each inbound telegram, the provider publishes two layers of events:
 
 1. **KNX-level** (`HomeCompanion.Knx.Events`): `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` — carry raw bus detail (group address, physical source address, raw payload, decoded value).
 2. **Value-level** (`HomeCompanion.Events`): `ValueWriteReceived`, `ValueReadReceived`, `ValueReadAnswerReceived` — carry a reference to the `IValue` target and the decoded value.
 
-`ValueBase<T>` subscribes to `ValueWriteReceived` on the event bus (via `IValue.Initialize`) and updates its stored value when the event targets it. It then publishes `ValueChanged<T>` if the value actually changed.
+`ValuesManager` subscribes once to `ValueUpdateReceived` and `ValueWriteReceived` (base types), then routes events by `Target` to the owning value instance. `ValueBase<T>` processes the routed payload and publishes `ValueChanged<T>` if the value actually changed.
 
 `GroupValueResponse` is treated as both a read answer (`ValueReadAnswerReceived`) and a write (`ValueWriteReceived`) so that the stored value is updated in both cases.
 
@@ -70,9 +70,9 @@ On each inbound telegram, the provider publishes two layers of events:
 - Consistent with the rest of the system's event-driven architecture
 - Testable: swap the event bus for a mock in unit tests
 
-### 5. `IValue.Initialize(IEventPublisher, IEventSubscriber)`
+### 5. `IValue.Initialize(IEventPublisher, IValuesManager)`
 
-Two-phase initialization: the connectivity provider calls `Initialize` on each discovered value at startup, injecting the event bus references the value needs to subscribe to `ValueWriteReceived` and publish `ValueChanged<T>`. Values cannot receive bus updates before `Initialize` is called.
+Two-phase initialization remains, but ownership changed: `ValuesManager` discovers values from registered `IValuesContainer` instances and calls `Initialize` at startup. Connectivity providers do not initialize values. Values cannot receive routed bus updates before this startup initialization completes.
 
 ### 6. `ValueChanged<T>` in `HomeCompanion.Base`
 
@@ -97,7 +97,7 @@ The provider discovers values via reflection over `IValuesContainer` instances. 
 - Logic modules declare values as plain `ValueBase<T>` (or any `IValue<T>` impl) with a `KnxBusEndpointMapping` attached — no KNX-specific type required on the property
 - The value framework (`IValue`, `ValueBase`) is fully bus-agnostic; KNX is entirely in the mapping and provider layer
 - Adding a new KNX value requires only declaring a property and attaching a `KnxBusEndpointMapping`; no config file changes
-- The KNX provider handles all reflection, initialization, and routing transparently
+- The KNX provider handles bus mapping lookup and bus/event bridging; value initialization and event routing are handled centrally by `ValuesManager`
 - Multi-connection support works out of the box via `Knx:Connections` config
 - Unit tests are fully offline: stub `IKnxConnection` + `IDptResolver` suffice
 

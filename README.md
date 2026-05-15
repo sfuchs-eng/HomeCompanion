@@ -16,6 +16,7 @@ path not only for other devices but also for integration with other home automat
 ### Framework features
 
 - **Modular automation logic**: implement your automation logic as `ILogic` modules, which are loaded at runtime and can be enabled/disabled via configuration
+- **Centralized value lifecycle**: `ValuesManager` initializes all discovered `IValue` instances at startup and routes `ValueUpdateReceived` / `ValueWriteReceived` events by `Target` to the owning value instance
 - **KNX connectivity**: connect via KNX/net IP routing (UDP multicast) to a KNX system and receive/transmit Group Address write, read and read response telegrams
 - **OpenHAB connectivity**: connect via OpenHAB REST API (item commands) and Websocket (event bus) to an OpenHAB instance and receive/transmit item state changes and commands. Inbound OpenHAB `ItemState*` events are mapped to `ValueUpdateReceived`-based events, while inbound `ItemCommandEvent` is mapped to `ValueWriteReceived`-based events.
 - **MQTT connectivity**: connect to a MQTT broker and receive/transmit messages on specified topics
@@ -36,6 +37,18 @@ The solution is organized into several projects:
 - `HomeCompanion.Abstraction`: contains the abstractions for the framework, such as for example `ILogic` and `IDiagnostic` as well as the interfaces for the connectivity providers. These are used by the server application as well as the logic modules, and are implemented in the `HomeCompanion.Core` project and provisioned for use in the logic modules via dependency injection
 - `HomeCompanion.Logic`: contains a selection of built-in logic modules, implementing the `ILogic` interface
 - `HomeCompanion.Tests`: contains unit tests for the framework and the logic modules, using NUnit
+
+### Value event architecture
+
+`IValue` instances are initialized once by `ValuesManager` during startup. Connectivity providers do not call `IValue.Initialize`.
+
+Responsibilities are split as follows:
+
+- `ValuesManager`: discovers values from registered `IValuesContainer` instances, calls `IValue.Initialize`, and performs centralized target-based routing for inbound `ValueUpdateReceived` / `ValueWriteReceived`
+- Connectivity providers (KNX/OpenHAB/...): discover bus-mapped values for endpoint lookup and bridge bus traffic to/from event bus events
+- Values (`ValueBase<T>`): remain bus-agnostic and only process routed payloads plus publish value change/write events
+
+This avoids per-value event bus subscriptions and keeps bus-specific logic in connectivity providers.
 
 ### Dependencies
 

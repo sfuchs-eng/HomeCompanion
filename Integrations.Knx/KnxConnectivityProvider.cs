@@ -38,7 +38,7 @@ namespace HomeCompanion.Integrations.Knx;
 /// <para>
 /// <b>Value discovery</b>: At startup, all <see cref="IValue"/> properties (any visibility, any depth) on
 /// registered <see cref="IValuesContainer"/> instances that carry a <see cref="KnxBusEndpointMapping"/> are
-/// discovered via reflection. Each is initialized with <see cref="IValue.Initialize"/> and indexed by its
+/// discovered via reflection and indexed by its
 /// <see cref="KnxBusEndpointMapping.GroupAddress"/>. A <c>GroupValueRead</c> is sent for each registered
 /// group address so that the bus can respond with the current value, completing initial value population.
 /// </para>
@@ -119,7 +119,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         // Subscribe to outbound write requests from the event bus
         _subscriber.Subscribe(new ValueWriteRequestHandler(this));
 
-        // Discover and initialize all IValue properties with a KNX bus mapping
+        // Discover all IValue properties with a KNX bus mapping
         _valueMap = DiscoverKnxValues();
         _logger.LogInformation("KnxConnectivityProvider: discovered {Count} KNX values across {ContainerCount} containers.",
             _valueMap.Count, _containers.Count);
@@ -200,8 +200,6 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
 
             if (prop.GetValue(instance) is not IValue value) continue;
             if (!value.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping)) continue;
-
-            value.Initialize(_publisher, _subscriber);
 
             if (map.ContainsKey(mapping!.GroupAddress))
                 _logger.LogWarning(

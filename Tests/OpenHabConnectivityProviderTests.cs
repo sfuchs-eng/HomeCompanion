@@ -15,6 +15,8 @@ using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus;
 using SRF.Network.OpenHab.EventBus.Events;
 using SRF.Network.OpenHab.Items;
+using System.Collections.Concurrent;
+using System.Reflection;
 
 namespace HomeCompanion.Tests;
 
@@ -46,6 +48,8 @@ public class OpenHabConnectivityProviderTests
             NullLogger<OpenHabStateConverter>.Instance);
 
         var containers = container is not null ? [container] : Array.Empty<IValuesContainer>();
+        var valuesManager = new TestValuesManager(subscriber);
+        InitializeValues(containers, publisher, valuesManager);
         return new OpenHabConnectivityProvider(
             publisher,
             subscriber,
@@ -54,6 +58,66 @@ public class OpenHabConnectivityProviderTests
             containers,
             converter,
             NullLogger<OpenHabConnectivityProvider>.Instance);
+    }
+
+    private static void InitializeValues(IEnumerable<IValuesContainer> containers, IEventPublisher publisher, IValuesManager manager)
+    {
+        foreach (var container in containers)
+        {
+            var properties = container.GetType().GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Where(p => p.CanRead && typeof(IValue).IsAssignableFrom(p.PropertyType));
+
+            foreach (var property in properties)
+            {
+                if (property.GetValue(container) is IValue value)
+                    value.Initialize(publisher, manager);
+            }
+        }
+    }
+
+    private sealed class TestValuesManager : IValuesManager
+    {
+        private readonly ConcurrentDictionary<IValue, bool> _values = [];
+
+        public TestValuesManager(IEventSubscriber subscriber)
+        {
+            subscriber.Subscribe(new ValueUpdateHandler(this));
+            subscriber.Subscribe(new ValueWriteHandler(this));
+        }
+
+        public void RegisterValue(IValue value) => _values.TryAdd(value, true);
+
+        public void UnregisterValue(IValue value) => _values.TryRemove(value, out _);
+
+        private void Route(ValueUpdateReceived @event)
+        {
+            if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
+                receiver.ReceiveUpdate(@event.Value);
+        }
+
+        private void Route(ValueWriteReceived @event)
+        {
+            if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
+                receiver.ReceiveWrite(@event.NewValue);
+        }
+
+        private sealed class ValueUpdateHandler(TestValuesManager owner) : IEventHandler<ValueUpdateReceived>
+        {
+            public ValueTask HandleAsync(ValueUpdateReceived @event, CancellationToken cancellationToken = default)
+            {
+                owner.Route(@event);
+                return ValueTask.CompletedTask;
+            }
+        }
+
+        private sealed class ValueWriteHandler(TestValuesManager owner) : IEventHandler<ValueWriteReceived>
+        {
+            public ValueTask HandleAsync(ValueWriteReceived @event, CancellationToken cancellationToken = default)
+            {
+                owner.Route(@event);
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     private sealed class StubEventBusClient : IEventBusClient
