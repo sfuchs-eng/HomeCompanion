@@ -17,6 +17,7 @@ path not only for other devices but also for integration with other home automat
 
 - **Modular automation logic**: implement your automation logic as `ILogic` modules, which are loaded at runtime and can be enabled/disabled via configuration
 - **Centralized value lifecycle**: `ValuesManager` initializes all discovered `IValue` instances at startup and routes `ValueUpdateReceived` / `ValueWriteReceived` events by `Target` to the owning value instance
+- **Extensions framework**: add functionality via separate assemblies, implementing `HomeCompanion.Extensions.IExtension` to get loaded at runtime with opportunity for service injection. Extensions can contain their own logic modules, values containers, connectivity providers, and other services
 - **KNX connectivity**: connect via KNX/net IP routing (UDP multicast) to a KNX system and receive/transmit Group Address write, read and read response telegrams
 - **OpenHAB connectivity**: connect via OpenHAB REST API (item commands) and Websocket (event bus) to an OpenHAB instance and receive/transmit item state changes and commands. Inbound OpenHAB `ItemState*` events are mapped to `ValueUpdateReceived`-based events, while inbound `ItemCommandEvent` is mapped to `ValueWriteReceived`-based events.
 - **MQTT connectivity**: connect to a MQTT broker and receive/transmit messages on specified topics
@@ -32,7 +33,7 @@ path not only for other devices but also for integration with other home automat
 The solution is organized into several projects:
 
 - `HomeCompanion.Server`: the main Blazor server application
-- `HomeCompanion.Core`: contains the core functionality of the framework, mostly used by the server application. This includes for example the `LogicManager` which is responsible for loading and managing the `ILogic` modules, as well as the connectivity managers for KNX, OpenHAB, MQTT and InfluxDB
+- `HomeCompanion.Core`: contains the core run-time functionality of the framework, mostly used by the server application. This includes for example the `LogicManager` which is responsible for loading and managing the `ILogic` modules, as well as the connectivity managers for KNX, OpenHAB, MQTT and InfluxDB
 - `HomeCompanion.Base`: contains the base classes and for the framework, such as for example `LogicBase` which implements the `ILogic` interface with common basic functionality for the logic modules
 - `HomeCompanion.Abstraction`: contains the abstractions for the framework, such as for example `ILogic` and `IDiagnostic` as well as the interfaces for the connectivity providers. These are used by the server application as well as the logic modules, and are implemented in the `HomeCompanion.Core` project and provisioned for use in the logic modules via dependency injection
 - `HomeCompanion.Logic`: contains a selection of built-in logic modules, implementing the `ILogic` interface
@@ -60,25 +61,37 @@ The application uses the following main dependencies:
   - `Microsoft.Extensions.Options`
 - `NUnit` for unit testing
 - `SRF.Network` for KNX, OpenHAB and MQTT connectivity
+- `SRF.Knx` libraries for KNX-specific functionality, including DPT encoding/decoding and ETS GA export parsing
 
 The internal project dependencies are as follows:
 
 ```mermaid
 graph TD
-    Tests[HomeCompanion.Tests] --> Server
-    Tests --> Core
-    Tests --> Base
-    Tests --> Logics
+  Tests[HomeCompanion.Tests] --> Server[HomeCompanion.Server]
+  Tests --> Core[HomeCompanion.Core]
+  Tests --> Base[HomeCompanion.Base]
+  Tests --> Logics[HomeCompanion.Logics]
+  Tests --> IntegrationsKnx[HomeCompanion.Integrations.Knx]
 
-    Server[HomeCompanion.Server] --> Core
+  Server --> Core
 
-    Core[HomeCompanion.Core] --> Base
+  Core --> Base
+  Core --> Logics
+  Core --> IntegrationsKnx
+  Core --> IntegrationsOpenHab[HomeCompanion.Integrations.OpenHab]
+  Core --> IntegrationsMqtt[HomeCompanion.Integrations.Mqtt]
 
-    Logics[HomeCompanion.Logics] --> Base
+  Logics --> Base
+  Logics --> IntegrationsKnx
+  Logics --> IntegrationsOpenHab
 
-    Base[HomeCompanion.Base] --> Abstractions
+  IntegrationsKnx --> Base
+  IntegrationsKnx --> IntegrationsOpenHab
 
-    Abstractions[HomeCompanion]
+  IntegrationsOpenHab --> Base
+  IntegrationsOpenHab --> Abstractions[HomeCompanion.Abstractions]
+
+  Base --> Abstractions
 ```
 
 ## Development approach

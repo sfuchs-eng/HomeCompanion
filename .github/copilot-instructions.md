@@ -23,7 +23,7 @@ Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or Infl
 | `HomeCompanion.Tests` | NUnit test suite |
 | `SRF.Network/` | Networking sub-solution — see its own [copilot-instructions.md](../SRF.Network/.github/copilot-instructions.md) |
 
-Full dependency graph: [README.md § Structure](../README.md#structure).
+For full dependencies see the project files.
 
 The application is a strongly event based system, receiving, processing and sending events related to values of distributed data points.
 This follows the general pattern of OpenHAB Items/Channels and of KNX group addresses with their objects in devices' memory.

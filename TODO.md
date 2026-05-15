@@ -29,7 +29,7 @@ Introduce a scheme to resolve Extension dependencies on other Extensions (via co
   - [x] Batch-load values from OpenHab, initializing those which map by name (or other logic? Bus maping? General permission via attribute on the IValuesContainer implementation?)
   - [x] Check whether the new OpenHab integration filters item write events correctly to only those items that are mapped to IValue properties, and that it raises events with the correct Target (mapped IValue) and Value (converted from OpenHab state string to the correct type using the OpenHabStateConverter).
 - [x] Establish correct communication with the KNX bus, receiving telegrams and raising events accordingly (KNX → event bus)
-- [ ] TestLogic, test switch: switch works, Int32 counter works, but KNX devices are not receiving or discarding the telegrams for the float duration (TestValueFloat). The byte count (TestCounter) is yet to be verified.
+- [ ] TestLogic, test switch: all test IValues communicate with the KNX bus and do not interfere directly with OpenHAB except initialization.
 - [x] The log message "SRF.Network.OpenHab.Client.EventBusClient[0] Starting WatchDog..." is logged only upon application shutdown. Find & fix the root cause.
 - [ ] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
 - [ ] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
