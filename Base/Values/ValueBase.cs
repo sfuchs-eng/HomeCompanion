@@ -211,13 +211,6 @@ public class ValueBase<T> : ValueBase, IValue<T>
     /// </summary>
     public override bool InitializeValue(object value, AppInitializationStage stage)
     {
-        // ensure initialization stages are incremental
-        if (stage <= InitializationStage && Status.HasFlag(ValueStatus.Initialized))
-        {
-            logger.LogTrace("Attempted to initialize {ValueName} at stage {Stage}, but it is already initialized for a later stage {InitializationStage}. Skipping.", Name, stage, InitializationStage);
-            return false;
-        }
-
         // nullable?
         if (value is null)
         {
@@ -278,7 +271,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
     {
         if (Status.HasFlag(ValueStatus.Initialized))
         {
-            if ( InitializationStage >= stage)
+            if ( InitializationStage >= stage )
             {
                 logger.LogTrace("Attempted to initialize {ValueName} at stage {Stage}, but it is already initialized for stage {InitializationStage}. Skipping downgrade.", Name, stage, InitializationStage);
                 return false;
