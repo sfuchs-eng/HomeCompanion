@@ -230,13 +230,6 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         while (!_connections.All(c => c.IsConnected))
             await Task.Delay(200, cancellationToken);
 
-        foreach (var ga in _valueMap.Keys)
-            _pendingInitialReads.TryAdd(ga, true);
-
-        // register answer handlers before sending read requests
-        foreach (var connection in _connections)
-            connection.MessageReceived += ProcessInitialReadResponse;
-
         var dptToSkipReading = new[] {
             "DPST-1-15", // Reset
             "DPST-1-17", // Trigger
@@ -248,15 +241,12 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         }.Select(s => knxSystemConfiguration.GetDptFromId(s))
         .ToArray(); // reading these doesn't make much sense, as they typically represent momentary events (e.g. button press) where the current value is not relevant and might not even be updated on the bus
 
-        // send read requests with some delay in between to avoid overwhelming the bus at startup, especially if there are many group addresses to read
         foreach (var ga in _valueMap.Keys)
         {
-            // does the bus mapping allow for communication?
-            var mapping = _valueMap[ga].Mapping;
-            if (!mapping.Communication.HasFlag(BusCommunication.Transmit | BusCommunication.Receive))
+            // no Initialize communication for this GA according to its bus mapping configuration?
+            if (!_valueMap[ga].Mapping.Communication.HasFlag(BusCommunication.Initialize))
             {
-                _logger.LogInformation("Skipping initial read request for {GA} because its KnxBusEndpointMapping does not allow transmit & receive communication.", ga);
-                _pendingInitialReads.TryRemove(ga, out _);
+                _logger.LogTrace("Skipping initial read request for {GA} because its KnxBusEndpointMapping does not allow initialize communication.", ga);
                 continue;
             }
 
@@ -275,7 +265,20 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             {
                 _logger.LogWarning(ex, "Failed to get DPT for {GA} during initial read request. Sending read request anyway.", ga);
             }
-            
+
+            _pendingInitialReads.TryAdd(ga, true);
+        }
+
+        // register answer handlers before sending read requests
+        foreach (var connection in _connections)
+            connection.MessageReceived += ProcessInitialReadResponse;
+
+        // send read requests with some delay in between to avoid overwhelming the bus at startup, especially if there are many group addresses to read
+        foreach (var ga in _pendingInitialReads.Keys.ToArray()) // ToArray to avoid collection modified issues as we remove from the dictionary when responses come in
+        {
+            // does the bus mapping allow for communication?
+            var mapping = _valueMap[ga].Mapping;
+
             // send read request
             var readRequest = new GroupMessageRequest(ga, new SRF.Knx.Core.GroupValue(), GroupEventType.ValueRead);
             foreach (var connection in _connections)
@@ -321,6 +324,19 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             case GroupEventType.ValueResponse:
                 if (e.KnxMessageContext.GroupEventArgs.DestinationAddress is { } ga)
                     _pendingInitialReads.TryRemove(ga, out _);
+                if (!_valueMap.TryGetValue(e.KnxMessageContext.GroupEventArgs.DestinationAddress, out var mapping))
+                    break; // no registered value for this GA, ignore
+                if ((mapping.Mapping.Communication & (BusCommunication.Initialize | BusCommunication.Receive)) > 0 && e.KnxMessageContext.DecodedValue is not null)
+                {
+                    try
+                    {
+                        mapping.Value.InitializeValue(e.KnxMessageContext.DecodedValue, AppInitializationStage.InitBusValueReceived);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to initialize value for {GA}.", e.KnxMessageContext.GroupEventArgs.DestinationAddress);
+                    }
+                }
                 break;
         }
     }
@@ -329,10 +345,10 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Inbound: KNX → EventBus
     // -------------------------------------------------------------------------
 
-    private IValue? ResolveTarget(GroupAddress destinationAddress)
+    private ValueMapping? ResolveTarget(GroupAddress destinationAddress)
     {
         if (_valueMap.TryGetValue(destinationAddress, out var target))
-            return target.Value;
+            return target;
 
         // Fallback for rare cases where a GroupAddress instance used as dictionary key
         // was mutated after insertion, causing hash-based lookup to miss.
@@ -342,7 +358,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
             {
                 // force update hash key by re-inserting with the same key instance, so that future lookups will find it
                 _valueMap[groupAddress] = value;
-                return value.Value;
+                return value;
             }
         }
 
@@ -362,6 +378,8 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
         switch (args.EventType)
         {
             case GroupEventType.ValueWrite:
+                if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
+                    break; // if the mapping doesn't allow receiving, ignore the write
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
                 {
                     DestinationAddress = args.DestinationAddress,
@@ -370,21 +388,49 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                     DecodedValue = ctx.DecodedValue,
                     Value = ctx.DecodedValue,
                     Timestamp = ctx.ReceivedAt,
-                    Target = target,
+                    Target = target?.Value,
                 });
                 break;
 
             case GroupEventType.ValueRead:
+                if (!(target?.Mapping.Communication.HasFlag(BusCommunication.AnswerReadRequests) ?? false))
+                    break; // if the mapping doesn't allow answering read requests, ignore the read
+                // Send answers in a background tastk in fire-and-forget manner with a timeout to avoid blocking the KNX message processing thread in case of issues with the bus or the value initialization, as we don't want to risk missing further incoming telegrams which could also be relevant for initialization (e.g. if the initial read request triggered a response with an unexpected DPT that causes decoding to fail and thus value initialization to be skipped, but the value is still registered and can be updated by subsequent telegrams)
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                foreach (var connection in _connections)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var responseValue = target?.Value?.OValue ?? throw new Exception($"Target value for {args.DestinationAddress} is null, cannot answer read request.");
+
+                            var dpt = _dptResolver.GetDpt(args.DestinationAddress);
+                            var encodedValue = dpt.ToGroupValue(responseValue);
+
+                            var responseMessage = new GroupMessageRequest(args.DestinationAddress, encodedValue, GroupEventType.ValueResponse);
+                            await connection.SendMessageAsync(responseMessage, cts.Token);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to send KNX read response for {GA} from IValue {ValueName}.", args.DestinationAddress, target?.Value?.Name ?? "<null>");
+                        }
+                    }, cts.Token);
+                }
+
+                // raise to event bus.
                 _ = _publisher.PublishAsync(new KnxGroupReadReceived
                 {
                     DestinationAddress = args.DestinationAddress,
                     SourceAddress = args.SourceAddress,
                     Timestamp = ctx.ReceivedAt,
-                    Target = target,
+                    Target = target?.Value,
                 });
                 break;
 
             case GroupEventType.ValueResponse:
+                if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
+                    break; // if the mapping doesn't allow receiving, ignore the response
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
                 {
                     DestinationAddress = args.DestinationAddress,
@@ -393,9 +439,9 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
                     DecodedValue = ctx.DecodedValue,
                     Value = ctx.DecodedValue,
                     Timestamp = ctx.ReceivedAt,
-                    Target = target,
+                    Target = target?.Value,
                 });
-                _pendingInitialReads.TryRemove(args.DestinationAddress, out _);
+                //_pendingInitialReads.TryRemove(args.DestinationAddress, out _); // no need to do this here, as it's already handled in the dedicated initial read response handler that is only registered during initialization phase
                 break;
         }
     }

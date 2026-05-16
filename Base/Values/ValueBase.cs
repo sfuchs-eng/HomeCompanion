@@ -14,6 +14,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     protected readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     public abstract Type ValueType { get; }
+    public abstract object? OValue { get; }
     public ValueStatus Status { get; protected set; } = ValueStatus.Default;
     public AppInitializationStage InitializationStage { get; protected set; } = AppInitializationStage.Default;
     public string? Name { get; set; }
@@ -118,6 +119,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 public class ValueBase<T> : ValueBase, IValue<T>
 {
     public T Value { get; protected set; } = default!;
+    public override object? OValue { get => Value; }
 
     public override Type ValueType { get => typeof(T); }
 

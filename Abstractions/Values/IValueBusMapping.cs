@@ -29,7 +29,7 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
     }
     public TBus Bus { get; init; }
     public TAddress Address { get; init; }
-    public BusCommunication Communication { get; init; } = BusCommunication.Full;
+    public BusCommunication Communication { get; init; } = BusCommunication.RegularCommunication;
 
     string IValueBusEndpointMapping.BusId => Bus?.ToString() ?? string.Empty;
     string IValueBusEndpointMapping.Address => Address?.ToString() ?? string.Empty;

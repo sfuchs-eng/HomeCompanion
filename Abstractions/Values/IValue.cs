@@ -37,6 +37,11 @@ public interface IValue
     public string? Label { get; }
 
     /// <summary>
+    /// The value as an object. The actual type of the value is given by <see cref="ValueType"/> and the strongly typed value can be accessed via <see cref="IValue{T}.Value"/>. This property is useful for generic handling of values without knowing their type at compile time, e.g. for event handlers that listen to multiple values of different types or for dynamic initialization of values based on configuration.
+    /// </summary>
+    public object? OValue { get; }
+
+    /// <summary>
     /// Logic side write received: published by the value object when a value is written to it (e.g. via <see cref="IValue{T}.Write"/>).
     /// Connnectivity providers shall listen to event bus instead of subscribing to individual value events, and filter as needed.
     /// </summary>
