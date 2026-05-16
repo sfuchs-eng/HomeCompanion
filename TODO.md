@@ -18,7 +18,7 @@ Introduce a scheme to resolve Extension dependencies on other Extensions (via co
 
 ### Furthermore
 
-- [ ] IValues initialization framework to be finished and tested
+- [x] IValues initialization framework to be finished and tested
   - [x] Implement `KnxValues` source generator to emit properties from ETS export
   - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests
   - [x] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
@@ -28,11 +28,12 @@ Introduce a scheme to resolve Extension dependencies on other Extensions (via co
   - [x] Test OpenHab connectivity and item value as well as event reception
   - [x] Batch-load values from OpenHab, initializing those which map by name (or other logic? Bus maping? General permission via attribute on the IValuesContainer implementation?)
   - [x] Check whether the new OpenHab integration filters item write events correctly to only those items that are mapped to IValue properties, and that it raises events with the correct Target (mapped IValue) and Value (converted from OpenHab state string to the correct type using the OpenHabStateConverter).
+  - [ ] bunch of initialization bugs remaining related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions)
 - [x] Establish correct communication with the KNX bus, receiving telegrams and raising events accordingly (KNX → event bus)
 - [x] TestLogic, test switch: all test IValues communicate with the KNX bus and do not interfere directly with OpenHAB except initialization.
 - [x] The log message "SRF.Network.OpenHab.Client.EventBusClient[0] Starting WatchDog..." is logged only upon application shutdown. Find & fix the root cause.
-- [ ] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
-- [ ] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
+- [x] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
+- [x] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
 - [x] Centralize `IValue.Initialize` lifecycle in `ValuesManager` and remove `IValue.Initialize` calls from connectivity providers. Connectivity providers now only bridge bus payload/events and resolve mapped targets.
 
 ---
