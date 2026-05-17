@@ -1,18 +1,29 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Server.Components;
+using Microsoft.Extensions.Hosting.Systemd;
 using SRF.Network.Knx;
 
 var cso = Console.Error;
 
 var builder = WebApplication.CreateBuilder(args);
+var isSystemdService = SystemdHelpers.IsSystemdService();
+
+if (isSystemdService)
+{
+    // Use systemd lifetime/console integration only when started by systemd.
+    builder.Host.UseSystemd();
+}
 
 // logging
-builder.Logging.AddSystemdConsole((cfo) =>
+if (isSystemdService)
 {
-    cfo.UseUtcTimestamp = false;
-    cfo.TimestampFormat = "yyyy-MM-dd HH:MM:ss ";
-});
+    builder.Logging.AddSystemdConsole((cfo) =>
+    {
+        cfo.UseUtcTimestamp = false;
+        cfo.TimestampFormat = "yyyy-MM-dd HH:MM:ss ";
+    });
+}
 
 // Add services to the container.
 cso.WriteLine("Registering Core services...");

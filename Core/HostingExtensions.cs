@@ -80,10 +80,15 @@ public static class HostingExtensions
     /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
     public static IHostApplicationBuilder AddHomeCompanionConfiguration(this IHostApplicationBuilder builder)
     {
-        var systemPath = Path.Combine("/etc", $"{AppName}.json");
-        var userPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify),
-            $"{AppName}.json");
+        string[] extraPaths =
+        [
+            // later ones override earlier, so system-wide defaults come first and user overrides come after
+            Path.Combine("/etc", $"{AppName}.json"),
+            Path.Combine("/etc/homecompanion", $"{AppName}.json"),
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify),
+                $"{AppName}.json")
+        ];
 
         var sources = builder.Configuration.Sources;
 
@@ -102,17 +107,18 @@ public static class HostingExtensions
             if (sources[i] is JsonConfigurationSource jsonSource)
             {
                 var path = jsonSource.Path;
-                if (string.Equals(path, systemPath, StringComparison.Ordinal) ||
-                    string.Equals(path, userPath, StringComparison.Ordinal))
+                if (extraPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
                 {
                     sources.RemoveAt(i);
                 }
             }
         }
 
-        // Append system config first, user config second — user overrides system.
-        sources.Add(BuildJsonSource(systemPath));
-        sources.Add(BuildJsonSource(userPath));
+        // Append in order of entries
+        foreach (var path in extraPaths)
+        {
+            sources.Add(BuildJsonSource(path));
+        }
 
         foreach (var source in tailSources)
             sources.Add(source);

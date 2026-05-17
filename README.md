@@ -127,6 +127,26 @@ The other projects in the solution are class libraries for the framework and the
 3. Configure the application: ...
 4. Run for testing: ...
 
+### Linux systemd service
+
+For production on Linux, HomeCompanion can run as a systemd service.
+
+For local development, keep using normal console startup with `dotnet run` or `dotnet watch`.
+The server only enables systemd-specific host behavior when it is actually started by systemd.
+
+1. Publish the server to `/opt/homecompanion` (result must include `HomeCompanion.Server.dll`).
+2. Create the runtime user and directories:
+  - `sudo bash deploy/systemd/setup-homecompanion-user.sh`
+3. Install service files:
+  - `sudo cp deploy/systemd/homecompanion.service /etc/systemd/system/homecompanion.service`
+  - `sudo cp deploy/systemd/homecompanion.env /etc/homecompanion/homecompanion.env`
+4. Reload and start service:
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl enable --now homecompanion.service`
+5. Inspect state and logs:
+  - `sudo systemctl status homecompanion.service`
+  - `sudo journalctl -u homecompanion.service -f`
+
 ### Configuration
 
 HomeCompanion reads configuration from the normal ASP.NET Core sources and additionally from these optional JSON files:
