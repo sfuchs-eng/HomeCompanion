@@ -1,0 +1,585 @@
+@page "/values"
+@rendermode InteractiveServer
+
+@using System.Text
+@using System.Text.RegularExpressions
+@using HomeCompanion.Extensions
+@using HomeCompanion.Values
+
+@inject IEnumerable<IValuesContainer> ValuesContainers
+
+@implements IDisposable
+
+<PageTitle>Values</PageTitle>
+
+@{
+    var visibleRows = GetVisibleRows();
+}
+
+<h1>Values</h1>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a class="btn btn-sm btn-outline-secondary" href="status">Back to Status</a>
+
+    <div class="d-flex align-items-center gap-1 flex-grow-1" style="min-width: 260px; max-width: 520px;">
+        <label class="form-label mb-0 text-nowrap" for="values-filter-input">Filter (regex):</label>
+        <input id="values-filter-input"
+               type="text"
+               class="form-control form-control-sm @(_regexError is not null ? "is-invalid" : "")"
+               placeholder="e.g. Kitchen|Temperature|KNX"
+               value="@_regexPattern"
+               @oninput="OnRegexInput" />
+    </div>
+
+    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">Clear Filters</button>
+    <span class="badge text-bg-secondary ms-auto">@visibleRows.Count shown / @_rows.Count total</span>
+</div>
+
+@if (_regexError is not null)
+{
+    <div class="alert alert-warning py-2 px-3" role="alert">
+        Invalid regex: @_regexError
+    </div>
+}
+
+<div style="overflow-x: auto;">
+    <table class="table table-sm table-bordered table-hover align-middle values-grid">
+        <thead class="table-light sticky-top">
+            <tr>
+                @foreach (var column in _columns)
+                {
+                    var options = GetFilterOptions(column);
+                    var selectedCount = GetSelectedFilterCount(column);
+                    <th>
+                        <div class="d-flex flex-column gap-1">
+                            <button type="button"
+                                    class="btn btn-link btn-sm p-0 text-start text-decoration-none"
+                                    @onclick="() => ToggleSort(column)">
+                                <span>@GetColumnLabel(column)</span>
+                                <span class="text-muted ms-1">@GetSortIndicator(column)</span>
+                            </button>
+
+                            <details class="values-filter-dropdown position-relative">
+                                <summary class="btn btn-sm btn-outline-secondary py-0 px-2 text-nowrap">
+                                    Filter
+                                    @if (selectedCount > 0)
+                                    {
+                                        <span class="badge text-bg-primary ms-1">@selectedCount</span>
+                                    }
+                                </summary>
+                                <div class="values-filter-menu dropdown-menu d-block p-2 shadow-sm">
+                                    <div class="small text-muted mb-2">Top 50 distinct items from the current result set.</div>
+                                    @if (options.Count == 0)
+                                    {
+                                        <div class="small text-muted">No values available.</div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var option in options)
+                                        {
+                                            <label class="form-check small mb-1 d-flex align-items-start gap-2">
+                                                <input type="checkbox"
+                                                       class="form-check-input mt-1"
+                                                       checked="@IsFilterSelected(column, option)"
+                                                       @onchange="args => SetFilterSelection(column, option, args.Value)" />
+                                                <span class="text-break">@option</span>
+                                            </label>
+                                        }
+
+                                        @if (HasFilterSelection(column))
+                                        {
+                                            <button type="button" class="btn btn-sm btn-link px-0" @onclick="() => ClearColumnFilter(column)">Clear</button>
+                                        }
+                                    }
+                                </div>
+                            </details>
+                        </div>
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (visibleRows.Count == 0)
+            {
+                <tr>
+                    <td colspan="@_columns.Length" class="text-muted text-center py-4">No values match the current filters.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var row in visibleRows)
+                {
+                    <tr @key="row.Key">
+                        <td>@row.ContainerType</td>
+                        <td>@row.Name</td>
+                        <td>@row.Label</td>
+                        <td><code>@row.TypeName</code></td>
+                        <td>@row.ValueDisplay</td>
+                        <td>@RenderValueStatus(row.Status)</td>
+                        <td>@row.BusId</td>
+                        <td>@row.Address</td>
+                        <td>@row.Config</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+<style>
+    .values-grid th {
+        min-width: 10rem;
+        vertical-align: top;
+    }
+
+    .values-grid th:first-child {
+        min-width: 12rem;
+    }
+
+    .values-filter-dropdown summary {
+        list-style: none;
+    }
+
+    .values-filter-dropdown summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .values-filter-menu {
+        position: absolute;
+        inset: calc(100% + 0.25rem) auto auto 0;
+        min-width: 16rem;
+        max-width: 22rem;
+        max-height: 18rem;
+        overflow-y: auto;
+        z-index: 10;
+    }
+</style>
+
+@code {
+    private readonly ColumnId[] _columns =
+    [
+        ColumnId.ContainerType,
+        ColumnId.Name,
+        ColumnId.Label,
+        ColumnId.Type,
+        ColumnId.Value,
+        ColumnId.Status,
+        ColumnId.BusId,
+        ColumnId.Address,
+        ColumnId.Config,
+    ];
+
+    private readonly List<ValueGridRow> _rows = [];
+    private readonly Dictionary<IValue, ValueSubscription> _subscriptions = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<ColumnId, HashSet<string>> _selectedFilters = [];
+    private readonly CancellationTokenSource _refreshLoopCancellation = new();
+
+    private string _regexPattern = string.Empty;
+    private string? _regexError;
+    private Regex? _regex;
+    private ColumnId _sortColumn = ColumnId.ContainerType;
+    private bool _sortAscending = true;
+    private Task? _refreshLoopTask;
+
+    protected override void OnInitialized()
+    {
+        SubscribeToValues();
+        RefreshRows();
+        _refreshLoopTask = RunRefreshLoopAsync(_refreshLoopCancellation.Token);
+    }
+
+    public void Dispose()
+    {
+        _refreshLoopCancellation.Cancel();
+
+        foreach (var subscription in _subscriptions.Values)
+            subscription.Dispose();
+
+        _subscriptions.Clear();
+        _refreshLoopCancellation.Dispose();
+    }
+
+    private void SubscribeToValues()
+    {
+        foreach (var container in ValuesContainers)
+        {
+            foreach (var value in container.GetValues())
+            {
+                if (_subscriptions.ContainsKey(value))
+                    continue;
+
+                EventHandler<ValueWrittenEventArgs> writtenHandler = (_, _) => QueueRefresh();
+                EventHandler<ValueChangedEventArgs> changedHandler = (_, _) => QueueRefresh();
+
+                value.Written += writtenHandler;
+                value.Changed += changedHandler;
+
+                _subscriptions[value] = new ValueSubscription(value, writtenHandler, changedHandler);
+            }
+        }
+    }
+
+    private void QueueRefresh()
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (RefreshRows())
+                StateHasChanged();
+        });
+    }
+
+    private bool RefreshRows()
+    {
+        var updatedRows = BuildRows();
+        if (_rows.SequenceEqual(updatedRows))
+            return false;
+
+        _rows.Clear();
+        _rows.AddRange(updatedRows);
+        return true;
+    }
+
+    private List<ValueGridRow> BuildRows()
+    {
+        List<ValueGridRow> rows = [];
+
+        foreach (var container in ValuesContainers)
+        {
+            var containerType = container.GetType().Name;
+            foreach (var value in container.GetValues())
+            {
+                var mappings = value.BusMappings.Values.ToList();
+                if (mappings.Count == 0)
+                {
+                    rows.Add(CreateRow(containerType, value, null, 0));
+                    continue;
+                }
+
+                for (var mappingIndex = 0; mappingIndex < mappings.Count; mappingIndex++)
+                    rows.Add(CreateRow(containerType, value, mappings[mappingIndex], mappingIndex));
+            }
+        }
+
+        return rows;
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    if (RefreshRows())
+                        StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static ValueGridRow CreateRow(string containerType, IValue value, IValueBusEndpointMapping? mapping, int mappingIndex)
+    {
+        var config = NormalizeDisplay(mapping?.Config?.FormatConfiguration());
+        return new ValueGridRow(
+            Key: $"{containerType}|{value.GetHashCode()}|{mappingIndex}|{NormalizeDisplay(mapping?.BusId)}|{NormalizeDisplay(mapping?.Address)}|{config}",
+            ContainerType: NormalizeDisplay(containerType),
+            Name: NormalizeDisplay(value.Name),
+            Label: NormalizeDisplay(value.Label),
+            TypeName: NormalizeDisplay(value.ValueType.Name),
+            ValueDisplay: NormalizeDisplay(value.DisplayValue),
+            Status: value.Status,
+            StatusText: FormatValueStatusText(value.Status),
+            BusId: NormalizeDisplay(mapping?.BusId),
+            Address: NormalizeDisplay(mapping?.Address),
+            Config: config);
+    }
+
+    private List<ValueGridRow> GetVisibleRows()
+    {
+        IEnumerable<ValueGridRow> rows = _rows;
+        rows = ApplyRegexFilter(rows);
+        rows = ApplyColumnFilters(rows, excludedColumn: null);
+        rows = ApplySorting(rows);
+        return [.. rows];
+    }
+
+    private IEnumerable<ValueGridRow> ApplyRegexFilter(IEnumerable<ValueGridRow> source)
+    {
+        if (_regex is null)
+            return source;
+
+        return source.Where(row => _regex.IsMatch(BuildSearchText(row)));
+    }
+
+    private IEnumerable<ValueGridRow> ApplyColumnFilters(IEnumerable<ValueGridRow> source, ColumnId? excludedColumn)
+    {
+        foreach (var (column, selectedValues) in _selectedFilters)
+        {
+            if (column == excludedColumn || selectedValues.Count == 0)
+                continue;
+
+            source = source.Where(row => selectedValues.Contains(GetColumnValue(row, column)));
+        }
+
+        return source;
+    }
+
+    private IEnumerable<ValueGridRow> ApplySorting(IEnumerable<ValueGridRow> source)
+    {
+        return _sortColumn switch
+        {
+            ColumnId.Status when _sortAscending => source.OrderBy(row => row.Status).ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase),
+            ColumnId.Status => source.OrderByDescending(row => row.Status).ThenBy(row => row.Name, StringComparer.OrdinalIgnoreCase),
+            _ when _sortAscending => source.OrderBy(row => GetColumnValue(row, _sortColumn), StringComparer.OrdinalIgnoreCase),
+            _ => source.OrderByDescending(row => GetColumnValue(row, _sortColumn), StringComparer.OrdinalIgnoreCase),
+        };
+    }
+
+    private List<string> GetFilterOptions(ColumnId column)
+    {
+        IEnumerable<ValueGridRow> rows = _rows;
+        rows = ApplyRegexFilter(rows);
+        rows = ApplyColumnFilters(rows, excludedColumn: column);
+
+        return [.. rows.Select(row => GetColumnValue(row, column))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .Take(50)];
+    }
+
+    private void ToggleSort(ColumnId column)
+    {
+        if (_sortColumn == column)
+        {
+            _sortAscending = !_sortAscending;
+            return;
+        }
+
+        _sortColumn = column;
+        _sortAscending = true;
+    }
+
+    private void OnRegexInput(ChangeEventArgs args)
+    {
+        _regexPattern = args.Value?.ToString() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(_regexPattern))
+        {
+            _regex = null;
+            _regexError = null;
+            return;
+        }
+
+        try
+        {
+            _regex = new Regex(_regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+            _regexError = null;
+        }
+        catch (ArgumentException ex)
+        {
+            _regex = null;
+            _regexError = ex.Message;
+        }
+    }
+
+    private void ClearFilters()
+    {
+        _regexPattern = string.Empty;
+        _regex = null;
+        _regexError = null;
+        _selectedFilters.Clear();
+    }
+
+    private void ClearColumnFilter(ColumnId column)
+    {
+        _selectedFilters.Remove(column);
+    }
+
+    private void SetFilterSelection(ColumnId column, string value, object? rawState)
+    {
+        var isSelected = rawState switch
+        {
+            bool boolValue => boolValue,
+            string stringValue when bool.TryParse(stringValue, out var parsed) => parsed,
+            _ => false,
+        };
+
+        if (!_selectedFilters.TryGetValue(column, out var selectedValues))
+        {
+            if (!isSelected)
+                return;
+
+            selectedValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _selectedFilters[column] = selectedValues;
+        }
+
+        if (isSelected)
+        {
+            selectedValues.Add(value);
+            return;
+        }
+
+        selectedValues.Remove(value);
+        if (selectedValues.Count == 0)
+            _selectedFilters.Remove(column);
+    }
+
+    private bool IsFilterSelected(ColumnId column, string value) =>
+        _selectedFilters.TryGetValue(column, out var selectedValues) && selectedValues.Contains(value);
+
+    private bool HasFilterSelection(ColumnId column) =>
+        _selectedFilters.TryGetValue(column, out var selectedValues) && selectedValues.Count > 0;
+
+    private int GetSelectedFilterCount(ColumnId column) =>
+        _selectedFilters.TryGetValue(column, out var selectedValues) ? selectedValues.Count : 0;
+
+    private static string BuildSearchText(ValueGridRow row)
+    {
+        var builder = new StringBuilder();
+        builder.Append(row.ContainerType).Append(' ')
+            .Append(row.Name).Append(' ')
+            .Append(row.Label).Append(' ')
+            .Append(row.TypeName).Append(' ')
+            .Append(row.ValueDisplay).Append(' ')
+            .Append(row.StatusText).Append(' ')
+            .Append(row.BusId).Append(' ')
+            .Append(row.Address).Append(' ')
+            .Append(row.Config);
+        return builder.ToString();
+    }
+
+    private static string GetColumnLabel(ColumnId column) => column switch
+    {
+        ColumnId.ContainerType => "Container",
+        ColumnId.Name => "Name",
+        ColumnId.Label => "Label",
+        ColumnId.Type => "Type",
+        ColumnId.Value => "Value",
+        ColumnId.Status => "Status",
+        ColumnId.BusId => "Bus ID",
+        ColumnId.Address => "Address",
+        ColumnId.Config => "Config",
+        _ => column.ToString(),
+    };
+
+    private string GetSortIndicator(ColumnId column)
+    {
+        if (_sortColumn != column)
+            return string.Empty;
+
+        return _sortAscending ? "^" : "v";
+    }
+
+    private static string GetColumnValue(ValueGridRow row, ColumnId column) => column switch
+    {
+        ColumnId.ContainerType => row.ContainerType,
+        ColumnId.Name => row.Name,
+        ColumnId.Label => row.Label,
+        ColumnId.Type => row.TypeName,
+        ColumnId.Value => row.ValueDisplay,
+        ColumnId.Status => row.StatusText,
+        ColumnId.BusId => row.BusId,
+        ColumnId.Address => row.Address,
+        ColumnId.Config => row.Config,
+        _ => string.Empty,
+    };
+
+    private static string NormalizeDisplay(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "-" : text;
+    }
+
+    private static string FormatValueStatusText(ValueStatus status)
+    {
+        if (status == ValueStatus.Default)
+            return "Default";
+
+        List<string> values = [];
+        if (status.HasFlag(ValueStatus.Loaded) && !(status.HasFlag(ValueStatus.Initialized) || status.HasFlag(ValueStatus.Live)))
+            values.Add("Loaded");
+        if (status.HasFlag(ValueStatus.Initialized) && !status.HasFlag(ValueStatus.Live))
+            values.Add("Initialized");
+        if (status.HasFlag(ValueStatus.Live))
+            values.Add("Live");
+        if (status.HasFlag(ValueStatus.Used))
+            values.Add("Used");
+        if (status.HasFlag(ValueStatus.OutOfRange))
+            values.Add("OutOfRange");
+        if (status.HasFlag(ValueStatus.Error))
+            values.Add("Error");
+
+        return values.Count == 0 ? status.ToString() : string.Join(", ", values);
+    }
+
+    private MarkupString RenderValueStatus(ValueStatus status)
+    {
+        if (status == ValueStatus.Default)
+            return new MarkupString("<span class=\"badge text-bg-secondary\">Default</span>");
+
+        var badges = new StringBuilder();
+        if (status.HasFlag(ValueStatus.Loaded) && !(status.HasFlag(ValueStatus.Initialized) || status.HasFlag(ValueStatus.Live)))
+            badges.Append("<span class=\"badge text-bg-light text-dark me-1\">Loaded</span>");
+        if (status.HasFlag(ValueStatus.Initialized) && !status.HasFlag(ValueStatus.Live))
+            badges.Append("<span class=\"badge text-bg-primary me-1\">Initialized</span>");
+        if (status.HasFlag(ValueStatus.Live))
+            badges.Append("<span class=\"badge text-bg-success text-light me-1\">Live</span>");
+        if (status.HasFlag(ValueStatus.Used))
+            badges.Append("<span class=\"badge text-bg-light text-dark border me-1\">Used</span>");
+        if (status.HasFlag(ValueStatus.OutOfRange))
+            badges.Append("<span class=\"badge text-bg-warning text-dark me-1\">OutOfRange</span>");
+        if (status.HasFlag(ValueStatus.Error))
+            badges.Append("<span class=\"badge text-bg-danger me-1\">Error</span>");
+
+        return new MarkupString(badges.ToString());
+    }
+
+    private enum ColumnId
+    {
+        ContainerType,
+        Name,
+        Label,
+        Type,
+        Value,
+        Status,
+        BusId,
+        Address,
+        Config,
+    }
+
+    private sealed record ValueGridRow(
+        string Key,
+        string ContainerType,
+        string Name,
+        string Label,
+        string TypeName,
+        string ValueDisplay,
+        ValueStatus Status,
+        string StatusText,
+        string BusId,
+        string Address,
+        string Config);
+
+    private sealed class ValueSubscription(
+        IValue value,
+        EventHandler<ValueWrittenEventArgs> writtenHandler,
+        EventHandler<ValueChangedEventArgs> changedHandler) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            value.Written -= writtenHandler;
+            value.Changed -= changedHandler;
+        }
+    }
+}

@@ -5,6 +5,7 @@
 @using HomeCompanion.Values
 @using HomeCompanion.Extensions
 @using HomeCompanion.Logics
+@using Microsoft.AspNetCore.Components.Routing
 
 @inject IEnumerable<IConnectivityProvider> ConnectivityProviders
 @inject IEnumerable<ILogic> Logics
@@ -123,9 +124,9 @@
                         <td><code>@container.GetType().Name</code></td>
                         <td>@values.Count</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenValuesModal(container, values)">
-                                View Values
-                            </button>
+                            <NavLink class="btn btn-sm btn-outline-primary" href="values">
+                                Open Values Page
+                            </NavLink>
                         </td>
                     </tr>
                 }
@@ -134,91 +135,7 @@
     }
 </div>
 
-@if (_showModal)
-{
-    <div class="modal-backdrop fade show"></div>
-    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="valuesModalTitle">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="valuesModalTitle">
-                        Values — <code>@_selectedContainerName</code>
-                        <span class="ms-2 badge text-bg-secondary">@_selectedValues.Count</span>
-                    </h5>
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseModal"></button>
-                </div>
-                <div class="modal-body" style="overflow-y: auto; max-height: 70vh;">
-                    @if (_selectedValues.Count == 0)
-                    {
-                        <p class="text-muted">No values in this container.</p>
-                    }
-                    else
-                    {
-                        <table class="table table-sm table-bordered table-hover">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Label</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th>Bus ID</th>
-                                    <th>Address</th>
-                                    <th>Connfig</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var value in _selectedValues)
-                                {
-                                    var mappings = value.BusMappings.Values.ToList();
-                                    var rowSpan = mappings.Count > 1 ? mappings.Count : 1;
-                                    @for (int mi = 0; mi < rowSpan; mi++)
-                                    {
-                                        var mapping = mappings.Count > 0 ? mappings[mi] : null;
-                                        <tr>
-                                            @if (mi == 0)
-                                            {
-                                                <td rowspan="@rowSpan">@(value.Name ?? "—")</td>
-                                                <td rowspan="@rowSpan">@(value.Label ?? "—")</td>
-                                                <td rowspan="@rowSpan"><code>@value.ValueType.Name</code></td>
-                                                <td rowspan="@rowSpan">@RenderValueStatus(value.Status)</td>
-                                            }
-                                            <td>@(mapping?.BusId ?? "—")</td>
-                                            <td>@(mapping?.Address ?? "—")</td>
-                                            <td>@(mapping?.Config?.FormatConfiguration() ?? "")</td>
-                                        </tr>
-                                    }
-                                }
-                            </tbody>
-                        </table>
-                    }
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
-    private bool _showModal;
-    private string? _selectedContainerName;
-    private List<IValue> _selectedValues = [];
-
-    private void OpenValuesModal(IValuesContainer container, List<IValue> values)
-    {
-        _selectedContainerName = container.GetType().Name;
-        _selectedValues = values;
-        _showModal = true;
-    }
-
-    private void CloseModal()
-    {
-        _showModal = false;
-        _selectedValues = [];
-        _selectedContainerName = null;
-    }
-
     private MarkupString RenderValueStatus(ValueStatus status)
     {
         if (status == ValueStatus.Default)
