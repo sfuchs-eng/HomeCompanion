@@ -18,18 +18,48 @@ public interface IValueBusEndpointMapping : IEqualityComparer
     /// </summary>
     /// <value></value>
     BusCommunication Communication { get; init; }
+
+    IBusMappingConfiguration? Config { get; init; }
+
+    virtual bool CanFormatValueForDisplay => false;
+
+    string? FormatValueForDisplay(object? value);
+}
+
+/// <summary>
+/// To capture bus specific configuration parameters for a bus mapping.
+/// </summary>
+public interface IBusMappingConfiguration
+{
+    /// <summary>
+    /// Formats the configuration for display purposes.
+    /// JSON formatting is possible as it's display for technical users, but it should be concise and highlight the relevant configuration parameters for the bus mapping.
+    /// E.g. for a KNX mapping, the formatted config could include the data point type. The Address is to be skipped as it's already in the separate property <see cref="IValueBusEndpointMapping.Address"/>.
+    /// </summary>
+    /// <remarks>
+    /// Implementations must not throw exceptions. If formatting fails, the method should return null or an appropriate fallback string.
+    /// </remarks>
+    /// <returns>A string representation of the configuration.</returns>
+    string? FormatConfiguration();
+
+    /// <summary>
+    /// .NET format string to format the value for display purposes, e.g. in the UI. The formatting can be based on the value type and/or the bus mapping configuration.
+    /// </summary>
+    string? ValueFormat { get; }
 }
 
 public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TBus : notnull where TAddress : notnull
 {
-    public ValueBusMapping(TBus bus, TAddress address)
+    public ValueBusMapping(TBus bus, TAddress address, IBusMappingConfiguration? config)
     {
         Bus = bus;
         Address = address;
+        Config = config;
     }
     public TBus Bus { get; init; }
     public TAddress Address { get; init; }
     public BusCommunication Communication { get; init; } = BusCommunication.RegularCommunication;
+    public IBusMappingConfiguration? Config { get; init; }
 
     string IValueBusEndpointMapping.BusId => Bus?.ToString() ?? string.Empty;
     string IValueBusEndpointMapping.Address => Address?.ToString() ?? string.Empty;
@@ -43,6 +73,30 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
                    EqualityComparer<TAddress>.Default.Equals(mappingX.Address, mappingY.Address);
         }
         return false;
+    }
+
+    public virtual string? FormatValueForDisplay(object? value)
+    {
+        try
+        {
+            if (Config != null && Config.ValueFormat is string format)
+            {
+                // For simplicity, we use string.Format with the provided format string.
+                // In a real implementation, the formatting logic might be more complex and bus-specific.
+                return string.Format(format, value);
+            }
+            else
+            {
+                // If no specific format is provided, we can use the default ToString() representation of the value.
+                return value?.ToString();
+            }
+        }
+        catch
+        {
+            // If formatting fails, we can choose to return null or a fallback string.
+            // For now, we return null to indicate that formatting was not successful.
+        }
+        return null;
     }
 
     public virtual int GetHashCode(object obj)

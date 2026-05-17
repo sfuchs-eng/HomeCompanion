@@ -1,6 +1,5 @@
 # HomeCompanion TODO
 
-> **Status:** Build clean, 30/30 tests passing. Core framework (IValue, ValueBase, EventBus, KnxConnectivityProvider, LogicManager) is complete and tested. Gaps below block the first end-to-end KNX → IValue → Logic run.
 
 ---
 
@@ -18,23 +17,8 @@ Introduce a scheme to resolve Extension dependencies on other Extensions (via co
 
 ### Furthermore
 
-- [x] IValues initialization framework to be finished and tested
-  - [x] Implement `KnxValues` source generator to emit properties from ETS export
-  - [x] Implement `TestCounterLogic` and `ITestCounterValues` as a first logic using real values container properties, with unit tests
-  - [x] Import IStateStore and get it working / tested with a simple file-based implementation in HomeCompanion.Server
-  - [x] Implement saving values upon termination to json storage and loading them on startup
-  - [x] Integrate SRF.Network.OpenHab
-  - [x] Implement an IConnnectionProvider for OpenHab to manage connectivity and event reception
-  - [x] Test OpenHab connectivity and item value as well as event reception
-  - [x] Batch-load values from OpenHab, initializing those which map by name (or other logic? Bus maping? General permission via attribute on the IValuesContainer implementation?)
-  - [x] Check whether the new OpenHab integration filters item write events correctly to only those items that are mapped to IValue properties, and that it raises events with the correct Target (mapped IValue) and Value (converted from OpenHab state string to the correct type using the OpenHabStateConverter).
-  - [ ] bunch of initialization bugs remaining related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions)
-- [x] Establish correct communication with the KNX bus, receiving telegrams and raising events accordingly (KNX → event bus)
-- [x] TestLogic, test switch: all test IValues communicate with the KNX bus and do not interfere directly with OpenHAB except initialization.
-- [x] The log message "SRF.Network.OpenHab.Client.EventBusClient[0] Starting WatchDog..." is logged only upon application shutdown. Find & fix the root cause.
-- [x] Ensure KNX only sends read requests for values permitting so (read flag set in KNX DomainConfiguration oder similar)
-- [x] Get the first end-to-end KNX → IValue → Logic flow running with the test logic and real values container KnxValues generated.
-- [x] Centralize `IValue.Initialize` lifecycle in `ValuesManager` and remove `IValue.Initialize` calls from connectivity providers. Connectivity providers now only bridge bus payload/events and resolve mapped targets.
+- [ ] Refactor `KnxBusEndpointMapping` to provide a proper override of `FormatValueForDisplay` that uses the DPT information to format the value for display purposes, instead of relying on a generic JSON serialization of the mapping configuration. This will allow for more user-friendly display of KNX values in the UI and logs, showing the actual value with appropriate formatting based on its DPT (e.g. showing "22.5 °C" instead of just "22.5" for a temperature value).
+- [ ] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions).
 
 ---
 

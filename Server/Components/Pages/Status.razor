@@ -163,6 +163,7 @@
                                     <th>Status</th>
                                     <th>Bus ID</th>
                                     <th>Address</th>
+                                    <th>Connfig</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -183,6 +184,7 @@
                                             }
                                             <td>@(mapping?.BusId ?? "—")</td>
                                             <td>@(mapping?.Address ?? "—")</td>
+                                            <td>@(mapping?.Config?.FormatConfiguration() ?? "")</td>
                                         </tr>
                                     }
                                 }
@@ -223,10 +225,14 @@
             return new MarkupString("<span class=\"badge text-bg-secondary\">Default</span>");
 
         var badges = new System.Text.StringBuilder();
-        if (status.HasFlag(ValueStatus.Loaded))
-            badges.Append("<span class=\"badge text-bg-success me-1\">Loaded</span>");
-        if (status.HasFlag(ValueStatus.Initialized))
+        if (status.HasFlag(ValueStatus.Loaded) && !(status.HasFlag(ValueStatus.Initialized) || status.HasFlag(ValueStatus.Live)))
+            badges.Append("<span class=\"badge text-bg-light text-dark me-1\">Loaded</span>");
+        if (status.HasFlag(ValueStatus.Initialized) && !status.HasFlag(ValueStatus.Live))
             badges.Append("<span class=\"badge text-bg-primary me-1\">Initialized</span>");
+        if (status.HasFlag(ValueStatus.Live))
+            badges.Append("<span class=\"badge text-bg-success text-light me-1\">Live</span>");
+        if (status.HasFlag(ValueStatus.Used))
+            badges.Append("<span class=\"badge text-bg-light text-dark border me-1\">Used</span>");
         if (status.HasFlag(ValueStatus.OutOfRange))
             badges.Append("<span class=\"badge text-bg-warning text-dark me-1\">OutOfRange</span>");
         if (status.HasFlag(ValueStatus.Error))

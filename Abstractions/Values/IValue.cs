@@ -37,6 +37,13 @@ public interface IValue
     public string? Label { get; }
 
     /// <summary>
+    /// The formatted value as a string, suitable for display purposes, incl. unit if any.
+    /// The formatting can be based on the value type and/or the bus mapping configuration.
+    /// E.g. for a KNX value, the data point type can be used to determine the formatting of the value for display purposes.
+    /// </summary>
+    public string? DisplayValue { get; }
+
+    /// <summary>
     /// The value as an object. The actual type of the value is given by <see cref="ValueType"/> and the strongly typed value can be accessed via <see cref="IValue{T}.Value"/>. This property is useful for generic handling of values without knowing their type at compile time, e.g. for event handlers that listen to multiple values of different types or for dynamic initialization of values based on configuration.
     /// </summary>
     public object? OValue { get; }

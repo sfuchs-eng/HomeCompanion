@@ -191,7 +191,7 @@ public class KnxConnectivityProviderTests
     {
         public ValueBase<bool> Light { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
         {
-            BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0") },
+            BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0", "DPST-1-1") },
         };
 
         public IEnumerable<IValue> GetValues() => [Light];

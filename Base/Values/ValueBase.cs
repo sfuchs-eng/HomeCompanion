@@ -65,6 +65,25 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     protected Dictionary<object, IValueBusEndpointMapping> _busMappings { get; private set; } = [];
     public Dictionary<object, IValueBusEndpointMapping> BusMappings { get => _busMappings; init => _busMappings = value ?? []; }
 
+    public virtual string? DisplayValue
+    {
+        get
+        {
+            try
+            {
+                var busMapping = _busMappings.Values.FirstOrDefault(m => m.CanFormatValueForDisplay)
+                                    ?? _busMappings.Values.FirstOrDefault();
+                if (busMapping is null)
+                    return OValue?.ToString();
+                return busMapping.FormatValueForDisplay(OValue);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+    }
+
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
     {
         if (_busMappings.TryGetValue(busIdentifier, out var value) && value is TBusMapping typedValue)
@@ -132,7 +151,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
     {
         var old = Value;
         Value = value;
-        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Used;
 
         Publish(new ValueWriteRequest<T> { Source = this, NewValue = value, Timestamp = _timeProvider.GetUtcNow() });
         RaiseWritten(new ValueWrittenEventArgs(this, this, initiator));
@@ -164,7 +183,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         bool isFirst = !Status.HasFlag(ValueStatus.Initialized);
         var old = Value;
         Value = typed;
-        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
 
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
@@ -193,7 +212,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         bool isFirst = !Status.HasFlag(ValueStatus.Initialized);
         var old = Value;
         Value = typed;
-        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
 
         // Raise the same events as Write to ensure that entities subscribed to Written or Changed get notified
         // regardless of whether the update came from an internal Write call or an external bus event.
@@ -290,7 +309,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
             return false;
         }
         Value = value;
-        Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized;
+        Status = (Status & ~(ValueStatus.Error | ValueStatus.Live | ValueStatus.Used)) | ValueStatus.Initialized;
         InitializationStage = stage;
         return true;
     }

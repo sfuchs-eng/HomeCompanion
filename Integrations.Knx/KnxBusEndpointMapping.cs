@@ -1,6 +1,8 @@
 using HomeCompanion.Values;
 using SRF.Knx.Core;
+using SRF.Knx.Core.DPT;
 using System.Collections;
+using System.Text.Json;
 
 namespace HomeCompanion.Integrations.Knx;
 
@@ -23,20 +25,26 @@ public sealed class KnxBusEndpointMapping : ValueBusMapping<string, GroupAddress
     public GroupAddress GroupAddress => (GroupAddress)Address;
 
     /// <param name="groupAddress">KNX group address in <c>"main/middle/sub"</c> format.</param>
-    public KnxBusEndpointMapping(string groupAddress) : base(BusId, new GroupAddress(groupAddress)) { }
+    /// <param name="DPTs">Data point type(s) for the KNX group address.</param>
+    public KnxBusEndpointMapping(string groupAddress, string DPTs) : base(BusId, new GroupAddress(groupAddress), new KnxBusMappingConfiguration(DPTs)) { }
 
     /// <param name="groupAddress">KNX group address.</param>
-    public KnxBusEndpointMapping(GroupAddress groupAddress) : base(BusId, groupAddress) { }
+    public KnxBusEndpointMapping(GroupAddress groupAddress, string DPTs) : base(BusId, groupAddress, new KnxBusMappingConfiguration(DPTs)) { }
+}
 
-/*
-    bool IEqualityComparer.Equals(object? x, object? y)
+internal class KnxBusMappingConfiguration : IBusMappingConfiguration
+{
+    public DataPointTypeId DPT { get; init; }
+
+    public KnxBusMappingConfiguration(string DPTs)
     {
-        if (x is KnxBusEndpointMapping mx && y is KnxBusEndpointMapping my)
-            return mx.GroupAddress == my.GroupAddress;
-        return false;
+        DPT = new DataPointTypeId(DPTs);
     }
 
-    int IEqualityComparer.GetHashCode(object obj)
-        => obj is KnxBusEndpointMapping m ? m.GroupAddress.GetHashCode() : 0;
-        */
+    public string? FormatConfiguration()
+    {
+        return DPT.EtsFormat;
+    }
+
+    public string? ValueFormat => null;
 }

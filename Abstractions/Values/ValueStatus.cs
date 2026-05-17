@@ -21,14 +21,24 @@ public enum ValueStatus
     Initialized = 1 << 1,
 
     /// <summary>
+    /// The value has received a successful write/update/... from the bus.
+    /// </summary>
+    Live = 1 << 2,
+
+    /// <summary>
+    /// The value has been written to by internal logic or HomeCompanion API calls.
+    /// </summary>
+    Used = 1 << 3,
+
+    /// <summary>
     /// Some values may have a valid range of values. If the value is outside of this range, it is marked as out of range.
     /// </summary>
-    OutOfRange = 1 << 2,
+    OutOfRange = 1 << 4,
 
     /// <summary>
     /// The value is in an error state, e.g. due to communication errors or invalid data received.
     /// In this state, the value should not be used for any logic processing and should be updated as soon as possible to get back to a valid state.
     /// Initialization incl. received writes/read-answers/updates would reset the error state.
     /// </summary>
-    Error = 1 << 3
+    Error = 1 << 5
 }

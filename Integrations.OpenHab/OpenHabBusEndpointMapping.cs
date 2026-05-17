@@ -22,5 +22,5 @@ public sealed class OpenHabBusEndpointMapping : ValueBusMapping<string, string>
     public string ItemName => Address;
 
     /// <param name="itemName">OpenHAB item name.</param>
-    public OpenHabBusEndpointMapping(string itemName) : base(BusId, itemName) { }
+    public OpenHabBusEndpointMapping(string itemName) : base(BusId, itemName, null) { }
 }
