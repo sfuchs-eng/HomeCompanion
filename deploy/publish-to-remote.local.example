@@ -1,0 +1,20 @@
+# Copy this file to deploy/publish-to-remote.local and adjust the values for your deployment.
+
+# Remote SSH host name or IP address.
+PUBLISH_HOST=homeserver.example.com
+
+# Optional SSH user name. Leave empty to use the current local user name.
+PUBLISH_USER=homecompanion
+
+# Optional SSH port. Leave unset to use 22.
+#PUBLISH_PORT=22
+
+# Remote directory that should receive the published server output.
+PUBLISH_PATH=/opt/homecompanion
+
+# Optional publish configuration passed to dotnet publish.
+PUBLISH_CONFIGURATION=Production
+
+# Optional extra arguments appended to dotnet publish.
+# Example: DOTNET_PUBLISH_ARGS=(--self-contained false)
+#DOTNET_PUBLISH_ARGS=()

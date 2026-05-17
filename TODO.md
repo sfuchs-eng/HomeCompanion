@@ -15,10 +15,19 @@ Use IHomeCompanionLifeCycleSynchronization for this purpose.
 
 Introduce a scheme to resolve Extension dependencies on other Extensions (via constructor parameters or similar) to allow for correct initialization order of Extensions. E.g. OpenHabExtension might depend on KnxExtension to be initialized first, so it can consume the KNX values and bus services.
 
+### Port existing functionality from the old HomeCompanion solution into the one at hands
+
+- [ ] InfluxDB connectivity
+- [ ] MQTT connectivity
+- [ ] e-Mail notifications
+- [ ] generic alerting/notification framework
+
 ### Furthermore
 
 - [ ] Refactor `KnxBusEndpointMapping` to provide a proper override of `FormatValueForDisplay` that uses the DPT information to format the value for display purposes, instead of relying on a generic JSON serialization of the mapping configuration. This will allow for more user-friendly display of KNX values in the UI and logs, showing the actual value with appropriate formatting based on its DPT (e.g. showing "22.5 °C" instead of just "22.5" for a temperature value).
 - [ ] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions).
+- [ ] IValuesContainer with OpenHabItems that are not mapped to any KNX group address. Add code-gen to SRF.Network.Cli as for KNX, same command `kc -hc` all in one go.
+- [ ] Have an IValuesContainer for dynamic, internal values. This allows Logics to create/manage their own values without needing to define them in the ETS export or OpenHab item list, which is more flexible and decoupled from the bus-specific configuration. This can be a simple implementation of IValuesContainer that allows adding arbitrary IValue<T> properties at runtime, and can be injected into Logics for their internal state management.
 
 ---
 

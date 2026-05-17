@@ -46,6 +46,9 @@ bld/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
+# Local deploy target configuration for deploy/publish-to-remote.sh
+deploy/publish-to-remote.local
+
 # Visual Studio 2017 auto generated files
 Generated\ Files/
 

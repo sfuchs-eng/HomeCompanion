@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Server.Components;
+using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 using Microsoft.Extensions.Hosting.Systemd;
 using SRF.Network.Knx;
 
@@ -8,6 +9,14 @@ var cso = Console.Error;
 
 var builder = WebApplication.CreateBuilder(args);
 var isSystemdService = SystemdHelpers.IsSystemdService();
+
+var enableStaticWebAssetsLoader = builder.Environment.IsDevelopment()
+    || builder.Configuration.GetValue<bool>("HomeCompanion:EnableStaticWebAssetsLoader");
+
+if (enableStaticWebAssetsLoader)
+{
+    StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
+}
 
 if (isSystemdService)
 {

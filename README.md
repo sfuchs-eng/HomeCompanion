@@ -134,7 +134,9 @@ For production on Linux, HomeCompanion can run as a systemd service.
 For local development, keep using normal console startup with `dotnet run` or `dotnet watch`.
 The server only enables systemd-specific host behavior when it is actually started by systemd.
 
-1. Publish the server to `/opt/homecompanion` (result must include `HomeCompanion.Server.dll`).
+For repeatable deployment, use `deploy/publish-to-remote.sh` after creating `deploy/publish-to-remote.local` from `deploy/publish-to-remote.local.example`.
+
+1. Publish the server to `/opt/homecompanion` using the full publish output (do not copy only the DLL; the folder must also contain `HomeCompanion.Server.staticwebassets.runtime.json` and the generated static asset files).
 2. Create the runtime user and directories:
   - `sudo bash deploy/systemd/setup-homecompanion-user.sh`
 3. Install service files:
@@ -146,6 +148,38 @@ The server only enables systemd-specific host behavior when it is actually start
 5. Inspect state and logs:
   - `sudo systemctl status homecompanion.service`
   - `sudo journalctl -u homecompanion.service -f`
+
+### HTTPS and host binding
+
+If the app redirects from HTTP to HTTPS but the HTTPS connection fails, the usual cause is that Kestrel is only bound for HTTP and has no certificate-backed HTTPS endpoint configured.
+
+For this repository, put the TLS endpoint and host filtering in `/etc/HomeCompanion.json` on the server. Keep `/etc/homecompanion/homecompanion.env` for process-level environment settings such as `ASPNETCORE_URLS`.
+
+Example `/etc/HomeCompanion.json`:
+
+```json
+{
+  "AllowedHosts": "localhost;web.fu",
+  "Kestrel": {
+    "Endpoints": {
+      "Https": {
+        "Url": "https://0.0.0.0:8118",
+        "Certificate": {
+          "Path": "/etc/ssl/homecompanion/homecompanion.pfx",
+          "Password": "change-me"
+        }
+      }
+    }
+  }
+}
+```
+
+In this setup:
+
+- `AllowedHosts` allows both local access and the public host name.
+- `https://0.0.0.0:8118` makes Kestrel listen on port `8118` on all interfaces.
+- The certificate file must be a PFX that the service user can read.
+- If you prefer to terminate TLS in a reverse proxy, configure the certificate there instead and let HomeCompanion listen on HTTP behind it.
 
 ### Configuration
 
@@ -161,12 +195,24 @@ Those files are loaded after `appsettings.json` and `appsettings.{Environment}.j
 - user-specific or development overrides belong in `~/.config/HomeCompanion.json`
 - environment variables still have the highest precedence
 
+If you intentionally run the app from non-published output in a non-development environment and need static web assets resolution from build artifacts, you can opt in to the loader with:
+
+```json
+{
+  "HomeCompanion": {
+    "EnableStaticWebAssetsLoader": true
+  }
+}
+```
+
+Do not enable this for normal published deployments.
+
 For a KNX/IP Routing setup, a minimal user configuration can look like this:
 
 ```json
 {
   "Knx": {
-    "ConnectionString": "Type=IpRouting;KnxAddress=1.1.10;LocalIpAddress=192.168.200.0/24",
+    "ConnectionString": "Type=IpRouting;KnxAddress=1.1.10;LocalIpAddress=192.168.0.0/24",
     "EtsGAExportFile": "/path/to/GroupAddresses.xml",
     "KnxMasterFolder": "/path/to/knx-master",
     "KnxDomainConfigFile": "/path/to/KnxDomainConfig.json"
