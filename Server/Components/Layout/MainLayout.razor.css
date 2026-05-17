@@ -1,15 +1,48 @@
+.layout-root {
+    --sidebar-width: min(18rem, 80vw);
+}
+
+.floating-hamburger {
+    appearance: none;
+    cursor: pointer;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 10;
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.8rem rgb(82, 148, 187);
+    box-shadow: none; /*0 0.25rem 1rem rgba(0, 0, 0, 0.3);*/
+}
+
+.floating-hamburger[aria-expanded="true"] {
+    background-color: rgba(44, 84, 149, 0.95);
+}
+
 .page {
     position: relative;
     display: flex;
-    flex-direction: column;
+    min-height: 100vh;
 }
 
 main {
     flex: 1;
+    min-width: 0;
 }
 
 .sidebar {
+    flex: 0 0 auto;
+    width: 0;
+    min-height: 100vh;
+    overflow: hidden;
+    transition: width 0.18s ease;
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+}
+
+.layout-root.nav-open .sidebar {
+    width: var(--sidebar-width);
 }
 
 .top-row {
@@ -36,6 +69,18 @@ main {
         text-overflow: ellipsis;
     }
 
+    .top-row.auth ::deep a:first-child {
+        flex: 1;
+        text-align: right;
+        width: 0;
+    }
+
+.top-row,
+article {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
 @media (max-width: 640.98px) {
     .top-row {
         justify-content: space-between;
@@ -47,15 +92,8 @@ main {
 }
 
 @media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
+    .layout-root {
+        --sidebar-width: 200px;
     }
 
     .top-row {
@@ -64,15 +102,10 @@ main {
         z-index: 1;
     }
 
-    .top-row.auth ::deep a:first-child {
-        flex: 1;
-        text-align: right;
-        width: 0;
-    }
-
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
+    .top-row,
+    article {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
 }
 
@@ -84,7 +117,7 @@ main {
     box-sizing: border-box;
     display: none;
     left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    padding: 0.6rem 1rem 0.7rem 1rem;
     position: fixed;
     width: 100%;
     z-index: 1000;
@@ -93,6 +126,6 @@ main {
     #blazor-error-ui .dismiss {
         cursor: pointer;
         position: absolute;
-        right: 0.75rem;
+        right: 1rem;
         top: 0.5rem;
     }
