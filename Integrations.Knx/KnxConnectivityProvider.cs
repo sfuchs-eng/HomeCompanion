@@ -43,7 +43,7 @@ namespace HomeCompanion.Integrations.Knx;
 /// group address so that the bus can respond with the current value, completing initial value population.
 /// </para>
 /// </remarks>
-public sealed class KnxConnectivityProvider : IConnectivityProvider
+public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddress, KnxBusEndpointMapping>
 {
     private static readonly TimeSpan InitializationReadTimeout = TimeSpan.FromSeconds(30);
 
@@ -60,29 +60,22 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     private readonly IDptResolver _dptResolver;
     private readonly ILogger<KnxConnectivityProvider> _logger;
 
-    private record ValueMapping(IValue Value, KnxBusEndpointMapping Mapping);
-
-    /// <summary>Group address → registered value map, built at startup.</summary>
-    /// <remarks>In case of full extention to supporting multiple KNX systems in parallel with overlapping group addresses,
-    /// this would need to be changed to also consider the bus/connection, e.g. by using a composite key of (busId, groupAddress) or by maintaining a separate map per bus.</remarks>
-    private Dictionary<GroupAddress, ValueMapping> _valueMap = [];
-
     /// <summary>Tracks which group addresses still need an initial read response.</summary>
     private readonly ConcurrentDictionary<GroupAddress, bool> _pendingInitialReads = [];
 
     private volatile bool _isInitializationFinished;
 
     /// <inheritdoc/>
-    public bool IsEnabled => knxConfig.Enable && _connections.Count > 0;
+    public override bool IsEnabled => knxConfig.Enable && _connections.Count > 0;
 
     /// <inheritdoc/>
-    public bool IsConnected => _connections.Any(c => c.IsConnected);
+    public override bool IsConnected => _connections.Any(c => c.IsConnected);
 
     private Task ValueInitializationTask = Task.CompletedTask; // placeholder task to track when initial value population is finished, so that ValueReadReceived events can await it to ensure values are populated before responding to read requests
     private CancellationTokenSource? ValueInitializationCts; // separate CTS to allow canceling the initialization wait if needed, e.g. on shutdown
 
     /// <inheritdoc/>
-    public bool IsInitializationFinished => _isInitializationFinished;
+    public override bool IsInitializationFinished => _isInitializationFinished;
 
     /// <summary>
     /// Initializes a new <see cref="KnxConnectivityProvider"/>.
@@ -114,7 +107,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     }
 
     /// <inheritdoc/>
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         // Subscribe to outbound write requests from the event bus
         _subscriber.Subscribe(new ValueWriteRequestHandler(this));
@@ -138,7 +131,7 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     }
 
     /// <inheritdoc/>
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
         // in case the initialization is still running, cancel it to avoid waiting for missing read responses during shutdown
         ValueInitializationCts?.Cancel();
@@ -181,33 +174,14 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // Value discovery
     // -------------------------------------------------------------------------
 
-    private Dictionary<GroupAddress, ValueMapping> DiscoverKnxValues()
+    private Dictionary<GroupAddress, ValueMapping<KnxBusEndpointMapping>> DiscoverKnxValues()
     {
-        var map = new Dictionary<GroupAddress, ValueMapping>();
-        foreach (var container in _containers)
-            DiscoverKnxValuesIn(container, map);
-        _logger.LogInformation("Discovered {Count} KNX values in {Types}.", map.Count, string.Join(", ", _containers.Select(c => c.GetType().FullName)));
-        return map;
-    }
-
-    private void DiscoverKnxValuesIn(object instance, Dictionary<GroupAddress, ValueMapping> map)
-    {
-        var type = instance.GetType();
-        var properties = type.GetIValueProperties();
-        foreach (var prop in properties)
-        {
-            if (!prop.CanRead) continue;
-
-            if (prop.GetValue(instance) is not IValue value) continue;
-            if (!value.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping)) continue;
-
-            if (map.ContainsKey(mapping!.GroupAddress))
-                _logger.LogWarning(
-                    "Duplicate KNX group address {GA} found on property '{Prop}' of {Type}; already registered by another value. Skipping.",
-                    mapping.GroupAddress, prop.Name, type.FullName);
-            else
-                map[mapping.GroupAddress] = new ValueMapping(value, mapping);
-        }
+        return FindValueMappings(_containers)
+            .Where(m => m.BusId is string busId && busId == KnxBusEndpointMapping.BusId) // filter only values for this KNX bus based on the bus ID in the mapping, in case there are multiple KNX buses configured
+            .ToDictionary(
+                m => m.Mapping.GroupAddress,
+                m => new ValueMapping<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, m.Value, m.Mapping)
+            );
     }
 
     // -------------------------------------------------------------------------
@@ -344,26 +318,6 @@ public sealed class KnxConnectivityProvider : IConnectivityProvider
     // -------------------------------------------------------------------------
     // Inbound: KNX → EventBus
     // -------------------------------------------------------------------------
-
-    private ValueMapping? ResolveTarget(GroupAddress destinationAddress)
-    {
-        if (_valueMap.TryGetValue(destinationAddress, out var target))
-            return target;
-
-        // Fallback for rare cases where a GroupAddress instance used as dictionary key
-        // was mutated after insertion, causing hash-based lookup to miss.
-        foreach (var (groupAddress, value) in _valueMap)
-        {
-            if (groupAddress.Address == destinationAddress.Address)
-            {
-                // force update hash key by re-inserting with the same key instance, so that future lookups will find it
-                _valueMap[groupAddress] = value;
-                return value;
-            }
-        }
-
-        return null;
-    }
 
     private void OnMessageReceived(object? sender, KnxMessageReceivedEventArgs e)
     {

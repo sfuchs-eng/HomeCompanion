@@ -15,6 +15,11 @@ public abstract class ValueContainerBase(ILogger<ValueContainerBase> logger) : I
 
         foreach (var property in valueProperties)
         {
+            if (property.GetMethod == null)
+            {
+                logger.LogWarning("Property {PropertyName} of {ContainerType} is of type IValue but has no getter, skipping it", property.Name, GetType().Name);
+                continue;
+            }
             if (property.GetValue(this) is IValue value)
             {
                 yield return value;
