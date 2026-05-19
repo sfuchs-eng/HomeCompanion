@@ -220,6 +220,33 @@ For a KNX/IP Routing setup, a minimal user configuration can look like this:
 }
 ```
 
+### MCP API
+
+HomeCompanion exposes an MCP JSON-RPC endpoint at `/api/mcp`.
+
+- Transport: HTTP POST with JSON-RPC 2.0 payloads
+- Route: `/api/mcp`
+- Auth: `Authorization: Bearer <token>`
+
+Configure the token in your HomeCompanion config section:
+
+```json
+{
+  "HomeCompanion": {
+    "Mcp": {
+      "BearerToken": "replace-with-a-strong-random-token"
+    }
+  }
+}
+```
+
+Currently available MCP tools:
+
+- `list_values_containers`
+- `list_container_value_properties`
+- `get_value_info`
+- `list_logic_instances`
+
 Notes for KNX configuration:
 
 - `Knx:ConnectionString` uses Falcon-style `key=value` pairs separated by `;` or `,`.

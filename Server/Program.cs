@@ -1,5 +1,6 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
+using HomeCompanion.Server.Mcp;
 using HomeCompanion.Server.Components;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 using Microsoft.Extensions.Hosting.Systemd;
@@ -41,6 +42,7 @@ builder.AddHomeCompanionCore();
 cso.WriteLine("Registering Server services...");
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.Configure<McpApiOptions>(builder.Configuration.GetSection("HomeCompanion:Mcp"));
 
 builder.Services.AddSingleton<HomeCompanion.Server.Services.EventBusMonitor>();
 
@@ -64,6 +66,8 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();
+
+app.MapHomeCompanionMcp();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
