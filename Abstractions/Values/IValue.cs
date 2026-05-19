@@ -38,13 +38,6 @@ public interface IValue
     public string? Label { get; }
 
     /// <summary>
-    /// The formatted value as a string, suitable for display purposes, incl. unit if any.
-    /// The formatting can be based on the value type and/or the bus mapping configuration.
-    /// E.g. for a KNX value, the data point type can be used to determine the formatting of the value for display purposes.
-    /// </summary>
-    public string? DisplayValue { get; }
-
-    /// <summary>
     /// Formats the current value for display using an optional culture.
     /// Implementations should prefer bus specific mapping formatters where available.
     /// If no formatter is available, implementations should fall back to <see cref="object.ToString"/> behavior.
@@ -53,7 +46,10 @@ public interface IValue
     /// <returns>Formatted value suitable for display.</returns>
     public virtual string? Format(CultureInfo? culture = null)
     {
-        return DisplayValue;
+        culture ??= CultureInfo.CurrentCulture;
+        return OValue is IFormattable formattable
+            ? formattable.ToString(null, culture)
+            : OValue?.ToString();
     }
 
     /// <summary>

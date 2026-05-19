@@ -419,7 +419,7 @@ public class ValueBaseTests
     // ── Tests: formatting ────────────────────────────────────────────────────
 
     [Test]
-    public void DisplayValue_PrefersFirstCapableFormatter()
+    public void Format_PrefersFirstCapableFormatter()
     {
         var value = CreateValue<int>();
         value.InitializeValue(42, AppInitializationStage.InitLoadFromStore);
@@ -427,7 +427,7 @@ public class ValueBaseTests
         value.AddBusEndpoint("two", new PrefixFormatterMapping("second", canFormat: true));
         value.AddBusEndpoint("three", new PrefixFormatterMapping("third", canFormat: true));
 
-        var display = value.DisplayValue;
+        var display = value.Format();
 
         Assert.That(display, Is.EqualTo("second:42"));
     }
@@ -444,13 +444,13 @@ public class ValueBaseTests
     }
 
     [Test]
-    public void DisplayValue_FallsBackToRawValueWhenFormatterReturnsNull()
+    public void Format_FallsBackToRawValueWhenFormatterReturnsNull()
     {
         var value = CreateValue<int>();
         value.InitializeValue(7, AppInitializationStage.InitLoadFromStore);
         value.AddBusEndpoint("one", new NullFormatterMapping(canFormat: true));
 
-        var display = value.DisplayValue;
+        var display = value.Format();
 
         Assert.That(display, Is.EqualTo("7"));
     }

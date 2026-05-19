@@ -77,14 +77,6 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
-    public virtual string? DisplayValue
-    {
-        get
-        {
-            return Format(CultureInfo.CurrentCulture);
-        }
-    }
-
     /// <inheritdoc/>
     public virtual string? Format(CultureInfo? culture = null)
     {
