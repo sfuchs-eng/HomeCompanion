@@ -125,7 +125,28 @@ Override in `ValueBase<T>` to return `typeof(T)`. Any diagnostic or UI code quer
 Implemented in `Tests/KnxNumericValueTypeCompatibilityTests.cs` (`NumericIValues_MatchResolvedDptClrType`).
 The test verifies that numeric `IValue<T>` KNX mappings resolve to DPTs with matching CLR types via the DPT resolver, and that the resolved DPT is numeric (`DptSimple` with `NumericInfo`).
 
-### ~~3.4 Enhance ETS context information available in XML comments for generated properties~~ ✓
+### ~~3.2 Refactor `DptBase.Format` to include unit information~~ ✓
+
+`DptBase.Format` now formats decoded values with richer type-aware handling and appends unit information for numeric DPTs when `NumericInfo.Unit` is available.
+
+### ~~3.3 Enhance `IValue` and KNX mappings for unit-aware display formatting~~ ✓
+
+Implemented architecture around `IValue.DisplayValue`/`IValue.Format(CultureInfo?)` with bus-mapping based formatter selection and culture-aware fallback behavior.
+
+Completed parts:
+
+- Added optional `Format(CultureInfo?)` default implementation on `IValue`.
+- Updated `ValueBase` to route `DisplayValue` through `Format(...)`, snapshot bus mappings safely, and use robust fallback logic.
+- Extended `IValueBusEndpointMapping.FormatValueForDisplay` to accept culture.
+- Implemented `KnxBusEndpointMapping` override with `CanFormatValueForDisplay = true`, using DPT-based formatting via `IDptFactory`.
+- Updated KNX code generation in SRF.Network.Cli to emit KNX mappings with injected `IDptFactory`.
+- Added tests for ValueBase formatter selection/fallback and KNX unit-aware formatting.
+
+### ~~3.4 Refactor `KnxBusEndpointMapping` display formatter to use DPT information~~ ✓
+
+`KnxBusEndpointMapping` now provides a dedicated `FormatValueForDisplay` override and uses the configured DPT to render user-facing values instead of generic fallback formatting.
+
+### ~~3.5 Enhance ETS context information available in XML comments for generated properties~~ ✓
 
 HomeCompanionAutoGenEntry currently includes the ETS export name (from DomainConfiguration) and group address, which are included in the generated `KnxValues` property XML comments.
 Add the Label (to property's XML comment summary) and Description (to property's XML comment remarks) from the ETS export.

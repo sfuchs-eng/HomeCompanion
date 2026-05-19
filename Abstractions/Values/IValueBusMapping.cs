@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 
 namespace HomeCompanion.Values;
 
@@ -21,9 +22,17 @@ public interface IValueBusEndpointMapping : IEqualityComparer
 
     IBusMappingConfiguration? Config { get; init; }
 
+    /// <summary>
+    /// Indicates whether this mapping can provide enriched display formatting.
+    /// If false, callers may still use the formatter as a best-effort fallback.
+    /// </summary>
     virtual bool CanFormatValueForDisplay => false;
 
-    string? FormatValueForDisplay(object? value);
+    /// <summary>
+    /// Formats a value for display using an optional culture.
+    /// Implementations must not throw exceptions.
+    /// </summary>
+    string? FormatValueForDisplay(object? value, CultureInfo? culture = null);
 }
 
 /// <summary>
@@ -64,6 +73,8 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
     string IValueBusEndpointMapping.BusId => Bus?.ToString() ?? string.Empty;
     string IValueBusEndpointMapping.Address => Address?.ToString() ?? string.Empty;
 
+    public virtual bool CanFormatValueForDisplay => false;
+
     // Equality is based on bus and address, as these uniquely identify a datapoint on the bus.
     public virtual new bool Equals(object? x, object? y)
     {
@@ -75,7 +86,7 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
         return false;
     }
 
-    public virtual string? FormatValueForDisplay(object? value)
+    public virtual string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
     {
         try
         {
@@ -83,11 +94,14 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
             {
                 // For simplicity, we use string.Format with the provided format string.
                 // In a real implementation, the formatting logic might be more complex and bus-specific.
-                return string.Format(format, value);
+                culture ??= CultureInfo.CurrentCulture;
+                return string.Format(culture, format, value);
             }
             else
             {
                 // If no specific format is provided, we can use the default ToString() representation of the value.
+                if (value is IFormattable formattable)
+                    return formattable.ToString(null, culture ?? CultureInfo.CurrentCulture);
                 return value?.ToString();
             }
         }

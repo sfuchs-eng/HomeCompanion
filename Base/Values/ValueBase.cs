@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace HomeCompanion.Values;
 
@@ -10,6 +11,7 @@ namespace HomeCompanion.Values;
 public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timeProvider = null) : IValue, IValueEventReceiver
 {
     private IEventPublisher? _publisher;
+    private readonly object _busMappingsLock = new();
     protected readonly ILogger<ValueBase> logger = logger;
     protected readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
@@ -63,33 +65,72 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusEndpointMapping"/> for a specific bus type (e.g. KNX).
     /// </summary>
     protected Dictionary<object, IValueBusEndpointMapping> _busMappings { get; private set; } = [];
-    public Dictionary<object, IValueBusEndpointMapping> BusMappings { get => _busMappings; init => _busMappings = value ?? []; }
+    public Dictionary<object, IValueBusEndpointMapping> BusMappings
+    {
+        get => _busMappings;
+        init
+        {
+            lock (_busMappingsLock)
+            {
+                _busMappings = value ?? [];
+            }
+        }
+    }
 
     public virtual string? DisplayValue
     {
         get
         {
-            try
-            {
-                var busMapping = _busMappings.Values.FirstOrDefault(m => m.CanFormatValueForDisplay)
-                                    ?? _busMappings.Values.FirstOrDefault();
-                if (busMapping is null)
-                    return OValue?.ToString();
-                return busMapping.FormatValueForDisplay(OValue);
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+            return Format(CultureInfo.CurrentCulture);
         }
+    }
+
+    /// <inheritdoc/>
+    public virtual string? Format(CultureInfo? culture = null)
+    {
+        culture ??= CultureInfo.CurrentCulture;
+
+        List<IValueBusEndpointMapping> mappings;
+        lock (_busMappingsLock)
+        {
+            mappings = _busMappings.Values.ToList();
+        }
+
+        var busMapping = mappings.FirstOrDefault(m => m.CanFormatValueForDisplay)
+                         ?? mappings.FirstOrDefault();
+
+        if (busMapping is null)
+        {
+            return OValue is IFormattable formattable
+                ? formattable.ToString(null, culture)
+                : OValue?.ToString();
+        }
+
+        try
+        {
+            var formatted = busMapping.FormatValueForDisplay(OValue, culture);
+            if (!string.IsNullOrWhiteSpace(formatted))
+                return formatted;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to format display value for {ValueName} via bus mapping {BusId}:{Address}.", Name, busMapping.BusId, busMapping.Address);
+        }
+
+        return OValue is IFormattable fallbackFormattable
+            ? fallbackFormattable.ToString(null, culture)
+            : OValue?.ToString();
     }
 
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
     {
-        if (_busMappings.TryGetValue(busIdentifier, out var value) && value is TBusMapping typedValue)
+        lock (_busMappingsLock)
         {
-            mapping = typedValue;
-            return true;
+            if (_busMappings.TryGetValue(busIdentifier, out var value) && value is TBusMapping typedValue)
+            {
+                mapping = typedValue;
+                return true;
+            }
         }
         mapping = default;
         return false;
@@ -97,7 +138,10 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
     public virtual void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping)
     {
-        _busMappings[busIdentifier] = mapping;
+        lock (_busMappingsLock)
+        {
+            _busMappings[busIdentifier] = mapping;
+        }
     }
 
     /// <inheritdoc/>

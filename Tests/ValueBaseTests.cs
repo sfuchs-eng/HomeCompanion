@@ -5,6 +5,7 @@ using HomeCompanion.Events;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Globalization;
 
 namespace HomeCompanion.Tests;
 
@@ -47,6 +48,22 @@ public class ValueBaseTests
     {
         public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
             => ValueTask.CompletedTask;
+    }
+
+    private sealed class PrefixFormatterMapping(string prefix, bool canFormat = true)
+        : ValueBusMapping<string, string>("test", "a", null)
+    {
+        public override bool CanFormatValueForDisplay => canFormat;
+
+        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
+            => value is null ? null : $"{prefix}:{value}";
+    }
+
+    private sealed class NullFormatterMapping(bool canFormat = true)
+        : ValueBusMapping<string, string>("test", "a", null)
+    {
+        public override bool CanFormatValueForDisplay => canFormat;
+        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null) => null;
     }
 
     // ── Tests: Write() ────────────────────────────────────────────────────────
@@ -397,5 +414,44 @@ public class ValueBaseTests
 
         Assert.DoesNotThrow(() => value.Write(true));
         Assert.That(secondHandlerCalled, Is.True);
+    }
+
+    // ── Tests: formatting ────────────────────────────────────────────────────
+
+    [Test]
+    public void DisplayValue_PrefersFirstCapableFormatter()
+    {
+        var value = CreateValue<int>();
+        value.InitializeValue(42, AppInitializationStage.InitLoadFromStore);
+        value.AddBusEndpoint("one", new PrefixFormatterMapping("first", canFormat: false));
+        value.AddBusEndpoint("two", new PrefixFormatterMapping("second", canFormat: true));
+        value.AddBusEndpoint("three", new PrefixFormatterMapping("third", canFormat: true));
+
+        var display = value.DisplayValue;
+
+        Assert.That(display, Is.EqualTo("second:42"));
+    }
+
+    [Test]
+    public void Format_UsesCultureWhenFallingBackToRawValue()
+    {
+        var value = CreateValue<decimal>();
+        value.InitializeValue(1234.56m, AppInitializationStage.InitLoadFromStore);
+
+        var formatted = value.Format(new CultureInfo("de-DE"));
+
+        Assert.That(formatted, Is.EqualTo("1234,56"));
+    }
+
+    [Test]
+    public void DisplayValue_FallsBackToRawValueWhenFormatterReturnsNull()
+    {
+        var value = CreateValue<int>();
+        value.InitializeValue(7, AppInitializationStage.InitLoadFromStore);
+        value.AddBusEndpoint("one", new NullFormatterMapping(canFormat: true));
+
+        var display = value.DisplayValue;
+
+        Assert.That(display, Is.EqualTo("7"));
     }
 }

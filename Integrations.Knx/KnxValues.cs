@@ -20,5 +20,5 @@ namespace HomeCompanion.Integrations.Knx;
 /// </list>
 /// Without the generated file the class compiles without any properties (CI-safe).
 /// </remarks>
-public partial class KnxValues(IServiceProvider serviceProvider, ILogger<KnxValues> logger, ILoggerFactory loggerFactory)
+public partial class KnxValues(IServiceProvider serviceProvider, SRF.Knx.Core.IDptFactory dptFactory, ILogger<KnxValues> logger, ILoggerFactory loggerFactory)
     : KnxValueContainerBase(serviceProvider,logger) { }

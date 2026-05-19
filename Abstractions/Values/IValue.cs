@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Events;
 using HomeCompanion.Persistence;
+using System.Globalization;
 
 namespace HomeCompanion.Values;
 
@@ -42,6 +43,18 @@ public interface IValue
     /// E.g. for a KNX value, the data point type can be used to determine the formatting of the value for display purposes.
     /// </summary>
     public string? DisplayValue { get; }
+
+    /// <summary>
+    /// Formats the current value for display using an optional culture.
+    /// Implementations should prefer bus specific mapping formatters where available.
+    /// If no formatter is available, implementations should fall back to <see cref="object.ToString"/> behavior.
+    /// </summary>
+    /// <param name="culture">Culture to use for formatting. If null, current culture should be used.</param>
+    /// <returns>Formatted value suitable for display.</returns>
+    public virtual string? Format(CultureInfo? culture = null)
+    {
+        return DisplayValue;
+    }
 
     /// <summary>
     /// The value as an object. The actual type of the value is given by <see cref="ValueType"/> and the strongly typed value can be accessed via <see cref="IValue{T}.Value"/>. This property is useful for generic handling of values without knowing their type at compile time, e.g. for event handlers that listen to multiple values of different types or for dynamic initialization of values based on configuration.

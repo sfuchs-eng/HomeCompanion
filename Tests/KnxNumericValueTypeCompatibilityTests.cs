@@ -12,6 +12,7 @@ using SRF.Knx.Core;
 using SRF.Knx.Core.DPT;
 using SRF.Knx.Core.Master;
 using SRF.Network.Knx.Dpt;
+using System.Globalization;
 
 namespace HomeCompanion.Tests;
 
@@ -22,6 +23,26 @@ namespace HomeCompanion.Tests;
 [TestFixture]
 public class KnxNumericValueTypeCompatibilityTests
 {
+    [Test]
+    public void KnxMapping_FormatValueForDisplay_IncludesUnitForNumericDpt()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddKnxCore();
+        services.AddSingleton<IKnxMasterDataProvider>(KnxMasterDataProviderStub.Create());
+
+        var provider = services.BuildServiceProvider(validateScopes: false);
+        var dptFactory = provider.GetRequiredService<IDptFactory>();
+        var mapping = new KnxBusEndpointMapping("1/0/1", "DPST-9-1", dptFactory);
+
+        var display = mapping.FormatValueForDisplay(22.5f, new CultureInfo("de-DE"));
+
+        Assert.That(display, Is.Not.Null);
+        Assert.That(display, Does.Contain("22,5"));
+        Assert.That(display, Does.Contain("°C"));
+    }
+
     [Test]
     public void NumericIValues_MatchResolvedDptClrType()
     {
