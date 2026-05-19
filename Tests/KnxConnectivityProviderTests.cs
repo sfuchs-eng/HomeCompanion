@@ -191,7 +191,13 @@ public class KnxConnectivityProviderTests
     {
         public ValueBase<bool> Light { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
         {
-            BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0", "DPST-1-1") },
+            BusMappings = new()
+            {
+                [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/0", "DPST-1-1")
+                {
+                    Communication = BusCommunication.RegularCommunication | BusCommunication.AnswerReadRequests,
+                },
+            },
         };
 
         public IEnumerable<IValue> GetValues() => [Light];
@@ -236,7 +242,8 @@ public class KnxConnectivityProviderTests
         var bus = CreateBus();
         var knxBus = new StubKnxBus();
         var connection = CreateConnection(knxBus);
-        var provider = CreateProvider(connection, bus);
+        var container = new TestContainer();
+        var provider = CreateProvider(connection, bus, container);
 
         KnxGroupWriteReceived? received = null;
         bus.Subscribe<KnxGroupWriteReceived>(new LambdaHandler<KnxGroupWriteReceived>(e => received = e));
@@ -258,10 +265,78 @@ public class KnxConnectivityProviderTests
 
         Assert.That(received, Is.Not.Null);
         Assert.That(received!.DestinationAddress.ToString(), Is.EqualTo("1/0/0"));
+        Assert.That(received.Target, Is.SameAs(container.Light));
+        Assert.That(received.DecodedValue, Is.EqualTo(true));
     }
 
     [Test]
     public async Task InboundRead_PublishesKnxGroupReadReceived()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
+        var container = new TestContainer();
+        container.Light.InitializeValue(true, AppInitializationStage.InitBusValueReceived);
+        var provider = CreateProvider(connection, bus, container);
+
+        KnxGroupReadReceived? received = null;
+        bus.Subscribe<KnxGroupReadReceived>(new LambdaHandler<KnxGroupReadReceived>(e => received = e));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = new GroupAddress("1/0/0"),
+                SourceAddress      = new IndividualAddress("1.1.2"),
+                EventType          = GroupEventType.ValueRead,
+                Value              = new GroupValue([]),
+            });
+
+            await Task.Delay(100);
+        });
+
+        Assert.That(received, Is.Not.Null);
+        Assert.That(received!.DestinationAddress.ToString(), Is.EqualTo("1/0/0"));
+        Assert.That(received.Target, Is.SameAs(container.Light));
+        Assert.That(knxBus.SentMessages, Has.Some.Matches<IKnxMessage>(m =>
+            m.EventType == GroupEventType.ValueResponse &&
+            m.DestinationAddress.ToString() == "1/0/0" &&
+            m.Value.Value.SequenceEqual([(byte)1])));
+    }
+
+    [Test]
+    public async Task InboundWrite_WithoutRegisteredGA_DoesNotPublishKnxGroupWriteReceived()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
+        var provider = CreateProvider(connection, bus);
+
+        KnxGroupWriteReceived? received = null;
+        bus.Subscribe<KnxGroupWriteReceived>(new LambdaHandler<KnxGroupWriteReceived>(e => received = e));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = new GroupAddress("1/0/0"),
+                SourceAddress = new IndividualAddress("1.1.1"),
+                EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue([0x01]),
+            });
+
+            await Task.Delay(100);
+        });
+
+        Assert.That(received, Is.Null);
+    }
+
+    [Test]
+    public async Task InboundRead_WithoutRegisteredGA_DoesNotPublishKnxGroupReadReceived()
     {
         var bus = CreateBus();
         var knxBus = new StubKnxBus();
@@ -277,17 +352,17 @@ public class KnxConnectivityProviderTests
 
             knxBus.RaiseMessageReceived(new GroupEventArgs
             {
-                DestinationAddress = new GroupAddress("1/0/1"),
-                SourceAddress      = new IndividualAddress("1.1.2"),
-                EventType          = GroupEventType.ValueRead,
-                Value              = new GroupValue([]),
+                DestinationAddress = new GroupAddress("1/0/0"),
+                SourceAddress = new IndividualAddress("1.1.2"),
+                EventType = GroupEventType.ValueRead,
+                Value = new GroupValue([]),
             });
 
             await Task.Delay(100);
         });
 
-        Assert.That(received, Is.Not.Null);
-        Assert.That(received!.DestinationAddress.ToString(), Is.EqualTo("1/0/1"));
+        Assert.That(received, Is.Null);
+        Assert.That(knxBus.SentMessages, Has.None.Matches<IKnxMessage>(m => m.EventType == GroupEventType.ValueResponse));
     }
 
     [Test]

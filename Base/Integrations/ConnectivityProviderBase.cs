@@ -25,10 +25,12 @@ public abstract class ConnectivityProviderBase<TAddresses, TEndPointMapping>
         {
             foreach (var value in container.GetValues())
             {
-                var mappings = value.BusMappings.OfType<KeyValuePair<object, TEndPointMapping>>().ToArray() ?? [];
-                foreach (var mapping in mappings)
+                foreach (var mapping in value.BusMappings)
                 {
-                    yield return new ValueMapping<TEndPointMapping>(mapping.Key, value, mapping.Value);
+                    if (mapping.Value is not TEndPointMapping typedMapping)
+                        continue;
+
+                    yield return new ValueMapping<TEndPointMapping>(mapping.Key, value, typedMapping);
                 }
             }
         }
