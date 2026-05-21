@@ -76,7 +76,7 @@ public class KnxDptResolverIntegrationTests
     public void AddKnxConfig_RegistersDomainConfigurationSingleton()
     {
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection([new("Knx:EtsGAExportFile", "/nonexistent/GroupAddressExport.xml")])
+            .AddInMemoryCollection([new("Knx:System:EtsGAExportFile", "/nonexistent/GroupAddressExport.xml")])
             .Build();
 
         var services = new ServiceCollection();
@@ -115,8 +115,8 @@ public class KnxDptResolverIntegrationTests
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection([
-                new("Knx:EtsGAExportFile", "/nonexistent/GroupAddressExport.xml"),
-                new("Knx:KnxMasterFolder", knxMasterFolder),
+                new("Knx:System:EtsGAExportFile", "/nonexistent/GroupAddressExport.xml"),
+                new("Knx:System:KnxMasterFolder", knxMasterFolder),
                 new("Knx:Connections:default:MulticastAddress", "224.0.23.12"),
                 new("Knx:Connections:default:Port", "3671"),
             ])

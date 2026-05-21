@@ -42,9 +42,9 @@ public class OpenHabExtensionRegistrationTests
                     EnablePropertyNameMatching = true,
                     StateMapFile = "OpenHabStateMapping.json",
                 },
-                new KnxConfiguration
+                new KnxSystemConfigOptions
                 {
-                    OpenHab = new KnxConfiguration.OpenHabOptions
+                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
                     {
                         TemplatesFolder = tempDir,
                     },
@@ -86,9 +86,9 @@ public class OpenHabExtensionRegistrationTests
                 ]),
                 enableOpenHab: true,
                 integrationOptions: new OpenHabIntegrationOptions(),
-                new KnxConfiguration
+                new KnxSystemConfigOptions
                 {
-                    OpenHab = new KnxConfiguration.OpenHabOptions
+                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
                     {
                         TemplatesFolder = tempDir,
                     },
@@ -128,9 +128,9 @@ public class OpenHabExtensionRegistrationTests
                 restClient,
                 enableOpenHab: false,
                 integrationOptions: new OpenHabIntegrationOptions { EnablePropertyNameMatching = true },
-                new KnxConfiguration
+                new KnxSystemConfigOptions
                 {
-                    OpenHab = new KnxConfiguration.OpenHabOptions
+                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
                     {
                         TemplatesFolder = tempDir,
                     },
@@ -167,7 +167,7 @@ public class OpenHabExtensionRegistrationTests
         StubRestApiClient restApiClient,
         bool enableOpenHab,
         OpenHabIntegrationOptions integrationOptions,
-        KnxConfiguration knxConfiguration)
+        KnxSystemConfigOptions knxConfiguration)
     {
         // Create a stub converter - won't be used in these tests since there's no KNX integration
         var converter = new OpenHabStateConverter(

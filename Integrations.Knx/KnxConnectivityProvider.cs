@@ -48,7 +48,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     private static readonly TimeSpan InitializationReadTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IReadOnlyList<IKnxConnection> _connections;
-    private readonly KnxConfiguration knxConfig;
+    private readonly KnxIntegrationOptions _integrationOptions;
     private readonly IKnxSystemConfiguration knxSystemConfiguration;
     private readonly IEnumerable<IKnxConnection> connections;
     private readonly IEventPublisher _publisher;
@@ -66,7 +66,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     private volatile bool _isInitializationFinished;
 
     /// <inheritdoc/>
-    public override bool IsEnabled => knxConfig.Enable && _connections.Count > 0;
+    public override bool IsEnabled => _integrationOptions.Enable && _connections.Count > 0;
 
     /// <inheritdoc/>
     public override bool IsConnected => _connections.Any(c => c.IsConnected);
@@ -81,7 +81,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     /// Initializes a new <see cref="KnxConnectivityProvider"/>.
     /// </summary>
     public KnxConnectivityProvider(
-        IOptions<KnxConfiguration> knxConfig,
+        IOptions<KnxIntegrationOptions> integrationOptions,
         IKnxSystemConfiguration knxSystemConfiguration,
         IEnumerable<IKnxConnection> connections,
         IEventPublisher publisher,
@@ -93,7 +93,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         ILogger<KnxConnectivityProvider> logger)
     {
         _connections = [.. connections];
-        this.knxConfig = knxConfig.Value;
+        _integrationOptions = integrationOptions.Value;
         this.knxSystemConfiguration = knxSystemConfiguration;
         this.connections = connections;
         _publisher = publisher;
@@ -190,7 +190,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private async Task SendInitialReadRequestsAndMonitorAsync(CancellationToken cancellationToken)
     {
-        if ( !knxConfig.ReadGroupAddressesOnStartup || _valueMap.Count == 0)
+        if ( !_integrationOptions.ReadGroupAddressesOnStartup || _valueMap.Count == 0)
         {
             _logger.LogInformation("Skipping initial read requests for KNX values because ReadGroupAddressesOnStartup is disabled or no values were discovered.");
             _isInitializationFinished = true;

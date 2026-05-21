@@ -45,7 +45,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
     private readonly IRestApiClient restApiClient;
     private readonly EventBusClientOptions openHabOptions;
     private readonly OpenHabIntegrationOptions openHabIntegrationOptions;
-    private readonly KnxConfiguration knxConfig;
+    private readonly KnxSystemConfigOptions knxConfig;
     private readonly OpenHabStateConverter stateConverter;
     private readonly ILogger<OpenHabExtensionRegistrationBackgroundService> logger;
 
@@ -56,7 +56,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         IRestApiClient restApiClient,
         IOptions<EventBusClientOptions> openHabOptions,
         IOptions<OpenHabIntegrationOptions> openHabIntegrationOptions,
-        IOptions<KnxConfiguration> knxConfig,
+        IOptions<KnxSystemConfigOptions> knxConfig,
         OpenHabStateConverter stateConverter,
         ILogger<OpenHabExtensionRegistrationBackgroundService> logger)
     {

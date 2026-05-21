@@ -10,36 +10,20 @@ public class KnxExtensionRegistration : IExtensionRegistration
 {
     public void RegisterServices(IExtensionRegistrationContext context)
     {
-        // Register KNX-specific services here
+        context.Builder.Services.AddOptions<KnxIntegrationOptions>()
+            .BindConfiguration(KnxIntegrationOptions.SectionName);
         AddKnxConnections(context.Builder.Services, context.Builder.Configuration);
     }
 
     /// <summary>
     /// Registers KNX/IP Routing stacks for all connection names configured under <c>Knx:Connections</c>.
-    /// Falls back to a single connection named <c>"default"</c> with library-default UDP settings if no
+    /// Falls back to a single connection named <c>"default"</c> with library-default settings if no
     /// connections are configured.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <c>Knx:Connections</c> is a dictionary where each key is the connection name and the value is the
-    /// UDP multicast configuration for that connection (<c>UdpMulticastOptions</c>). The UDP settings are
-    /// read directly from <c>Knx:Connections:{name}</c>, so no separate <c>Udp:Connections</c> section is
-    /// required. Example:
-    /// </para>
-    /// <code>
-    /// "Knx": {
-    ///   "Connections": {
-    ///     "default": {
-    ///       "MulticastAddress": "224.0.23.12",
-    ///       "Port": 3671,
-    ///       "ConnectionManager": { "ReconnectInterval": 10.0 }
-    ///     }
-    ///   }
-    /// }
-    /// </code>
-    /// <para>
+    /// Each child key under <c>Knx:Connections</c> becomes a named connection bound from
+    /// <c>Knx:Connections:{name}</c> via <see cref="SRF.Network.Knx.KnxConnectionOptions"/>.
     /// Multiple entries allow bridging several independent KNX IP Routing segments simultaneously.
-    /// </para>
     /// </remarks>
     public static IServiceCollection AddKnxConnections(IServiceCollection services, IConfiguration configuration)
     {
@@ -53,7 +37,7 @@ public class KnxExtensionRegistration : IExtensionRegistration
         }
 
         foreach (var child in children)
-            services.AddKnxIpRouting(child.Key, $"Knx:Connections:{child.Key}");
+            services.AddKnxIpRouting(child.Key);
 
         return services;
     }

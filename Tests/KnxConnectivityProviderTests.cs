@@ -49,7 +49,7 @@ public class KnxConnectivityProviderTests
         var valuesManager = new TestValuesManager(bus);
         InitializeValues(containers, bus, valuesManager);
         return new KnxConnectivityProvider(
-            Options.Create(new KnxConfiguration()),
+            Options.Create(new KnxIntegrationOptions()),
             new StubKnxSystemConfiguration(),
             [connection],
             bus,
@@ -65,7 +65,7 @@ public class KnxConnectivityProviderTests
         => new KnxConnection(
             new KnxLibraryInitializationStub(),
             knxBus,
-            Options.Create(new KnxConfiguration()),
+            Options.Create(new KnxConnectionOptions()),
             NullLogger<KnxConnection>.Instance,
             dptResolver ?? new StubDptResolver());
 
@@ -471,7 +471,7 @@ public class KnxConnectivityProviderTests
 
         // Build provider with two connections
         var provider = new KnxConnectivityProvider(
-            Options.Create(new KnxConfiguration()),
+            Options.Create(new KnxIntegrationOptions()),
             new StubKnxSystemConfiguration(),
             [conn1, conn2],
             bus,
