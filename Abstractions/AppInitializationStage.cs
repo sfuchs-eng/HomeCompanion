@@ -22,6 +22,12 @@ public enum AppInitializationStage
     Default,
 
     /// <summary>
+    /// All discovered <see cref="IValue"/> instances are initialized and registered in <see cref="IValuesManager"/>.
+    /// Connectivity providers can safely process and publish inbound bus value events after this stage is completed.
+    /// </summary>
+    InitValuesRegistered,
+
+    /// <summary>
     /// Initial values are loaded from a persistent store, e.g. from JSON files via <see cref="JsonFilesStateStore"/>.
     /// </summary>
     InitLoadFromStore,

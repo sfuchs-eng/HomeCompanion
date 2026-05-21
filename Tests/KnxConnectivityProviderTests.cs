@@ -41,13 +41,15 @@ public class KnxConnectivityProviderTests
         IKnxConnection connection,
         EventBus bus,
         IValuesContainer? container = null,
-        IDptResolver? dptResolver = null)
+        IDptResolver? dptResolver = null,
+        IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null)
     {
         var containers = container is not null
             ? [container]
             : Array.Empty<IValuesContainer>();
         var valuesManager = new TestValuesManager(bus);
         InitializeValues(containers, bus, valuesManager);
+        var lifecycle = lifeCycleSynchronization ?? new StubLifecycleSync();
         return new KnxConnectivityProvider(
             Options.Create(new KnxIntegrationOptions()),
             new StubKnxSystemConfiguration(),
@@ -55,7 +57,7 @@ public class KnxConnectivityProviderTests
             bus,
             bus,
             containers,
-            new StubLifecycleSync(),
+            lifecycle,
             new StubStateInitializationManager(),
             dptResolver ?? new StubDptResolver(),
             NullLogger<KnxConnectivityProvider>.Instance);
@@ -217,6 +219,43 @@ public class KnxConnectivityProviderTests
         public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
     }
 
+    private sealed class GateLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        private readonly TaskCompletionSource _valuesRegistered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        {
+            if (level != AppInitializationStage.InitValuesRegistered)
+                return;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(timeout);
+            try
+            {
+                await _valuesRegistered.Task.WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException ex)
+            {
+                throw new TimeoutException("InitValuesRegistered was not signaled in time.", ex);
+            }
+        }
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        {
+            if (level == AppInitializationStage.InitValuesRegistered)
+                _valuesRegistered.TrySetResult();
+
+            return Task.CompletedTask;
+        }
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level)
+            => level != AppInitializationStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => IsInitializationStageCompleted(level);
+    }
+
     private sealed class StubStateInitializationManager : IStateInitializationManager
     {
         public AppInitializationStage CurrentStage => AppInitializationStage.Default;
@@ -267,6 +306,27 @@ public class KnxConnectivityProviderTests
         Assert.That(received!.DestinationAddress.ToString(), Is.EqualTo("1/0/0"));
         Assert.That(received.Target, Is.SameAs(container.Light));
         Assert.That(received.DecodedValue, Is.EqualTo(true));
+    }
+
+    [Test]
+    public async Task StartAsync_WaitsForInitValuesRegisteredStage()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus);
+        var lifecycle = new GateLifecycleSync();
+        var provider = CreateProvider(connection, bus, new TestContainer(), null, lifecycle);
+
+        var startTask = provider.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
+
+        Assert.That(startTask.IsCompleted, Is.False);
+        Assert.That(provider.IsConnected, Is.False);
+
+        await lifecycle.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await startTask;
+
+        Assert.That(provider.IsConnected, Is.True);
     }
 
     [Test]

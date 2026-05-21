@@ -1,4 +1,5 @@
 using HomeCompanion;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Events;
 using HomeCompanion.Integrations.OpenHab;
@@ -40,7 +41,8 @@ public class OpenHabConnectivityProviderTests
         IEventSubscriber subscriber,
         StubEventBusClient eventBusClient,
         StubRestApiClient restApiClient,
-        IValuesContainer? container = null)
+        IValuesContainer? container = null,
+        IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null)
     {
         var converter = new OpenHabStateConverter(
             new StubKnxSystemConfiguration(),
@@ -48,6 +50,7 @@ public class OpenHabConnectivityProviderTests
             NullLogger<OpenHabStateConverter>.Instance);
 
         var containers = container is not null ? [container] : Array.Empty<IValuesContainer>();
+        var lifecycle = lifeCycleSynchronization ?? new StubLifecycleSync();
         var valuesManager = new TestValuesManager(subscriber);
         InitializeValues(containers, publisher, valuesManager);
         return new OpenHabConnectivityProvider(
@@ -56,8 +59,85 @@ public class OpenHabConnectivityProviderTests
             eventBusClient,
             restApiClient,
             containers,
+            lifecycle,
             converter,
             NullLogger<OpenHabConnectivityProvider>.Instance);
+    }
+
+    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        {
+            if (level == AppInitializationStage.InitValuesRegistered)
+                return Task.CompletedTask;
+
+            return Task.CompletedTask;
+        }
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level) => true;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => true;
+    }
+
+    private sealed class GateLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        private readonly TaskCompletionSource _valuesRegistered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        {
+            if (level != AppInitializationStage.InitValuesRegistered)
+                return;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(timeout);
+            try
+            {
+                await _valuesRegistered.Task.WaitAsync(cts.Token);
+            }
+            catch (OperationCanceledException ex)
+            {
+                throw new TimeoutException("InitValuesRegistered was not signaled in time.", ex);
+            }
+        }
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        {
+            if (level == AppInitializationStage.InitValuesRegistered)
+                _valuesRegistered.TrySetResult();
+
+            return Task.CompletedTask;
+        }
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level)
+            => level != AppInitializationStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => IsInitializationStageCompleted(level);
+    }
+
+    [Test]
+    public async Task StartAsync_WaitsForInitValuesRegisteredStage()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApiClient = new StubRestApiClient();
+        var lifecycle = new GateLifecycleSync();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApiClient, null, lifecycle);
+
+        var startTask = provider.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
+        Assert.That(startTask.IsCompleted, Is.False);
+
+        await lifecycle.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await startTask;
+
+        Assert.That(provider.IsConnected, Is.True);
+        Assert.That(provider.IsInitializationFinished, Is.True);
     }
 
     private static void InitializeValues(IEnumerable<IValuesContainer> containers, IEventPublisher publisher, IValuesManager manager)

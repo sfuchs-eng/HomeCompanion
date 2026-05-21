@@ -29,7 +29,21 @@ public class ValuesManagerTests
         => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>());
 
     private static ValuesManager CreateManager(EventBus bus, params IValuesContainer[] containers)
-        => new(bus, bus, containers, NullLogger<ValuesManager>.Instance);
+        => new(bus, bus, containers, new StubLifecycleSync(), NullLogger<ValuesManager>.Instance);
+
+    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+            => Task.CompletedTask;
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level) => true;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => true;
+    }
 
     // ── Fixture containers ────────────────────────────────────────────────────
 

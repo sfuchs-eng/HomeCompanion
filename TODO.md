@@ -58,9 +58,13 @@ Have the test framework also provide all IValuesContainer implementations, but i
 
 `LambdaHandler<T>` is defined identically in both `EventBusTests.cs` and `KnxConnectivityProviderTests.cs`. Extract to a shared `TestHelpers.cs` in `HomeCompanion.Tests`.
 
-### 4.2 Resolve `IValuesManager` stub
+### 4.2 Harden `IValuesManager` startup synchronization and diagnostics
 
-`IValuesManager` (in `Abstractions/Values/`) is an empty interface, never implemented or registered. Either define its contract and implement it, or remove it to avoid dead API surface.
+`IValuesManager` is implemented and DI-registered. Focus on startup/routing hardening:
+
+- gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered`
+- keep lifecycle waits non-mutating (waiting must not signal)
+- improve startup/runtime diagnostics for dropped/routed events and stage transitions
 
 ---
 

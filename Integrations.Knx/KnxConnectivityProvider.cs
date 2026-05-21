@@ -46,6 +46,7 @@ namespace HomeCompanion.Integrations.Knx;
 public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddress, KnxBusEndpointMapping>
 {
     private static readonly TimeSpan InitializationReadTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ValuesReadyWaitTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IReadOnlyList<IKnxConnection> _connections;
     private readonly KnxIntegrationOptions _integrationOptions;
@@ -73,6 +74,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private Task ValueInitializationTask = Task.CompletedTask; // placeholder task to track when initial value population is finished, so that ValueReadReceived events can await it to ensure values are populated before responding to read requests
     private CancellationTokenSource? ValueInitializationCts; // separate CTS to allow canceling the initialization wait if needed, e.g. on shutdown
+    private DateTimeOffset? _inboundGateReleasedAt;
+    private long _inboundEventsSeen;
 
     /// <inheritdoc/>
     public override bool IsInitializationFinished => _isInitializationFinished;
@@ -109,6 +112,15 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     /// <inheritdoc/>
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        var waitStartedAt = DateTimeOffset.UtcNow;
+        _logger.LogDebug("KnxConnectivityProvider waiting for stage {Stage} before enabling inbound telegram processing. Timeout={Timeout}.", AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout);
+        await lifeCycleSync.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout, cancellationToken);
+        _inboundGateReleasedAt = DateTimeOffset.UtcNow;
+        _logger.LogInformation(
+            "KnxConnectivityProvider startup gate released after {ElapsedMs} ms (stage {Stage}).",
+            (_inboundGateReleasedAt.Value - waitStartedAt).TotalMilliseconds,
+            AppInitializationStage.InitValuesRegistered);
+
         // Subscribe to outbound write requests from the event bus
         _subscriber.Subscribe(new ValueWriteRequestHandler(this));
 
@@ -321,6 +333,13 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private void OnMessageReceived(object? sender, KnxMessageReceivedEventArgs e)
     {
+        if (Interlocked.Increment(ref _inboundEventsSeen) == 1 && _inboundGateReleasedAt is { } gateReleasedAt)
+        {
+            _logger.LogDebug(
+                "KnxConnectivityProvider received first inbound telegram {ElapsedMs} ms after startup gate release.",
+                (DateTimeOffset.UtcNow - gateReleasedAt).TotalMilliseconds);
+        }
+
         var ctx = e.KnxMessageContext;
         if (ctx.GroupEventArgs is not { } args) return;
 

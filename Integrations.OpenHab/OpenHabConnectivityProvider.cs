@@ -1,5 +1,6 @@
 using HomeCompanion.Events;
 using HomeCompanion.Integrations.OpenHab.Events;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using SRF.Network.OpenHab;
@@ -34,11 +35,14 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// </remarks>
 public sealed class OpenHabConnectivityProvider : IConnectivityProvider
 {
+    private static readonly TimeSpan ValuesReadyWaitTimeout = TimeSpan.FromSeconds(30);
+
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;
     private readonly IEventBusClient _eventBusClient;
     private readonly IRestApiClient _restApiClient;
     private readonly IEnumerable<IValuesContainer> _containers;
+    private readonly IHomeCompanionLifeCycleSynchronization _lifeCycleSynchronization;
     private readonly OpenHabStateConverter _stateConverter;
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
@@ -49,6 +53,8 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
 
     private volatile bool _isInitializationFinished;
     private volatile bool _isConnected;
+    private DateTimeOffset? _inboundGateReleasedAt;
+    private long _inboundEventsSeen;
 
     /// <inheritdoc/>
     public bool IsEnabled => true; // OpenHab is always enabled if the provider is instantiated
@@ -68,6 +74,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         IEventBusClient eventBusClient,
         IRestApiClient restApiClient,
         IEnumerable<IValuesContainer> containers,
+        IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
         OpenHabStateConverter stateConverter,
         ILogger<OpenHabConnectivityProvider> logger)
     {
@@ -76,6 +83,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         _eventBusClient = eventBusClient;
         _restApiClient = restApiClient;
         _containers = containers;
+        _lifeCycleSynchronization = lifeCycleSynchronization;
         _stateConverter = stateConverter;
         _logger = logger;
     }
@@ -83,6 +91,15 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        var waitStartedAt = DateTimeOffset.UtcNow;
+        _logger.LogDebug("OpenHabConnectivityProvider waiting for stage {Stage} before enabling inbound event processing. Timeout={Timeout}.", AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout);
+        await _lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout, cancellationToken);
+        _inboundGateReleasedAt = DateTimeOffset.UtcNow;
+        _logger.LogInformation(
+            "OpenHabConnectivityProvider startup gate released after {ElapsedMs} ms (stage {Stage}).",
+            (_inboundGateReleasedAt.Value - waitStartedAt).TotalMilliseconds,
+            AppInitializationStage.InitValuesRegistered);
+
         // Subscribe to outbound write requests from the event bus
         _subscriber.Subscribe(new ValueWriteRequestHandler(this));
 
@@ -160,6 +177,13 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
 
     private void OnEventBusClientEventReceived(object? sender, EventReceivedEventArgs e)
     {
+        if (Interlocked.Increment(ref _inboundEventsSeen) == 1 && _inboundGateReleasedAt is { } gateReleasedAt)
+        {
+            _logger.LogDebug(
+                "OpenHabConnectivityProvider received first inbound event {ElapsedMs} ms after startup gate release.",
+                (DateTimeOffset.UtcNow - gateReleasedAt).TotalMilliseconds);
+        }
+
         switch (e.Received)
         {
             case ItemStateChangedEvent stateChanged:

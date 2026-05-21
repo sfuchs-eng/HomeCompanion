@@ -42,6 +42,8 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             return;
         }
 
+        logger.LogDebug("Waiting for {Count} enabled connectivity provider(s) to connect. Timeout={Timeout}.", connectivityProviders.Length, timeout);
+
         var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         cts.CancelAfter(timeout);
 
@@ -50,6 +52,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             var allConnected = connectivityProviders.All(provider => provider.IsConnected);
             if (allConnected)
             {
+                logger.LogDebug("All enabled connectivity providers are connected.");
                 return;
             }
             await Task.Delay(TimeSpan.FromSeconds(2), cts.Token).ConfigureAwait(false);
@@ -68,7 +71,12 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     {
         var stageCompletionSource = _completedInitializationStages[level];
         if (stageCompletionSource.Task.IsCompleted)
+        {
+            logger.LogTrace("Initialization stage {Stage} is already completed.", level);
             return;
+        }
+
+        logger.LogDebug("Waiting for initialization stage {Stage} to complete. Timeout={Timeout}.", level, timeout);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         cts.CancelAfter(timeout);
@@ -76,13 +84,13 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         try
         {
             await stageCompletionSource.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+            logger.LogDebug("Initialization stage {Stage} completed.", level);
         }
         catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
         {
             logger.LogWarning("Timeout while waiting for initialization stage {Stage} to complete.", level);
             throw new TimeoutException($"Initialization stage {level} was not completed within the specified timeout.", ex);
         }
-        await SignalInitializationStageCompletedAsync(level);
     }
 
     /// <summary>
@@ -90,7 +98,16 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     /// </summary>
     public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
     {
-        _completedInitializationStages[level].TrySetResult();
+        var tcs = _completedInitializationStages[level];
+        if (tcs.TrySetResult())
+        {
+            logger.LogDebug("Signaled initialization stage completion: {Stage}.", level);
+        }
+        else
+        {
+            logger.LogTrace("Initialization stage {Stage} was already completed when signal was received.", level);
+        }
+
         return Task.CompletedTask;
     }
 
