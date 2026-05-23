@@ -7,7 +7,6 @@ using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus.Events;
 using System.Globalization;
-using System.Reflection;
 
 namespace HomeCompanion.Integrations.OpenHab;
 
@@ -28,12 +27,12 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// via the REST API using <see cref="IRestApiClient.SetItemStateAsync"/>.
 /// </para>
 /// <para>
-/// <b>Value discovery</b>: At startup, all <see cref="IValue"/> properties (any visibility, any depth) on
-/// registered <see cref="IValuesContainer"/> instances that carry an <see cref="OpenHabBusEndpointMapping"/> are
-/// discovered via reflection and indexed by item name.
+/// <b>Value discovery</b>: At startup, all registered <see cref="IValue"/> instances from
+/// <see cref="IValuesContainer"/> that carry an <see cref="OpenHabBusEndpointMapping"/> are
+/// indexed by item name.
 /// </para>
 /// </remarks>
-public sealed class OpenHabConnectivityProvider : IConnectivityProvider
+public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<string, OpenHabBusEndpointMapping>
 {
     private static readonly TimeSpan ValuesReadyWaitTimeout = TimeSpan.FromSeconds(30);
 
@@ -41,15 +40,10 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     private readonly IEventSubscriber _subscriber;
     private readonly IEventBusClient _eventBusClient;
     private readonly IRestApiClient _restApiClient;
-    private readonly IEnumerable<IValuesContainer> _containers;
+    private readonly IReadOnlyList<IValuesContainer> _containers;
     private readonly IHomeCompanionLifeCycleSynchronization _lifeCycleSynchronization;
     private readonly OpenHabStateConverter _stateConverter;
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
-
-    private record OpenHabItemValueMapping(string ItemName, IValue Value, OpenHabBusEndpointMapping Mapping);
-
-    /// <summary>Item name → registered value map, built at startup.</summary>
-    private Dictionary<string, OpenHabItemValueMapping> _valueMap = [];
 
     private volatile bool _isInitializationFinished;
     private volatile bool _isConnected;
@@ -57,13 +51,13 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     private long _inboundEventsSeen;
 
     /// <inheritdoc/>
-    public bool IsEnabled => true; // OpenHab is always enabled if the provider is instantiated
+    public override bool IsEnabled => true; // OpenHab is always enabled if the provider is instantiated
 
     /// <inheritdoc/>
-    public bool IsConnected => _isConnected;
+    public override bool IsConnected => _isConnected;
 
     /// <inheritdoc/>
-    public bool IsInitializationFinished => _isInitializationFinished;
+    public override bool IsInitializationFinished => _isInitializationFinished;
 
     /// <summary>
     /// Initializes a new <see cref="OpenHabConnectivityProvider"/>.
@@ -82,14 +76,14 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
         _subscriber = subscriber;
         _eventBusClient = eventBusClient;
         _restApiClient = restApiClient;
-        _containers = containers;
+        _containers = [.. containers];
         _lifeCycleSynchronization = lifeCycleSynchronization;
         _stateConverter = stateConverter;
         _logger = logger;
     }
 
     /// <inheritdoc/>
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         var waitStartedAt = DateTimeOffset.UtcNow;
         _logger.LogDebug("OpenHabConnectivityProvider waiting for stage {Stage} before enabling inbound event processing. Timeout={Timeout}.", AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout);
@@ -121,7 +115,7 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     }
 
     /// <inheritdoc/>
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _eventBusClient.EventReceived -= OnEventBusClientEventReceived;
         _isConnected = false;
@@ -133,47 +127,33 @@ public sealed class OpenHabConnectivityProvider : IConnectivityProvider
     // Value discovery
     // -------------------------------------------------------------------------
 
-    private Dictionary<string, OpenHabItemValueMapping> DiscoverOpenHabValues()
+    private Dictionary<string, ValueMapping<OpenHabBusEndpointMapping>> DiscoverOpenHabValues()
     {
-        var map = new Dictionary<string, OpenHabItemValueMapping>();
-        foreach (var container in _containers)
-            DiscoverOpenHabValuesIn(container, map);
+        var map = new Dictionary<string, ValueMapping<OpenHabBusEndpointMapping>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var valueMapping in FindValueMappings(_containers)
+            .Where(m => m.BusId is string busId && busId == OpenHabBusEndpointMapping.BusId))
+        {
+            var itemName = valueMapping.Mapping.ItemName;
+            if (map.TryGetValue(itemName, out var existing))
+            {
+                _logger.LogWarning(
+                    "Duplicate OpenHab item name '{ItemName}' found while building value map; already registered by value '{ExistingValueName}'. Skipping value '{NewValueName}'.",
+                    itemName,
+                    existing.Value.Name,
+                    valueMapping.Value.Name);
+                continue;
+            }
+
+            map[itemName] = valueMapping;
+        }
+
         _logger.LogInformation("Discovered {Count} OpenHab values.", map.Count);
         return map;
-    }
-
-    private void DiscoverOpenHabValuesIn(object instance, Dictionary<string, OpenHabItemValueMapping> map)
-    {
-        var type = instance.GetType();
-        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => typeof(IValue).IsAssignableFrom(p.PropertyType));
-        foreach (var prop in properties)
-        {
-            if (!prop.CanRead) continue;
-
-            if (prop.GetValue(instance) is not IValue value) continue;
-            if (!value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)) continue;
-
-            var itemName = mapping!.ItemName;
-            if (map.ContainsKey(itemName))
-                _logger.LogWarning(
-                    "Duplicate OpenHab item name '{ItemName}' found on property '{Prop}' of {Type}; already registered by another value. Skipping.",
-                    itemName, prop.Name, type.FullName);
-            else
-                map[itemName] = new OpenHabItemValueMapping(itemName, value, mapping);
-        }
     }
 
     // -------------------------------------------------------------------------
     // Inbound: OpenHab → EventBus
     // -------------------------------------------------------------------------
-
-    private OpenHabItemValueMapping? ResolveTarget(string itemName)
-    {
-        if (_valueMap.TryGetValue(itemName, out var target))
-            return target;
-        return null;
-    }
 
     private void OnEventBusClientEventReceived(object? sender, EventReceivedEventArgs e)
     {

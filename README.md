@@ -134,8 +134,6 @@ For production on Linux, HomeCompanion can run as a systemd service.
 For local development, keep using normal console startup with `dotnet run` or `dotnet watch`.
 The server only enables systemd-specific host behavior when it is actually started by systemd.
 
-For repeatable deployment, use `deploy/publish-to-remote.sh` after creating `deploy/publish-to-remote.local` from `deploy/publish-to-remote.local.example`.
-
 1. Publish the server to `/opt/homecompanion` using the full publish output (do not copy only the DLL; the folder must also contain `HomeCompanion.Server.staticwebassets.runtime.json` and the generated static asset files).
 2. Create the runtime user and directories:
   - `sudo bash deploy/systemd/setup-homecompanion-user.sh`
@@ -195,57 +193,18 @@ Those files are loaded after `appsettings.json` and `appsettings.{Environment}.j
 - user-specific or development overrides belong in `~/.config/HomeCompanion.json`
 - environment variables still have the highest precedence
 
-If you intentionally run the app from non-published output in a non-development environment and need static web assets resolution from build artifacts, you can opt in to the loader with:
-
-```json
-{
-  "HomeCompanion": {
-    "EnableStaticWebAssetsLoader": true
-  }
-}
-```
-
-Do not enable this for normal published deployments.
-
 For a KNX/IP Routing setup, a minimal user configuration can look like this:
 
 ```json
 {
   "Knx": {
-    "ConnectionString": "Type=IpRouting;KnxAddress=1.1.10;LocalIpAddress=192.168.0.0/24",
+    "ConnectionString": "Type=IpRouting;KnxAddress=1.1.10;LocalIpAddress=192.168.200.0/24",
     "EtsGAExportFile": "/path/to/GroupAddresses.xml",
     "KnxMasterFolder": "/path/to/knx-master",
     "KnxDomainConfigFile": "/path/to/KnxDomainConfig.json"
   }
 }
 ```
-
-### MCP API
-
-HomeCompanion exposes an MCP JSON-RPC endpoint at `/api/mcp`.
-
-- Transport: HTTP POST with JSON-RPC 2.0 payloads
-- Route: `/api/mcp`
-- Auth: `Authorization: Bearer <token>`
-
-Configure the token in your HomeCompanion config section:
-
-```json
-{
-  "HomeCompanion": {
-    "Mcp": {
-      "BearerToken": "replace-with-a-strong-random-token"
-    }
-  }
-}
-```
-
-Currently available MCP tools:
-
-- `list_values_containers`
-- `list_container_value_properties`
-- `get_value_info`
-- `list_logic_instances`
 
 Notes for KNX configuration:
 
