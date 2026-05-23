@@ -34,6 +34,7 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// </remarks>
 public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<string, OpenHabBusEndpointMapping>
 {
+    private const string ProviderName = nameof(OpenHabConnectivityProvider);
     private static readonly TimeSpan ValuesReadyWaitTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IEventPublisher _publisher;
@@ -47,8 +48,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
     private volatile bool _isInitializationFinished;
     private volatile bool _isConnected;
-    private DateTimeOffset? _inboundGateReleasedAt;
-    private long _inboundEventsSeen;
 
     /// <inheritdoc/>
     public override bool IsEnabled => true; // OpenHab is always enabled if the provider is instantiated
@@ -85,17 +84,15 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     /// <inheritdoc/>
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        var waitStartedAt = DateTimeOffset.UtcNow;
-        _logger.LogDebug("OpenHabConnectivityProvider waiting for stage {Stage} before enabling inbound event processing. Timeout={Timeout}.", AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout);
-        await _lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, ValuesReadyWaitTimeout, cancellationToken);
-        _inboundGateReleasedAt = DateTimeOffset.UtcNow;
-        _logger.LogInformation(
-            "OpenHabConnectivityProvider startup gate released after {ElapsedMs} ms (stage {Stage}).",
-            (_inboundGateReleasedAt.Value - waitStartedAt).TotalMilliseconds,
-            AppInitializationStage.InitValuesRegistered);
+        await WaitForStartupGateAsync(
+            _lifeCycleSynchronization,
+            _logger,
+            ProviderName,
+            ValuesReadyWaitTimeout,
+            cancellationToken);
 
         // Subscribe to outbound write requests from the event bus
-        _subscriber.Subscribe(new ValueWriteRequestHandler(this));
+        SubscribeValueWriteRequests(_subscriber, HandleValueWriteRequestAsync);
 
         // Discover all IValue properties with an OpenHab bus mapping
         _valueMap = DiscoverOpenHabValues();
@@ -129,23 +126,11 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
     private Dictionary<string, ValueMapping<OpenHabBusEndpointMapping>> DiscoverOpenHabValues()
     {
-        var map = new Dictionary<string, ValueMapping<OpenHabBusEndpointMapping>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var valueMapping in FindValueMappings(_containers)
-            .Where(m => m.BusId is string busId && busId == OpenHabBusEndpointMapping.BusId))
-        {
-            var itemName = valueMapping.Mapping.ItemName;
-            if (map.TryGetValue(itemName, out var existing))
-            {
-                _logger.LogWarning(
-                    "Duplicate OpenHab item name '{ItemName}' found while building value map; already registered by value '{ExistingValueName}'. Skipping value '{NewValueName}'.",
-                    itemName,
-                    existing.Value.Name,
-                    valueMapping.Value.Name);
-                continue;
-            }
-
-            map[itemName] = valueMapping;
-        }
+        var map = BuildValueMap(
+            _containers,
+            OpenHabBusEndpointMapping.BusId,
+            mapping => mapping.ItemName,
+            StringComparer.OrdinalIgnoreCase);
 
         _logger.LogInformation("Discovered {Count} OpenHab values.", map.Count);
         return map;
@@ -157,12 +142,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
     private void OnEventBusClientEventReceived(object? sender, EventReceivedEventArgs e)
     {
-        if (Interlocked.Increment(ref _inboundEventsSeen) == 1 && _inboundGateReleasedAt is { } gateReleasedAt)
-        {
-            _logger.LogDebug(
-                "OpenHabConnectivityProvider received first inbound event {ElapsedMs} ms after startup gate release.",
-                (DateTimeOffset.UtcNow - gateReleasedAt).TotalMilliseconds);
-        }
+        LogFirstInboundAfterStartupGate(_logger, ProviderName, "event");
 
         switch (e.Received)
         {
@@ -372,15 +352,4 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Inner event handler
-    // -------------------------------------------------------------------------
-
-    private sealed class ValueWriteRequestHandler : IEventHandler<ValueWriteRequest>
-    {
-        private readonly OpenHabConnectivityProvider _provider;
-        public ValueWriteRequestHandler(OpenHabConnectivityProvider provider) => _provider = provider;
-        public ValueTask HandleAsync(ValueWriteRequest @event, CancellationToken cancellationToken = default)
-            => new(_provider.HandleValueWriteRequestAsync(@event, cancellationToken));
-    }
 }

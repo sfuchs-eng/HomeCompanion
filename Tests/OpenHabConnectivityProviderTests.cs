@@ -140,6 +140,18 @@ public class OpenHabConnectivityProviderTests
         Assert.That(provider.IsInitializationFinished, Is.True);
     }
 
+    [Test]
+    public void StartAsync_ThrowsOnDuplicateOpenHabItemMappings()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApiClient = new StubRestApiClient();
+        var container = new DuplicateItemNameContainer();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApiClient, container);
+
+        Assert.ThrowsAsync<InvalidOperationException>(async () => await provider.StartAsync(CancellationToken.None));
+    }
+
     private static void InitializeValues(IEnumerable<IValuesContainer> containers, IEventPublisher publisher, IValuesManager manager)
     {
         foreach (var container in containers)
@@ -254,6 +266,21 @@ public class OpenHabConnectivityProviderTests
         };
 
         public IEnumerable<IValue> GetValues() => [Light];
+    }
+
+    private sealed class DuplicateItemNameContainer : IValuesContainer
+    {
+        public ValueBase<bool> LightA { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
+        {
+            BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("DuplicateLight") },
+        };
+
+        public ValueBase<bool> LightB { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
+        {
+            BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("DuplicateLight") },
+        };
+
+        public IEnumerable<IValue> GetValues() => [LightA, LightB];
     }
 
     [Test]
