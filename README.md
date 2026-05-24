@@ -173,7 +173,7 @@ Example `/etc/HomeCompanion.json`:
 
 ```json
 {
-  "AllowedHosts": "localhost;web.fu",
+  "AllowedHosts": "localhost;myhost.mydomain",
   "Kestrel": {
     "Endpoints": {
       "Https": {

@@ -9,8 +9,6 @@
 
 Define a standards-based authentication and authorization integration where Fuchsbau acts as the identity provider (IdP) and HomeCompanion.Server consumes identities and fine-grained permissions.
 
-This specification is based on the shared Gemini conversation (`https://gemini.google.com/share/376aedc06b1f`) and aligned with known current architecture facts from HomeCompanion and Fuchsbau repository material.
-
 ## 2. Scope
 
 In scope:

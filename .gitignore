@@ -5,6 +5,7 @@
 
 # Developer-local KNX values container attribute file (carries the per-developer ETS export path)
 **/*.local.cs
+**/*.local
 
 # Generated KNX values source file (produced by srf-network-cli kc --home-companion-code-gen)
 **/*.generated.cs
