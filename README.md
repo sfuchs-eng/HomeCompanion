@@ -1,5 +1,9 @@
 # HomeCompanion
 
+**under development**
+
+## Overview
+
 HomeCompanion is a C# application designed to run in parallel to other home/building automation solutions, in particular KNX and OpenHAB.
 
 It's built around the idea of
