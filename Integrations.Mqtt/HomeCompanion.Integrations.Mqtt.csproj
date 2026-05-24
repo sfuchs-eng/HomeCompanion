@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
+    <ProjectReference Include="..\SRF.Network\Mqtt\SRF.Network.Mqtt.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -9,5 +10,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>HomeCompanion.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 
 </Project>

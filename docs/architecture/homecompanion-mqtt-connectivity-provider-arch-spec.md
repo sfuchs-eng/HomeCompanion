@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-23
 **Revised:** 2026-05-24
-**Status:** Draft
+**Status:** Implemented
 **Owner:** HomeCompanion.Integrations.Mqtt
 
 ## 1. Purpose
@@ -38,7 +38,7 @@ The MQTT design follows the same value-centric pattern used by KNX, adapted to M
 
 ## 4. Decision Summary
 
-1. `Integrations.Mqtt` will implement an MQTT bus endpoint mapping type (`MqttBusEndpointMapping`) and one connectivity provider per configured broker (`MqttConnectivityProvider`).
+1. `Integrations.Mqtt` implements an MQTT bus endpoint mapping type (`MqttBusEndpointMapping`) and one connectivity provider instance per configured broker (`MqttConnectivityProvider`).
 2. Transport/connectivity is delegated to `SRF.Network.Mqtt` (`IMqttBrokerConnection`, `MqttOptions`, `Subscription`, publish queue).
 3. Topic-to-value mapping is explicit on value level and supports both exact topics and MQTT wildcard patterns (`+`, `#`) for inbound matching.
 4. Broker-level subscriptions are configured as high-level wildcard topic patterns and act as ingress filters only.
@@ -76,9 +76,9 @@ The MQTT design follows the same value-centric pattern used by KNX, adapted to M
 
 ## 6. Integration with SRF.Network.Mqtt
 
-The implementation must use:
+The implementation uses:
 - `IMqttBrokerConnection.Subscribe(...)` for inbound topics
-- `IMqttBrokerConnection.Publish(...)` / `PublishJson(...)` for outbound traffic
+- `IMqttBrokerConnection.Publish(...)` for outbound traffic
 - `MqttOptions` for broker connection settings
 - `SRF.Network.Mqtt.Hosting.MqttHostingExtensions.AddMqtt(...)` as base registration mechanism
 
@@ -87,13 +87,14 @@ The implementation must use:
 `SRF.Network.Mqtt` currently exposes non-keyed `AddMqtt(configSection)` registrations. This architecture decides to extend registration in `SRF.Network.Mqtt.Hosting` with keyed/named broker support while still using `MqttBrokerConnection` and `MqttOptions`.
 
 `Integrations.Mqtt` consumes these keyed services and remains focused on value mapping, routing, and event translation.
+Because HomeCompanion core discovers exported provider types before extension registration, the per-broker MQTT providers are registered as keyed internal services and then exposed as `IConnectivityProvider` and `IHostedService` adapters.
 
 ## 7. Value Mapping Model
 
 ## 7.1 Mapping Rules
 
 - Mapping is defined on each `IValue` through `IValue.BusMappings`.
-- Bus id incorporates protocol and broker: `MqttBusEndpointMapping.BusId = "mqtt://<BrokerName>"`.
+- Bus id incorporates protocol and broker and is derived via `MqttBusEndpointMapping.GetBusId("<BrokerName>")`.
 - Each mapping targets one broker and defines one or more MQTT topic filters.
 - Value mapping topic filters may use wildcards (`+`, `#`) for inbound matching.
 - Outbound publish topic must resolve to a concrete topic string (no wildcard) at send time.
@@ -114,8 +115,8 @@ The implementation must use:
 - `JsonPath` (optional): select sub-property from JSON payload
 - `TypeDiscriminatorProperty` (optional): e.g. `$type`
 - `DerivedTypes` (optional): allow-list for polymorphic deserialization
-- `TopicParameters` (optional): extraction of wildcard segments (e.g. `site`, `room`, `device`) for mapping context
-- `OutboundTopicTemplate` (optional): concrete publish topic built from value context and configured placeholders
+- `TopicParameters` (optional): extraction of wildcard segments during inbound route matching for match context
+- `OutboundTopicTemplate` (optional): concrete publish topic fallback when `CommandTopic` is not set; the implemented placeholder is `{ValueName}`
 - `Qos` / `Retain` / `ContentType` (optional outbound defaults)
 - `IgnoreOwnPublishes` (optional, default true): loop prevention strategy
 
@@ -127,7 +128,7 @@ public ValueBase<float> RoomTemperature { get; } = new(loggerFactory.CreateLogge
     Name = "RoomTemperature",
     BusMappings =
     {
-        [MqttBusEndpointMapping.BusId] = new MqttBusEndpointMapping(
+        [MqttBusEndpointMapping.GetBusId("main")] = new MqttBusEndpointMapping(
             brokerName: "main",
           stateTopicFilter: "home/+/temperature/state",
             commandTopic: "home/living/temperature/set")
@@ -193,7 +194,7 @@ This keeps broker load manageable while allowing controlled wildcard-based value
 3. `MqttConnectivityProvider` handles `ValueWriteRequest`.
 4. Provider resolves mapping for source `IValue`.
 5. If mapping allows `Transmit`, value is serialized.
-6. Message published through `IMqttBrokerConnection.Publish(...)` / `PublishJson(...)`.
+6. Message published through `IMqttBrokerConnection.Publish(...)` with MQTT publish metadata from the mapping (`Qos`, `Retain`, optional `ContentType`).
 
 ## 10. Type Conversion Strategy
 
@@ -291,7 +292,7 @@ Startup sequence:
 
 ## 14. Observability
 
-Required logs and metrics (per broker):
+Implemented logs and counters (per broker):
 - connection up/down transitions
 - subscription registration results
 - inbound message count
@@ -306,7 +307,7 @@ Required logs and metrics (per broker):
 - Unit tests proving single-winner routing (no fan-out/broadcast)
 - Unit tests for inbound command semantics (`ValueWriteReceived` only)
 - Unit tests for type conversion matrix (primitive, enum, POCO, polymorphic)
-- Unit tests for outbound publish formatting and topic selection
+- Unit tests for outbound publish formatting, topic selection, publish metadata, and template fallback
 - Integration tests with fake/stub `IMqttBrokerConnection` (offline)
 - No tests require live MQTT broker by default
 
@@ -324,6 +325,8 @@ Required logs and metrics (per broker):
 3. Inbound command-topic traffic emits `ValueWriteReceived` only.
 4. POCO JSON deserialization is lenient by default, with opt-in strict mode per mapping/config.
 5. Wildcard routing is single-winner only with deterministic precedence; fan-out/broadcast mode is not supported.
+6. `OutboundTopicTemplate` currently supports the `{ValueName}` placeholder only.
+7. `TopicParameters` are extracted during inbound route matching but are not projected into outbound templating or persisted on the value.
 
 ## 18. Acceptance Criteria
 

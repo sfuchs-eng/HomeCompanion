@@ -1,4 +1,14 @@
-﻿using HomeCompanion.Extensions;
+﻿using HomeCompanion.Abstractions;
+using HomeCompanion.Events;
+using HomeCompanion.Extensions;
+using HomeCompanion.Values;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SRF.Network.Mqtt;
+using SRF.Network.Mqtt.Hosting;
 
 namespace HomeCompanion.Integrations.Mqtt;
 
@@ -12,6 +22,42 @@ public class MqttExtensionRegistrar : IExtensionRegistration
 {
     public void RegisterServices(IExtensionRegistrationContext context)
     {
-        throw new NotImplementedException();
+        var services = context.Builder.Services;
+        var configuration = context.Builder.Configuration;
+
+        services.AddOptions<MqttIntegrationOptions>()
+            .BindConfiguration(MqttIntegrationOptions.SectionName);
+
+        var brokerSection = configuration.GetSection($"{MqttIntegrationOptions.SectionName}:Brokers");
+        foreach (var broker in brokerSection.GetChildren())
+        {
+            var brokerName = broker.Key;
+            if (string.IsNullOrWhiteSpace(brokerName))
+                continue;
+
+            services.AddMqtt(brokerName, broker.GetSection("Connection"));
+
+            services.AddKeyedSingleton<MqttPayloadConverter>(brokerName, static (sp, _) =>
+                new MqttPayloadConverter(sp.GetRequiredService<ILogger<MqttPayloadConverter>>()));
+
+            services.AddKeyedSingleton<MqttConnectivityProvider>(brokerName, (sp, _) =>
+                new MqttConnectivityProvider(
+                    brokerName,
+                    sp.GetRequiredKeyedService<IMqttBrokerConnection>(brokerName),
+                    sp.GetRequiredService<IOptions<MqttIntegrationOptions>>(),
+                    sp.GetRequiredService<IEventPublisher>(),
+                    sp.GetRequiredService<IEventSubscriber>(),
+                    sp.GetServices<IValuesContainer>(),
+                    sp.GetRequiredService<IHomeCompanionLifeCycleSynchronization>(),
+                    sp.GetRequiredKeyedService<MqttPayloadConverter>(brokerName),
+                    sp.GetRequiredService<TimeProvider>(),
+                    sp.GetRequiredService<ILogger<MqttConnectivityProvider>>()));
+
+            services.AddSingleton<IConnectivityProvider>(sp =>
+                sp.GetRequiredKeyedService<MqttConnectivityProvider>(brokerName));
+
+            services.AddSingleton<IHostedService>(sp =>
+                sp.GetRequiredKeyedService<MqttConnectivityProvider>(brokerName));
+        }
     }
 }

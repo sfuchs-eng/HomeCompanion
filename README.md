@@ -135,17 +135,33 @@ For local development, keep using normal console startup with `dotnet run` or `d
 The server only enables systemd-specific host behavior when it is actually started by systemd.
 
 1. Publish the server to `/opt/homecompanion` using the full publish output (do not copy only the DLL; the folder must also contain `HomeCompanion.Server.staticwebassets.runtime.json` and the generated static asset files).
-2. Create the runtime user and directories:
-  - `sudo bash deploy/systemd/setup-homecompanion-user.sh`
-3. Install service files:
-  - `sudo cp deploy/systemd/homecompanion.service /etc/systemd/system/homecompanion.service`
-  - `sudo cp deploy/systemd/homecompanion.env /etc/homecompanion/homecompanion.env`
-4. Reload and start service:
-  - `sudo systemctl daemon-reload`
-  - `sudo systemctl enable --now homecompanion.service`
-5. Inspect state and logs:
-  - `sudo systemctl status homecompanion.service`
-  - `sudo journalctl -u homecompanion.service -f`
+
+1. Create the runtime user and directories:
+
+```bash
+sudo bash deploy/systemd/setup-homecompanion-user.sh
+```
+
+1. Install service files:
+
+```bash
+sudo cp deploy/systemd/homecompanion.service /etc/systemd/system/homecompanion.service
+sudo cp deploy/systemd/homecompanion.env /etc/homecompanion/homecompanion.env
+```
+
+1. Reload and start service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now homecompanion.service
+```
+
+1. Inspect state and logs:
+
+```bash
+sudo systemctl status homecompanion.service
+sudo journalctl -u homecompanion.service -f
+```
 
 ### HTTPS and host binding
 
@@ -231,3 +247,54 @@ The UDP multicast settings for KNX/IP Routing default to the standard multicast 
 ```
 
 Use `Knx:Connections` when you need to override UDP defaults per connection or connect to multiple KNX/IP Routing segments. If `Knx:Connections` is omitted, HomeCompanion registers a single connection named `default` and falls back to the library defaults for KNX/IP Routing.
+
+### MQTT configuration
+
+MQTT brokers are configured under `Mqtt:Brokers`. Each configured broker creates one MQTT connectivity provider instance and one keyed `IMqttBrokerConnection`.
+
+```json
+{
+  "Mqtt": {
+    "Brokers": {
+      "main": {
+        "Connection": {
+          "Host": "mqtt-main.local",
+          "ClientID": "homecompanion-main",
+          "UseTls": true,
+          "User": "hc",
+          "Pass": "***"
+        },
+        "Subscriptions": [
+          "home/+/+/state",
+          "home/events/#"
+        ]
+      }
+    }
+  }
+}
+```
+
+`Subscriptions` are high-level ingress filters. The value-level routing is still defined explicitly on `IValue.BusMappings` via `MqttBusEndpointMapping`.
+
+Example mapping:
+
+```csharp
+BusMappings =
+{
+    [MqttBusEndpointMapping.GetBusId("main")] = new MqttBusEndpointMapping(
+        brokerName: "main",
+        stateTopicFilter: "home/living/temperature/state",
+        commandTopic: "home/living/temperature/cmd")
+    {
+        Communication = BusCommunication.Receive | BusCommunication.Transmit,
+        Config = new MqttBusMappingConfiguration
+        {
+            PayloadFormat = MqttPayloadFormat.JsonScalar,
+            Qos = 1,
+            Retain = false
+        }
+    }
+}
+```
+
+See [Integrations.Mqtt/README.md](Integrations.Mqtt/README.md) for the MQTT-specific behavior and mapping options.
