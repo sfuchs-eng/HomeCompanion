@@ -1,6 +1,7 @@
 # Architecture Specification: MQTT Connectivity Provider for HomeCompanion
 
 **Date:** 2026-05-23
+**Revised:** 2026-05-24
 **Status:** Draft
 **Owner:** HomeCompanion.Integrations.Mqtt
 
@@ -43,6 +44,9 @@ The MQTT design follows the same value-centric pattern used by KNX, adapted to M
 4. Broker-level subscriptions are configured as high-level wildcard topic patterns and act as ingress filters only.
 5. Payload conversion uses `System.Text.Json` for complex types; primitives/enums use fast typed conversion with invariant culture.
 6. Polymorphic payloads are supported via configured and/or attributed discriminators, with safe allow-listing of derived types.
+7. Keyed/named multi-broker registration is implemented in `SRF.Network.Mqtt.Hosting` and consumed by `Integrations.Mqtt`.
+8. Inbound command-topic traffic emits `ValueWriteReceived` only; state-topic traffic emits `ValueUpdateReceived`.
+9. Wildcard routing is single-winner only with deterministic precedence (no fan-out/broadcast mode).
 
 ## 5. High-Level Design
 
@@ -52,7 +56,7 @@ The MQTT design follows the same value-centric pattern used by KNX, adapted to M
 : Binds options, registers broker connections using `SRF.Network.Mqtt`, and registers one `MqttConnectivityProvider` per broker.
 
 - `MqttConnectivityProvider` (one instance per broker)
-: Implements `IConnectivityProvider` and bridges HomeCompanion events with a single `IMqttBrokerConnection`.
+: Implements `IConnectivityProvider` and bridges HomeCompanion events with a single `IMqttBrokerConnection`. Handles topic routing, payload conversion, and value update/write bridging. Manages broker-level subscriptions and maintains an in-memory topic router built from value mappings.
 
 - `MqttBusEndpointMapping`
 : Value-level mapping attached to `IValue.BusMappings`; defines broker name, topic or topic pattern(s), communication flags, and payload config.
@@ -80,19 +84,16 @@ The implementation must use:
 
 ### 6.1 Multi-Broker Registration Requirement
 
-`SRF.Network.Mqtt` currently exposes non-keyed `AddMqtt(configSection)` registrations. The MQTT extension therefore requires one of the following implementation paths:
+`SRF.Network.Mqtt` currently exposes non-keyed `AddMqtt(configSection)` registrations. This architecture decides to extend registration in `SRF.Network.Mqtt.Hosting` with keyed/named broker support while still using `MqttBrokerConnection` and `MqttOptions`.
 
-1. Preferred: extend registration to keyed/named broker connections while still using `MqttBrokerConnection` and `MqttOptions`.
-2. Alternative: register per-broker factories/adapters that instantiate `MqttBrokerConnection` with per-broker `MqttOptions` and expose them as keyed `IMqttBrokerConnection` services.
-
-In both cases, transport remains `SRF.Network.Mqtt` based.
+`Integrations.Mqtt` consumes these keyed services and remains focused on value mapping, routing, and event translation.
 
 ## 7. Value Mapping Model
 
 ## 7.1 Mapping Rules
 
 - Mapping is defined on each `IValue` through `IValue.BusMappings`.
-- Bus id is fixed: `MqttBusEndpointMapping.BusId = "mqtt"`.
+- Bus id incorporates protocol and broker: `MqttBusEndpointMapping.BusId = "mqtt://<BrokerName>"`.
 - Each mapping targets one broker and defines one or more MQTT topic filters.
 - Value mapping topic filters may use wildcards (`+`, `#`) for inbound matching.
 - Outbound publish topic must resolve to a concrete topic string (no wildcard) at send time.
@@ -104,7 +105,7 @@ In both cases, transport remains `SRF.Network.Mqtt` based.
 `MqttBusEndpointMapping` (conceptual fields):
 - `BrokerName` (string): configured broker key
 - `StateTopicFilter` (string): exact topic or wildcard filter for inbound state updates
-- `CommandTopic` (string?): optional outbound topic template/resolver target
+- `CommandTopic` (string?): optional command topic for outbound writes and optional inbound command handling semantics
 - `Communication` (`BusCommunication`): Receive/Transmit/Initialize flags
 - `Config` (`MqttBusMappingConfiguration`): payload format and MQTT publish metadata
 
@@ -116,7 +117,7 @@ In both cases, transport remains `SRF.Network.Mqtt` based.
 - `TopicParameters` (optional): extraction of wildcard segments (e.g. `site`, `room`, `device`) for mapping context
 - `OutboundTopicTemplate` (optional): concrete publish topic built from value context and configured placeholders
 - `Qos` / `Retain` / `ContentType` (optional outbound defaults)
-- `IgnoreOwnPublishes` (optional): loop prevention strategy
+- `IgnoreOwnPublishes` (optional, default true): loop prevention strategy
 
 ## 7.3 Example Value Declaration Pattern
 
@@ -157,26 +158,19 @@ The provider subscribes to these patterns once connected.
 
 For every inbound message:
 1. Message arrives because it matched a high-level subscription.
-2. Provider evaluates all value mappings for the broker using MQTT topic filter matching.
+2. Provider evaluates all value mappings for the broker scope using MQTT topic filter matching and resolves the best match.
 3. Matching precedence is deterministic:
   - Exact topic match first.
   - Then wildcard matches ordered by higher specificity (more fixed segments, fewer wildcards).
   - If still tied, explicit `Priority` in mapping config (higher wins).
   - If still tied, startup registration order (stable fallback).
-4. If the selected mapping allows `Receive`, payload is decoded and published as `ValueUpdateReceived` or `ValueWriteReceived`.
-5. If no mapping exists, message is ignored (trace log only).
+4. Routing is single-winner only: exactly one mapping is selected, no fan-out to multiple values.
+5. If the selected mapping allows `Receive`, payload is decoded and emitted by semantics:
+  - Matches `StateTopicFilter` => `ValueUpdateReceived`.
+  - Matches inbound command topic semantics => `ValueWriteReceived` only.
+6. If no mapping exists, message is ignored (trace log only).
 
 This keeps broker load manageable while allowing controlled wildcard-based value binding.
-
-## 8.2 Routing by Topic Filters
-
-For every inbound message:
-1. Message arrives because it matched a high-level subscription.
-2. Provider resolves the best matching value mapping by topic filter and broker scope.
-3. If a matching mapping exists and allows `Receive`, payload is decoded and published as `ValueUpdateReceived` or `ValueWriteReceived`.
-4. If no mapping exists, message is ignored (trace log only).
-
-This keeps broker load manageable while allowing intentional wildcard-to-value binding.
 
 ## 9. Data Flow
 
@@ -187,8 +181,9 @@ This keeps broker load manageable while allowing intentional wildcard-to-value b
 3. Provider resolves `(broker, topic)` mapping.
 4. Payload conversion based on target `IValue.ValueType` and mapping config.
 5. Provider publishes:
-   - `ValueUpdateReceived` for state topic semantics
-   - `ValueWriteReceived` for command topic semantics (if configured)
+  - `ValueUpdateReceived` for state-topic matches
+  - `ValueWriteReceived` for command-topic matches (if configured)
+  - Command-topic matches do not additionally emit `ValueUpdateReceived`
 6. `ValuesManager` routes to target `IValue`.
 
 ## 9.2 Outbound (HomeCompanion -> MQTT)
@@ -206,20 +201,21 @@ This keeps broker load manageable while allowing intentional wildcard-to-value b
 
 Inbound conversion order:
 1. `string` passthrough (`PayloadUtf8`)
-2. Boolean literals (`true/false`, optional `0/1` via config)
+2. Boolean literals (`true/false`, '>0/0', transparent "ON/OFF", "CLOSED/OPEN", "ENABLE/DISABLE", optional other value pairs via config)
 3. Numeric types with invariant culture (`byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, `double`, `decimal`)
 4. Enum by name (case-insensitive), fallback numeric value
 
 Outbound conversion:
 - `string`: publish UTF-8 string
 - primitives: invariant string representation unless `JsonScalar`
-- enum: configured name or numeric representation
+- enum: configured name (preferred default) or numeric representation
 
 ## 10.2 POCO Types
 
 - Use `System.Text.Json` serialization/deserialization.
 - Respect nullability and required properties.
-- Unknown JSON fields are ignored by default (configurable strict mode optional).
+- Default behavior is lenient: unknown JSON fields are ignored.
+- Strict mode is opt-in per mapping/config when a hard schema contract is required.
 
 ## 10.3 Polymorphic Types
 
@@ -230,7 +226,7 @@ Support both approaches:
 Safety requirements:
 - No unrestricted type name activation.
 - Derived types must be explicitly allow-listed.
-- Conversion failures do not crash provider loop; they are logged and dropped.
+- Conversion failures do not crash provider loop; they are logged (warning level) and dropped.
 
 ## 11. Configuration Contract (Draft)
 
@@ -307,6 +303,8 @@ Required logs and metrics (per broker):
 
 - Unit tests for topic routing (exact match, unmapped topic, broker scoping)
 - Unit tests for wildcard routing precedence and tie-break behavior
+- Unit tests proving single-winner routing (no fan-out/broadcast)
+- Unit tests for inbound command semantics (`ValueWriteReceived` only)
 - Unit tests for type conversion matrix (primitive, enum, POCO, polymorphic)
 - Unit tests for outbound publish formatting and topic selection
 - Integration tests with fake/stub `IMqttBrokerConnection` (offline)
@@ -319,19 +317,21 @@ Required logs and metrics (per broker):
 - No sensitive payload logging by default at info level.
 - Polymorphic conversion uses allow-list only.
 
-## 17. Open Decisions for Implementation
+## 17. Resolved Implementation Decisions
 
-1. Whether to add keyed registration support directly in `SRF.Network.Mqtt.Hosting` or in `Integrations.Mqtt`.
-2. Final shape of `MqttBusEndpointMapping` topics (single topic vs state+command topics).
-3. Whether inbound command topics should emit `ValueWriteReceived`, `ValueUpdateReceived`, or both.
-4. Exact JSON strictness defaults for POCO deserialization.
-5. Whether wildcard mappings may fan out one inbound message to multiple target values (broadcast mode) or remain single-winner only.
+1. Keyed/named broker registration is implemented in `SRF.Network.Mqtt.Hosting`; `Integrations.Mqtt` consumes keyed `IMqttBrokerConnection` services.
+2. `MqttBusEndpointMapping` uses split topic semantics: `StateTopicFilter` for inbound state and optional `CommandTopic` for command semantics.
+3. Inbound command-topic traffic emits `ValueWriteReceived` only.
+4. POCO JSON deserialization is lenient by default, with opt-in strict mode per mapping/config.
+5. Wildcard routing is single-winner only with deterministic precedence; fan-out/broadcast mode is not supported.
 
 ## 18. Acceptance Criteria
 
 - Multiple brokers can be configured and run in parallel.
 - High-level topic pattern subscriptions are configurable per broker.
-- Value mappings support exact topics and wildcard topic filters with deterministic precedence.
+- Value mappings support exact topics and wildcard topic filters with deterministic single-winner precedence.
+- Inbound command-topic matches emit `ValueWriteReceived` only (not both write and update events).
+- POCO deserialization is lenient by default, with opt-in strict mode.
 - `ILogic` can read and write MQTT-backed values solely via `IValue` objects.
 - Primitive, enum, POCO, and polymorphic payloads are supported with deterministic conversion behavior.
 - Transport implementation uses `SRF.Network.Mqtt` rather than a custom MQTT stack.
