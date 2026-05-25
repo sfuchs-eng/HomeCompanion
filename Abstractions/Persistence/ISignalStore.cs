@@ -6,7 +6,7 @@ namespace HomeCompanion.Persistence;
 /// <remarks>
 /// The contract is transport-neutral so implementations can target different backends.
 /// </remarks>
-public interface IInternalSignalStore
+public interface ISignalStore
 {
     /// <summary>
     /// Enqueues a single measurement for asynchronous persistence.

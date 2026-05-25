@@ -24,8 +24,8 @@ public sealed class InfluxSignalStoreExtensionRegistration : IExtensionRegistrat
             .ValidateOnStart();
 
         context.Builder.Services.AddSingleton<IInfluxBatchWriter, InfluxBatchWriter>();
-        context.Builder.Services.AddSingleton<InfluxInternalSignalStore>();
-        context.Builder.Services.AddSingleton<IInternalSignalStore>(sp => sp.GetRequiredService<InfluxInternalSignalStore>());
-        context.Builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<InfluxInternalSignalStore>());
+        context.Builder.Services.AddSingleton<InfluxSignalStore>();
+        context.Builder.Services.AddSingleton<ISignalStore>(sp => sp.GetRequiredService<InfluxSignalStore>());
+        context.Builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<InfluxSignalStore>());
     }
 }

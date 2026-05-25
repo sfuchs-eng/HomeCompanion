@@ -2,7 +2,7 @@
 
 HomeCompanion.Integrations.Influx provides buffered persistence of internal signals to InfluxDB OSS v2.
 
-The integration registers an implementation of HomeCompanion.Persistence.IInternalSignalStore through extension discovery.
+The integration registers an implementation of HomeCompanion.Persistence.ISignalStore through extension discovery.
 
 ## Configuration
 
@@ -46,12 +46,12 @@ Validation fails fast at startup when required settings are missing or invalid.
 
 ## Usage from logic modules
 
-Inject HomeCompanion.Persistence.IInternalSignalStore and enqueue one or more measurements.
+Inject HomeCompanion.Persistence.ISignalStore and enqueue one or more measurements.
 
 ```csharp
 using HomeCompanion.Persistence;
 
-public sealed class ExampleLogic(IInternalSignalStore signalStore)
+public sealed class ExampleLogic(ISignalStore signalStore)
 {
     public async Task RecordAsync(CancellationToken cancellationToken)
     {
@@ -96,4 +96,4 @@ The extension is discovered only when its assembly is loaded.
 - Keep HomeCompanion.Integrations.Influx.dll in the application base directory, or
 - place it in the directory configured by HomeCompanion:ExtensionsPath.
 
-If the assembly is absent, no Influx-backed IInternalSignalStore implementation is registered.
+If the assembly is absent, no Influx-backed ISignalStore implementation is registered.

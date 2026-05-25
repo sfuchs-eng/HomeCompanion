@@ -6,12 +6,12 @@ using Microsoft.Extensions.Options;
 
 namespace HomeCompanion.Integrations.Influx;
 
-internal sealed class InfluxInternalSignalStore : IInternalSignalStore, IHostedService
+internal sealed class InfluxSignalStore : ISignalStore, IHostedService
 {
     private readonly IInfluxBatchWriter _batchWriter;
     private readonly InfluxIntegrationOptions _options;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<InfluxInternalSignalStore> _logger;
+    private readonly ILogger<InfluxSignalStore> _logger;
     private readonly Channel<InternalSignalMeasurement> _queue;
 
     private readonly object _lifecycleLock = new();
@@ -19,11 +19,11 @@ internal sealed class InfluxInternalSignalStore : IInternalSignalStore, IHostedS
     private CancellationTokenSource? _workerCancellation;
     private volatile bool _acceptWrites;
 
-    public InfluxInternalSignalStore(
+    public InfluxSignalStore(
         IInfluxBatchWriter batchWriter,
         IOptions<InfluxIntegrationOptions> options,
         TimeProvider timeProvider,
-        ILogger<InfluxInternalSignalStore> logger)
+        ILogger<InfluxSignalStore> logger)
     {
         _batchWriter = batchWriter;
         _options = options.Value;

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace HomeCompanion.Tests;
 
 [TestFixture]
-public class InfluxInternalSignalStoreTests
+public class InfluxSignalStoreTests
 {
     [Test]
     public async Task FlushesOnTimer_WhenQueueBelowMaxSize()
@@ -132,13 +132,13 @@ public class InfluxInternalSignalStoreTests
         };
     }
 
-    private static InfluxInternalSignalStore CreateStore(RecordingBatchWriter writer, InfluxIntegrationOptions options)
+    private static InfluxSignalStore CreateStore(RecordingBatchWriter writer, InfluxIntegrationOptions options)
     {
-        return new InfluxInternalSignalStore(
+        return new InfluxSignalStore(
             writer,
             Options.Create(options),
             TimeProvider.System,
-            NullLogger<InfluxInternalSignalStore>.Instance);
+            NullLogger<InfluxSignalStore>.Instance);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
