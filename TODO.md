@@ -8,8 +8,8 @@ Completed items are tracked in `TODO_completed.md`.
 
 ### Port existing functionality from the old HomeCompanion solution into the one at hand
 
-- [ ] InfluxDB connectivity
-- [ ] MQTT connectivity
+- [x] InfluxDB connectivity
+- [x] MQTT connectivity
 - [ ] e-Mail notifications
 - [ ] generic alerting/notification framework
 

@@ -12,6 +12,9 @@
   <Folder Name="/Core/">
     <Project Path="Core/HomeCompanion.Core.csproj" />
   </Folder>
+  <Folder Name="/Integrations.Alerting/">
+    <Project Path="Integrations.Alerting/HomeCompanion.Integrations.Alerting.csproj" />
+  </Folder>
   <Folder Name="/Integrations.Influx/">
     <Project Path="Integrations.Influx/HomeCompanion.Integrations.Influx.csproj" />
   </Folder>
