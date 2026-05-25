@@ -41,6 +41,7 @@ The solution is organized into several projects:
 - `HomeCompanion.Base`: contains the base classes and for the framework, such as for example `LogicBase` which implements the `ILogic` interface with common basic functionality for the logic modules
 - `HomeCompanion.Abstraction`: contains the abstractions for the framework, such as for example `ILogic` and `IDiagnostic` as well as the interfaces for the connectivity providers. These are used by the server application as well as the logic modules, and are implemented in the `HomeCompanion.Core` project and provisioned for use in the logic modules via dependency injection
 - `HomeCompanion.Logic`: contains a selection of built-in logic modules, implementing the `ILogic` interface
+- `HomeCompanion.Integrations.Alerting`: provides alert delivery paths (push-message via MQTT and e-mail via SMTP), alert routing, named-alert lifecycle management, and persistence integration
 - `HomeCompanion.Tests`: contains unit tests for the framework and the logic modules, using NUnit
 
 ### Value event architecture
@@ -82,6 +83,7 @@ graph TD
   Core --> Base
   Core --> Logics
   Core --> IntegrationsKnx
+  Core --> IntegrationsAlerting[HomeCompanion.Integrations.Alerting]
   Core --> IntegrationsOpenHab[HomeCompanion.Integrations.OpenHab]
   Core --> IntegrationsMqtt[HomeCompanion.Integrations.Mqtt]
 
@@ -302,6 +304,77 @@ BusMappings =
 ```
 
 See [Integrations.Mqtt/README.md](Integrations.Mqtt/README.md) for the MQTT-specific behavior and mapping options.
+
+### Alerting configuration
+
+Alerting is configured under `Alerting`.
+
+The alerting integration supports:
+
+- fire-and-forget alerts
+- named alerts with status lifecycle (`Monitoring`, `Alert`, `Acknowledged`, `Disabled`)
+- severity based path routing
+- push-message delivery via keyed MQTT broker connections
+- e-mail delivery via SMTP (MailKit)
+- warning e-mail fallback to push-message route when configured
+
+Example configuration:
+
+```json
+{
+  "Alerting": {
+    "Enable": true,
+    "SeverityRouting": {
+      "Info": ["Email"],
+      "Warning": ["Email"],
+      "Critical": ["PushMessage"],
+      "Emergency": ["PushMessage", "Email"]
+    },
+    "Fallbacks": {
+      "WarningEmailToCriticalPushMessage": true
+    },
+    "PushMessage": {
+      "Broker": "main",
+      "Topic": "homecompanion/alerts/critical",
+      "Qos": 1,
+      "Retain": false,
+      "ContentType": "application/json",
+      "PublishResultTimeoutMs": 5000
+    },
+    "Email": {
+      "WarningRecipients": [
+        "ops@example.org",
+        "home@example.org"
+      ],
+      "Smtp": {
+        "Host": "smtp.example.org",
+        "Port": 587,
+        "UseStartTls": true,
+        "User": "alerts@example.org",
+        "Password": "***",
+        "From": "alerts@example.org"
+      },
+      "Templates": {
+        "WarningSubject": "[HomeCompanion] Warning: {AlertKey}",
+        "InfoSubject": "[HomeCompanion] Info",
+        "CriticalSubject": "[HomeCompanion] Critical: {AlertKey}",
+        "Body": "Severity: {Severity}\\nAlertKey: {AlertKey}\\nMessage: {MessageShort}\\nDetails: {MessageLong}\\nCorrelationId: {CorrelationId}\\nMetadata:\\n{Metadata}"
+      }
+    },
+    "NamedAlerts": {
+      "PersistState": true,
+      "DefaultReminderInterval": "00:15:00",
+      "PerSeverityReminderInterval": {
+        "Warning": "00:30:00",
+        "Critical": "00:10:00",
+        "Emergency": "00:05:00"
+      }
+    }
+  }
+}
+```
+
+See [Integrations.Alerting/README.md](Integrations.Alerting/README.md) for alerting behavior, placeholders, and named-alert details.
 
 ### Influx internal signals configuration
 

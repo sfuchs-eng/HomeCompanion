@@ -10,8 +10,9 @@ Completed items are tracked in `TODO_completed.md`.
 
 - [x] InfluxDB connectivity
 - [x] MQTT connectivity
-- [ ] e-Mail notifications
-- [ ] generic alerting/notification framework
+- [x] e-Mail notifications
+- [x] generic alerting/notification framework
+- [ ] port from legacy: Spheric vector and piece wise linear curves classes
 
 ### Furthermore
 
