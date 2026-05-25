@@ -499,3 +499,4 @@ UnitTest1.cs
 Server/States/
 
 *.lscache
+tmp/

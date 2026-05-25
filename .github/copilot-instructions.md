@@ -73,3 +73,11 @@ New logic modules go in `HomeCompanion.Logics` (or any project referencing `Home
 - For complex logic modules, keep a dedicated markdown file in `docs/` with details on configuration and behavior/functionality
 - For architectural decisions, use ADRs in `docs/adr/` (Markdown) with clear descriptions of the solution, alternatives considered, and rationale for the decision
 - For project key functionality, keep explanations and usage instructions in the project/library README.md files (e.g. `HomeCompanion.Logics/README.md` for the built-in logic modules) as well as XML docs on the relevant public APIs
+
+## Special Notes
+
+### Legacy Code
+
+There's a legacy solution that `HomeCompanion` substitutes. It's not in the repository.
+Some of its files are copied into the `tmp/` directory for reference. These files are not part of the project and should not be edited. They are only for reference during development.
+They originate from the legacy solution that runs on .NET Framework 4.8 and is being replaced by this new .NET 10.0 solution. Architecture and code style may differ strongly and must be reconsidered.
