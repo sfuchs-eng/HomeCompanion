@@ -302,3 +302,35 @@ BusMappings =
 ```
 
 See [Integrations.Mqtt/README.md](Integrations.Mqtt/README.md) for the MQTT-specific behavior and mapping options.
+
+### Influx internal signals configuration
+
+Internal signal persistence to InfluxDB OSS v2 is configured under `Influx`:
+
+```json
+{
+  "Influx": {
+    "Url": "http://influxdb.local:8086",
+    "Organization": "home",
+    "Token": "***",
+    "DefaultBucket": "homecompanion-internal",
+    "FlushIntervalSeconds": 10,
+    "MaxQueueSize": 500,
+    "RetryCount": 3,
+    "RetryDelaySeconds": 2
+  }
+}
+```
+
+Behavior summary:
+
+- Measurements are enqueued and flushed in bulk either when the flush interval elapses, when the queue reaches `MaxQueueSize`, or during shutdown drain.
+- `DefaultBucket` is used unless a measurement sets `BucketOverride`.
+- Writes use a singleton InfluxDB client from `InfluxDB.Client`.
+
+Extension activation note:
+
+- The Influx implementation is an extension assembly (`HomeCompanion.Integrations.Influx`).
+- Ensure the DLL is present in the app output directory or in the configured `HomeCompanion:ExtensionsPath` so extension discovery can load and register it.
+
+See [Integrations.Influx/README.md](Integrations.Influx/README.md) for integration-specific API and usage details.
