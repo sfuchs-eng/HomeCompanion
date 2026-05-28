@@ -2,17 +2,23 @@ using System;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SRF.Network.Knx;
 
 namespace HomeCompanion.Integrations.Knx;
 
-public class KnxExtensionRegistration : IExtensionRegistration
+public class KnxExtensionRegistration(
+    ILogger<KnxExtensionRegistration> logger
+) : IExtensionRegistration
 {
+    private readonly ILogger<KnxExtensionRegistration> logger = logger;
+
     public void RegisterServices(IExtensionRegistrationContext context)
     {
         context.Builder.Services.AddOptions<KnxIntegrationOptions>()
             .BindConfiguration(KnxIntegrationOptions.SectionName);
         AddKnxConnections(context.Builder.Services, context.Builder.Configuration);
+        logger.LogInformation("Registered KNX connections.");
     }
 
     /// <summary>

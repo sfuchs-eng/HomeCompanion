@@ -13,8 +13,6 @@ namespace HomeCompanion.Integrations.Alerting.Values;
 public sealed class AlertingValues : ValueContainerBase
 {
     private readonly ILoggerFactory _loggerFactory;
-    private readonly IEventPublisher _publisher;
-    private readonly IValuesManager _valuesManager;
     private readonly NamedAlertStateMachine _stateMachine;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AlertingValues> _logger;
@@ -28,16 +26,12 @@ public sealed class AlertingValues : ValueContainerBase
     public AlertingValues(
         ILogger<ValueContainerBase> baseLogger,
         ILoggerFactory loggerFactory,
-        IEventPublisher publisher,
-        IValuesManager valuesManager,
         NamedAlertStateMachine stateMachine,
         TimeProvider timeProvider,
         ILogger<AlertingValues> logger)
         : base(baseLogger)
     {
         _loggerFactory = loggerFactory;
-        _publisher = publisher;
-        _valuesManager = valuesManager;
         _stateMachine = stateMachine;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -122,8 +116,6 @@ public sealed class AlertingValues : ValueContainerBase
             Name = name,
             Label = label,
         };
-
-        value.Initialize(_publisher, _valuesManager);
         return value;
     }
 

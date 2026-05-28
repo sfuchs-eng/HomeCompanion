@@ -1,5 +1,8 @@
 using HomeCompanion.Core.Mcp;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;

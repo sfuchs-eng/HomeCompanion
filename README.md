@@ -36,8 +36,9 @@ path not only for other devices but also for integration with other home automat
 
 The solution is organized into several projects:
 
-- `HomeCompanion.Server`: the main Blazor server application
-- `HomeCompanion.Core`: contains the core run-time functionality of the framework, mostly used by the server application. This includes for example the `LogicManager` which is responsible for loading and managing the `ILogic` modules, as well as the connectivity managers for KNX, OpenHAB, MQTT and InfluxDB
+- `HomeCompanion.Local.Server`: the local executable host used for development and deployment
+- `HomeCompanion.Server`: reusable Blazor server library (UI components, endpoint mapping, and server hosting extension methods) intended for project/package consumption by thin host applications
+- `HomeCompanion.Core`: contains the core run-time functionality of the framework. This includes for example the `LogicManager` which is responsible for loading and managing the `ILogic` modules, as well as the connectivity managers for KNX, OpenHAB, MQTT and InfluxDB
 - `HomeCompanion.Base`: contains the base classes and for the framework, such as for example `LogicBase` which implements the `ILogic` interface with common basic functionality for the logic modules
 - `HomeCompanion.Abstraction`: contains the abstractions for the framework, such as for example `ILogic` and `IDiagnostic` as well as the interfaces for the connectivity providers. These are used by the server application as well as the logic modules, and are implemented in the `HomeCompanion.Core` project and provisioned for use in the logic modules via dependency injection
 - `HomeCompanion.Logic`: contains a selection of built-in logic modules, implementing the `ILogic` interface
@@ -72,13 +73,14 @@ The internal project dependencies are as follows:
 
 ```mermaid
 graph TD
+  LocalServer[HomeCompanion.Local.Server] --> Server[HomeCompanion.Server]
+  LocalServer --> Core[HomeCompanion.Core]
+
   Tests[HomeCompanion.Tests] --> Server[HomeCompanion.Server]
   Tests --> Core[HomeCompanion.Core]
   Tests --> Base[HomeCompanion.Base]
   Tests --> Logics[HomeCompanion.Logics]
   Tests --> IntegrationsKnx[HomeCompanion.Integrations.Knx]
-
-  Server --> Core
 
   Core --> Base
   Core --> Logics
@@ -125,13 +127,41 @@ The application supports to run multiple innstances in parallel at once on the s
 
 ### Installation
 
-The application to run it all is `HomeCompanion.Server`, which is a Blazor server application.
-The other projects in the solution are class libraries for the framework and the logic modules, which are loaded at runtime by the server application.
+The local executable to run everything is `HomeCompanion.Local.Server`.
+`HomeCompanion.Server` is a reusable server library consumed by `HomeCompanion.Local.Server` (and by custom thin-wrapper hosts).
 
 1. Clone the repository: ...
-2. Build the application: ...
-3. Configure the application: ...
-4. Run for testing: ...
+2. Build the application: `dotnet build HomeCompanion.Local.slnx`
+3. Configure the application (see Configuration section below)
+4. Run for testing: `dotnet run --project <your local solution root>/Server/HomeCompanion.Local.Server.csproj`
+
+### Consuming HomeCompanion.Server from a thin wrapper
+
+Custom host applications can keep their startup code minimal by referencing `HomeCompanion.Server` and delegating server wiring through extension methods.
+
+```csharp
+using HomeCompanion.Abstractions;
+using HomeCompanion.Core;
+using HomeCompanion.Server;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddHomeCompanionCore();
+builder.Services.AddHomeCompanionServer(builder.Configuration);
+
+var app = builder.Build();
+
+await app.Services.GetRequiredService<IHomeCompanionLifeCycleSynchronization>()
+  .SignalInitializationStageCompletedAsync(AppInitializationStage.PreBuild);
+await app.Services.GetRequiredService<IHomeCompanionLifeCycleSynchronization>()
+  .SignalInitializationStageCompletedAsync(AppInitializationStage.PreRun);
+
+app.MapHomeCompanionServer();
+
+await app.RunAsync();
+```
+
+This keeps host applications focused on environment-specific concerns (systemd integration, logging, and deployment defaults) while reusing all server UI and endpoint configuration from `HomeCompanion.Server`.
 
 ### Linux systemd service
 
@@ -140,7 +170,7 @@ For production on Linux, HomeCompanion can run as a systemd service.
 For local development, keep using normal console startup with `dotnet run` or `dotnet watch`.
 The server only enables systemd-specific host behavior when it is actually started by systemd.
 
-1. Publish the server to `/opt/homecompanion` using the full publish output (do not copy only the DLL; the folder must also contain `HomeCompanion.Server.staticwebassets.runtime.json` and the generated static asset files).
+1. Publish the local host to `/opt/homecompanion` using the full publish output (do not copy only the DLL; the folder must also contain the generated static web assets and runtime metadata).
 
 1. Create the runtime user and directories:
 
@@ -210,7 +240,7 @@ HomeCompanion reads configuration from the normal ASP.NET Core sources and addit
 
 Those files are loaded after `appsettings.json` and `appsettings.{Environment}.json`, but before environment variables. In practice this means:
 
-- repository defaults live in `Server/appsettings.json`
+- repository defaults live in the local host project's `appsettings.json` (`Server/HomeCompanion.Local.Server.csproj`)
 - machine-specific settings belong in `/etc/HomeCompanion.json`
 - user-specific or development overrides belong in `~/.config/HomeCompanion.json`
 - environment variables still have the highest precedence

@@ -8,7 +8,7 @@ Type=simple
 User=homecompanion
 Group=homecompanion
 WorkingDirectory=/opt/homecompanion
-ExecStart=/usr/bin/dotnet /opt/homecompanion/HomeCompanion.Server.dll
+ExecStart=/usr/bin/dotnet /opt/homecompanion/HomeCompanion.Local.Server.dll
 Restart=on-failure
 RestartSec=10s
 

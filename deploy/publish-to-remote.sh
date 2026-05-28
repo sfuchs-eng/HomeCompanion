@@ -20,7 +20,7 @@ source "$config_file"
 : "${PUBLISH_PATH:?Set PUBLISH_PATH in $config_file}"
 
 publish_configuration="${PUBLISH_CONFIGURATION:-Production}"
-project_path="$repo_root/Server/HomeCompanion.Server.csproj"
+project_path="$repo_root/../Server/HomeCompanion.Local.Server.csproj"
 publish_dir=$(mktemp -d -t homecompanion-publish.XXXXXX)
 
 cleanup() {

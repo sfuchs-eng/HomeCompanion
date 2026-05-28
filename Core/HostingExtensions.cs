@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using SRF.Network.OpenHab;
 using HomeCompanion.Events;
 using HomeCompanion.Core.Events;
@@ -55,9 +56,9 @@ public static class HostingExtensions
             LoadAssembliesFromDirectory(extensionsPath);
 
         // Custom discovery-based registrations
+        builder.AddExtensions();
         builder.Services.AddConnectivityProviders();
         builder.Services.AddValuesContainers();
-        builder.AddExtensions();
         builder.Services.AddLogics();
         builder.Services.AddLogicManager();
 
@@ -213,7 +214,13 @@ public static class HostingExtensions
         {
             services.AddSingleton(type);
             services.AddSingleton(providerInterface, sp => sp.GetRequiredService(type));
-            services.AddSingleton(typeof(IHostedService), sp => (IHostedService)sp.GetRequiredService(type));
+            services.AddSingleton(typeof(IHostedService), sp =>
+            {
+                var inner = (IHostedService)sp.GetRequiredService(type);
+                var loggerFactory = sp.GetService<ILoggerFactory>();
+                var logger = loggerFactory?.CreateLogger($"ConnectivityProviderHost[{type.Name}]");
+                return new DeferredStartHostedService(inner, logger);
+            });
         }
 
         return services;
@@ -283,6 +290,51 @@ public static class HostingExtensions
     {
         services.AddHostedService<LogicManager>();
         return services;
+    }
+
+    private sealed class DeferredStartHostedService(IHostedService inner, ILogger? logger) : IHostedService
+    {
+        private readonly IHostedService _inner = inner;
+        private readonly ILogger? _logger = logger;
+        private Task? _startTask;
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            _startTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    _logger?.LogDebug("Connectivity provider start canceled by host token.");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Connectivity provider failed during asynchronous startup.");
+                }
+            }, CancellationToken.None);
+
+            return Task.CompletedTask;
+        }
+
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            if (_startTask is not null)
+            {
+                try
+                {
+                    await _startTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    _logger?.LogDebug("Host cancellation requested while waiting for provider startup task.");
+                }
+            }
+
+            await _inner.StopAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
