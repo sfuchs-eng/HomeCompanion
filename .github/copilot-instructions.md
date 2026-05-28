@@ -13,6 +13,8 @@ Unit tests must run **offline** — no connection to KNX, OpenHAB, MQTT, or Infl
 
 ## Architecture
 
+### Main Application
+
 | Project | Role |
 |---------|------|
 | `HomeCompanion` | Core interfaces: `ILogic`, `IDiagnostic`, connectivity provider interfaces |
@@ -27,6 +29,14 @@ For full dependencies see the project files.
 
 The application is a strongly event based system, receiving, processing and sending events related to values of distributed data points.
 This follows the general pattern of OpenHAB Items/Channels and of KNX group addresses with their objects in devices' memory.
+
+### Local folders
+
+- `LocalConfig/`: Local configuration files (e.g. for the Blazor Server app) that are not checked into the main repository. This is where the local `HomeCompanion.json` file and other local configuration files go, as well as any other local configuration files needed for development or production.
+- `LocalLogics/`: Local logic modules that are not checked into the main repository. This is where custom, non-public logic implementations can be placed. It's supposed to contain logic modules that are specific to the local setup and not intended for sharing or public use. This allows for local customization without affecting the main codebase.
+
+As long as no packages for HomeCompanion are published, the `LocalLogics` should reference the `HomeCompanion.Server` project directly to use the latest code. Once packages might be published, there should
+be a separate solution for local development that references the published packages. Some changes in HomeCompanion.Server might be needed to allow for consuming it as published package into a custom, local solution.
 
 ### Value Lifecycle And Routing
 - `ValuesManager` is the single place that initializes `IValue` instances (`IValue.Initialize(...)`) at startup.

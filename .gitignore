@@ -500,3 +500,7 @@ Server/States/
 
 *.lscache
 tmp/
+
+# Local configurations and logics which are not published on the HomeCompanion repository on github.
+LocalConfig/
+LocalLogics/
