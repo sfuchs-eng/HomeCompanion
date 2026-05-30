@@ -12,9 +12,6 @@ public static class HomeCompanionServerHostingExtensions
 {
     public static IServiceCollection AddHomeCompanionServer(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddRazorComponents()
-            .AddInteractiveServerComponents();
-
         services.Configure<McpApiOptions>(configuration.GetSection("HomeCompanion:Mcp"));
         services.AddSingleton<EventBusMonitor>();
 
@@ -31,13 +28,10 @@ public static class HomeCompanionServerHostingExtensions
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseHttpsRedirection();
+        app.UseStaticFiles();
         app.UseAntiforgery();
 
         app.MapHomeCompanionMcp();
-
-        app.MapStaticAssets();
-        app.MapRazorComponents<App>()
-            .AddInteractiveServerRenderMode();
 
         return app;
     }

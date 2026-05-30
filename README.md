@@ -143,11 +143,14 @@ Custom host applications can keep their startup code minimal by referencing `Hom
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Server;
+using HomeCompanion.Server.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddHomeCompanionCore();
 builder.Services.AddHomeCompanionServer(builder.Configuration);
+builder.Services.AddRazorComponents()
+  .AddInteractiveServerComponents();
 
 var app = builder.Build();
 
@@ -157,11 +160,21 @@ await app.Services.GetRequiredService<IHomeCompanionLifeCycleSynchronization>()
   .SignalInitializationStageCompletedAsync(AppInitializationStage.PreRun);
 
 app.MapHomeCompanionServer();
+app.MapStaticAssets();
+app.MapRazorComponents<App>()
+  .AddInteractiveServerRenderMode();
 
 await app.RunAsync();
 ```
 
-This keeps host applications focused on environment-specific concerns (systemd integration, logging, and deployment defaults) while reusing all server UI and endpoint configuration from `HomeCompanion.Server`.
+This keeps host applications focused on environment-specific concerns (systemd integration, logging, and deployment defaults) while reusing server middleware/MCP wiring from `HomeCompanion.Server`.
+
+Important static asset note for library hosts:
+
+- UI files from `HomeCompanion.Server` are served from `_content/HomeCompanion.Server/*`
+- Blazor framework bootstrap files are served from `/_framework/*`
+- In a host/library split, the executable host must perform the `AddRazorComponents` + `MapStaticAssets` + `MapRazorComponents` calls shown above, otherwise routes like `/_framework/blazor.web.js` may not be generated and interactivity will fail
+- `HomeCompanion.Local.Server` includes a minimal host-side Razor component (`Server/Components/FrameworkStaticAssetProbe.razor`) to keep host Razor static-web-assets discovery active in this split architecture
 
 ### Linux systemd service
 

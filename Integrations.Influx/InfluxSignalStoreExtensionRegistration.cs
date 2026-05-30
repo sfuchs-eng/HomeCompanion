@@ -1,5 +1,6 @@
 using HomeCompanion.Extensions;
 using HomeCompanion.Persistence;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -13,6 +14,25 @@ public sealed class InfluxSignalStoreExtensionRegistration : IExtensionRegistrat
     /// <inheritdoc />
     public void RegisterServices(IExtensionRegistrationContext context)
     {
+        var configuration = context.Builder.Configuration;
+        var url = configuration[$"{InfluxIntegrationOptions.SectionName}:Url"];
+        var organization = configuration[$"{InfluxIntegrationOptions.SectionName}:Organization"];
+        var token = configuration[$"{InfluxIntegrationOptions.SectionName}:Token"];
+        var defaultBucket = configuration[$"{InfluxIntegrationOptions.SectionName}:DefaultBucket"];
+
+        if (string.IsNullOrWhiteSpace(url)
+            || string.IsNullOrWhiteSpace(organization)
+            || string.IsNullOrWhiteSpace(token)
+            || string.IsNullOrWhiteSpace(defaultBucket))
+        {
+            Console.Error.WriteLine("Influx integration disabled: required configuration values are missing.");
+
+            context.Builder.Services.AddSingleton<DisabledInfluxSignalStore>();
+            context.Builder.Services.AddSingleton<ISignalStore>(sp => sp.GetRequiredService<DisabledInfluxSignalStore>());
+            context.Builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<DisabledInfluxSignalStore>());
+            return;
+        }
+
         context.Builder.Services
             .AddOptions<InfluxIntegrationOptions>()
             .BindConfiguration(InfluxIntegrationOptions.SectionName)
