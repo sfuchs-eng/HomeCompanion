@@ -38,6 +38,11 @@ public enum AppInitializationStage
     InitRetrieveFromEnvironment,
 
     /// <summary>
+    /// The runtime model has been created from configuration and is ready for consumption by logic modules.
+    /// </summary>
+    InitModelReady,
+
+    /// <summary>
     /// A value has been received from the bus, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.
     /// </summary>
     InitBusValueReceived,

@@ -66,14 +66,10 @@ public class AlertingNamedAlertsTests
     public void AlertingValues_WriteToAcknowledgeAndDisable_MapsToStateMachineIntents()
     {
         var machine = new NamedAlertStateMachine();
-        var publisher = new NoopEventPublisher();
-        var valuesManager = new TestValuesManager();
         var loggerFactory = NullLoggerFactory.Instance;
         var alertingValues = new AlertingValues(
             NullLogger<ValueContainerBase>.Instance,
             loggerFactory,
-            publisher,
-            valuesManager,
             machine,
             TimeProvider.System,
             NullLogger<AlertingValues>.Instance);
@@ -103,18 +99,4 @@ public class AlertingNamedAlertsTests
         Assert.That(enabled.Status, Is.EqualTo(NamedAlertStatus.Monitoring));
     }
 
-    private sealed class NoopEventPublisher : IEventPublisher
-    {
-        public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
-            => ValueTask.CompletedTask;
-    }
-
-    private sealed class TestValuesManager : IValuesManager
-    {
-        private readonly HashSet<IValue> _registered = [];
-
-        public void RegisterValue(IValue value) => _registered.Add(value);
-
-        public void UnregisterValue(IValue value) => _registered.Remove(value);
-    }
 }

@@ -62,6 +62,7 @@ internal sealed class LogicManager : BackgroundService
 
         await lifeCycleSynchronization.AwaitBusesConnectedAsync(_options.BusInitializationTimeout, stoppingToken);
         await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitRetrieveFromEnvironment, _options.BusInitializationTimeout, stoppingToken);
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitModelReady, _options.BusInitializationTimeout, stoppingToken);
 
         if (stoppingToken.IsCancellationRequested)
             return;

@@ -133,6 +133,7 @@ public class LogicManagerTests
         [
             AppInitializationStage.Default,
             AppInitializationStage.InitRetrieveFromEnvironment,
+            AppInitializationStage.InitModelReady,
         ];
 
         public async Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)

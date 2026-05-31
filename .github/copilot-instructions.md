@@ -2,6 +2,14 @@
 
 Home automation framework designed to complement KNX and OpenHAB with complex/parametrized logic. See [README.md](../README.md) for full overview.
 
+## Workspace Context
+
+- This `HomeCompanion` repository is used as a submodule inside the private `HomeCompanion.Local` workspace.
+- This file is the primary instruction pillar for development in `HomeCompanion`.
+- A sibling workspace folder `BHw17Logic` exists only as legacy reference and must not be developed or modified.
+- `HomeCompanion` and `HomeCompanion.Local` are greenfield solutions. Prefer clean architecture and direct redesign over compatibility layers.
+- Backward compatibility is not required unless explicitly requested for a specific task.
+
 ## Build & Test
 
 ```bash
@@ -60,6 +68,12 @@ New logic modules go in `HomeCompanion.Logics` (or any project referencing `Home
 1. Extend `LogicBase` (`HomeCompanion.Base`) — it implements `ILogic`
 2. Register in DI; enable/disable per instance via configuration
 3. Multiple instances can run simultaneously (e.g. production + testing side-by-side)
+
+## IValue principles
+
+### KNX Group Addresses
+- A KNX group address corresponds to a single `IValue` instance. This allows for a clear mapping between the KNX bus and the internal value management.
+- Scenes are treated state-lessly, with the related IValue carrying the last called scene as its value.
 
 ## Code Style
 
