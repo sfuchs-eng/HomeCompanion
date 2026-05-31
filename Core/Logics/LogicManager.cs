@@ -31,6 +31,7 @@ internal sealed class LogicManager : BackgroundService
 
     private readonly IReadOnlyList<ILogic> _logics;
     private readonly CoreOptions _options;
+    private readonly LogicValueBinder? _logicValueBinder;
     private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization;
     private readonly ILogger<LogicManager> _logger;
     private readonly TimeProvider _timeProvider;
@@ -38,15 +39,27 @@ internal sealed class LogicManager : BackgroundService
     public LogicManager(
         IEnumerable<ILogic> logics,
         IOptions<CoreOptions> options,
+        LogicValueBinder? logicValueBinder,
         IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
         ILogger<LogicManager> logger,
         TimeProvider timeProvider)
     {
         _logics = [.. logics];
         _options = options.Value;
+        _logicValueBinder = logicValueBinder;
         this.lifeCycleSynchronization = lifeCycleSynchronization;
         _logger = logger;
         _timeProvider = timeProvider;
+    }
+
+    public LogicManager(
+        IEnumerable<ILogic> logics,
+        IOptions<CoreOptions> options,
+        IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
+        ILogger<LogicManager> logger,
+        TimeProvider timeProvider)
+        : this(logics, options, null, lifeCycleSynchronization, logger, timeProvider)
+    {
     }
 
     /// <inheritdoc/>
@@ -159,6 +172,8 @@ internal sealed class LogicManager : BackgroundService
 
     private async Task InitializeSafeAsync(ILogic logic, CancellationToken cancellationToken)
     {
+        _logicValueBinder?.Bind(logic);
+
         try
         {
             _logger.LogDebug("Initializing {LogicType}.", logic.GetType().Name);

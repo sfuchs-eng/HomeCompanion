@@ -14,7 +14,7 @@ public class CfgRoom : CfgEntity
 /// <summary>
 /// Runtime representation of a room.
 /// </summary>
-public class Room : ModelEntity
+public class Room : ModelEntity, IConfigBackedModelEntity
 {
     public Room(string name, CfgRoom config)
     {
@@ -26,6 +26,8 @@ public class Room : ModelEntity
     /// Source configuration used to create this runtime model instance.
     /// </summary>
     public CfgRoom Configuration { get; set; }
+
+    CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
 
     /// <summary>
     /// Shutters keyed by their configured name.

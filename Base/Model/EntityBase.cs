@@ -26,3 +26,14 @@ public abstract class ModelEntity
     /// </summary>
     public string Name { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Runtime model entity that exposes its originating configuration object.
+/// </summary>
+public interface IConfigBackedModelEntity
+{
+    /// <summary>
+    /// Source configuration used to create this runtime model instance.
+    /// </summary>
+    CfgEntity Configuration { get; }
+}

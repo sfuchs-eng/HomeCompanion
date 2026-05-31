@@ -10,6 +10,7 @@ namespace HomeCompanion.Core.Models;
 internal sealed class ModelProvider(
     IConfiguration configuration,
     IModelFactory modelFactory,
+    ModelValueBinder modelValueBinder,
     IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
     IOptions<CoreOptions> coreOptions,
     ILogger<ModelProvider> logger)
@@ -17,6 +18,7 @@ internal sealed class ModelProvider(
 {
     private readonly IConfiguration _configuration = configuration;
     private readonly IModelFactory _modelFactory = modelFactory;
+    private readonly ModelValueBinder _modelValueBinder = modelValueBinder;
     private readonly IHomeCompanionLifeCycleSynchronization _lifeCycleSynchronization = lifeCycleSynchronization;
     private readonly CoreOptions _coreOptions = coreOptions.Value;
     private readonly ILogger<ModelProvider> _logger = logger;
@@ -37,6 +39,7 @@ internal sealed class ModelProvider(
 
         var config = LoadConfig();
         _model = _modelFactory.CreateModel(config);
+        _modelValueBinder.Bind(_model);
 
         await _lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitModelReady);
         _logger.LogInformation(

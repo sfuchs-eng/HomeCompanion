@@ -1,3 +1,5 @@
+using HomeCompanion.Values;
+
 namespace HomeCompanion.Core;
 
 /// <summary>
@@ -26,4 +28,17 @@ public class CoreOptions
     /// and it will be discovered automatically without modifying the Server project references.
     /// </remarks>
     public string? ExtensionsPath { get; set; }
+
+    /// <summary>
+    /// Optional logic property bindings that override <see cref="ValueBindingAttribute"/> declarations.
+    /// </summary>
+    /// <remarks>
+    /// Keys must use one of the following formats:
+    /// <list type="bullet">
+    /// <item><c>FullLogicTypeName.PropertyName</c></item>
+    /// <item><c>LogicTypeName.PropertyName</c></item>
+    /// </list>
+    /// Values are parsed using <see cref="IValueReferenceProvider"/> reference formats.
+    /// </remarks>
+    public Dictionary<string, string> LogicValueBindings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

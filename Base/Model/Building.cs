@@ -46,7 +46,7 @@ public class CfgSpecial : CfgEntity
 {
 }
 
-public class Special : ModelEntity
+public class Special : ModelEntity, IConfigBackedModelEntity
 {
     public Special(string name, CfgSpecial config)
     {
@@ -55,4 +55,6 @@ public class Special : ModelEntity
     }
 
     public CfgSpecial Configuration { get; set; }
+
+    CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
 }

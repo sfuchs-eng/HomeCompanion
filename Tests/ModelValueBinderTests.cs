@@ -1,0 +1,183 @@
+using HomeCompanion.Base.Model;
+using HomeCompanion.Core.Models;
+using HomeCompanion.Values;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace HomeCompanion.Tests;
+
+[TestFixture]
+public class ModelValueBinderTests
+{
+    [Test]
+    public void Bind_BindsShutterValues_UsingAttributes()
+    {
+        var position = CreateValue<double>("Position");
+        var angle = CreateValue<double>("Angle");
+        var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ref-position"] = position,
+            ["ref-angle"] = angle,
+        });
+
+        var sut = new ModelValueBinder(resolver, NullLogger<ModelValueBinder>.Instance);
+        var model = BuildModelWithSingleShutter(
+            new CfgShutter
+            {
+                PositionValueReference = "ref-position",
+                AngleValueReference = "ref-angle",
+            },
+            out var shutter);
+
+        sut.Bind(model);
+
+        Assert.That(shutter.PositionValue, Is.SameAs(position));
+        Assert.That(shutter.AngleValue, Is.SameAs(angle));
+    }
+
+    [Test]
+    public void Bind_BindsByConvention_WhenNoAttributeIsPresent()
+    {
+        var probe = CreateValue<bool>("Probe");
+        var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ref-probe"] = probe,
+        });
+
+        var sut = new ModelValueBinder(resolver, NullLogger<ModelValueBinder>.Instance);
+        var model = BuildModelWithSpecial(new CfgSpecialWithConvention { ProbeValueReference = "ref-probe" }, out var special);
+
+        sut.Bind(model);
+
+        Assert.That(special.ProbeValue, Is.SameAs(probe));
+    }
+
+    [Test]
+    public void Bind_BindsByAttributeOverride_WhenConfigPropertyNameDiffers()
+    {
+        var overrideValue = CreateValue<int>("OverrideValue");
+        var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ref-override"] = overrideValue,
+        });
+
+        var sut = new ModelValueBinder(resolver, NullLogger<ModelValueBinder>.Instance);
+        var model = BuildModelWithSpecial(new CfgSpecialWithConvention { AlternateProbeReference = "ref-override" }, out var special);
+
+        sut.Bind(model);
+
+        Assert.That(special.OverriddenProbeValue, Is.SameAs(overrideValue));
+    }
+
+    private static ValueBase<T> CreateValue<T>(string name)
+        => new(NullLogger<ValueBase<T>>.Instance) { Name = name };
+
+    private static Model BuildModelWithSingleShutter(CfgShutter cfg, out Shutter shutter)
+    {
+        shutter = new Shutter("Blind", cfg);
+        var room = new Room("Living", new CfgRoom())
+        {
+            Shutters = new Dictionary<string, Shutter>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Blind"] = shutter,
+            },
+        };
+
+        var floor = new Floor
+        {
+            Name = "Ground",
+            Rooms = new Dictionary<string, Room>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Living"] = room,
+            },
+        };
+
+        var building = new Building
+        {
+            Name = "Main",
+            Floors = new Dictionary<string, Floor>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Ground"] = floor,
+            },
+        };
+
+        return new Model
+        {
+            Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main"] = building,
+            },
+        };
+    }
+
+    private static Model BuildModelWithSpecial(CfgSpecialWithConvention cfg, out SpecialWithConvention special)
+    {
+        special = new SpecialWithConvention("Special", cfg);
+        var building = new Building
+        {
+            Name = "Main",
+            Specials = new Dictionary<string, Special>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Special"] = special,
+            },
+        };
+
+        return new Model
+        {
+            Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main"] = building,
+            },
+        };
+    }
+
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    {
+        private readonly Dictionary<string, IValue> _byReference = byReference;
+
+        public IValue Resolve(string reference)
+        {
+            if (_byReference.TryGetValue(reference, out var value))
+                return value;
+
+            throw new InvalidOperationException($"Unmapped reference '{reference}'.");
+        }
+
+        public bool TryResolve(string reference, out IValue? value)
+            => _byReference.TryGetValue(reference, out value);
+
+        public bool TryResolve<T>(string reference, out IValue<T>? value)
+        {
+            value = null;
+            if (!_byReference.TryGetValue(reference, out var raw))
+                return false;
+
+            if (raw is IValue<T> typed)
+            {
+                value = typed;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    private sealed class CfgSpecialWithConvention : CfgSpecial
+    {
+        public string? ProbeValueReference { get; set; }
+
+        public string? AlternateProbeReference { get; set; }
+    }
+
+    private sealed class SpecialWithConvention : Special
+    {
+        public SpecialWithConvention(string name, CfgSpecialWithConvention config)
+            : base(name, config)
+        {
+        }
+
+        public IValue? ProbeValue { get; set; }
+
+        [ModelValueBinding(SourceConfigPropertyName = nameof(CfgSpecialWithConvention.AlternateProbeReference))]
+        public IValue? OverriddenProbeValue { get; set; }
+    }
+}

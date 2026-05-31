@@ -40,14 +40,17 @@ public static class HostingExtensions
         builder.Services.AddEventBus();
         builder.Services.TryAddSingleton<ValuesManager>();
         builder.Services.TryAddSingleton<IValuesManager>(sp => sp.GetRequiredService<ValuesManager>());
+        builder.Services.TryAddSingleton<IValueReferenceProvider, ValueReferenceProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
         builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
         builder.Services.AddHostedService<StateInitializationManagerHostedService>();
         builder.Services.TryAddSingleton<IModelFactory, ModelFactory>();
+        builder.Services.TryAddSingleton<ModelValueBinder>();
         builder.Services.TryAddSingleton<ModelProvider>();
         builder.Services.TryAddSingleton<IModelProvider>(sp => sp.GetRequiredService<ModelProvider>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ModelProvider>());
+        builder.Services.TryAddSingleton<LogicValueBinder>();
         builder.Services.TryAddSingleton<IMcpIntrospectionService, McpIntrospectionService>();
         builder.Services.AddOpenHabConnector();
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();

@@ -21,18 +21,23 @@ public class CfgFacade : CfgEntity
 /// <summary>
 /// Runtime representation of a facade.
 /// </summary>
-public class Facade : ModelEntity
+public class Facade : ModelEntity, IConfigBackedModelEntity
 {
-    private readonly CfgFacade _configuration;
-
     public Facade(string name, CfgFacade configuration)
     {
         Name = name;
-        _configuration = configuration;
+        Configuration = configuration;
     }
+
+    /// <summary>
+    /// Source configuration used to create this runtime model instance.
+    /// </summary>
+    public CfgFacade Configuration { get; }
 
     /// <summary>
     /// Facade orientation in radians.
     /// </summary>
-    public SphericVector OrientationRad => SphericVector.FromDegrees(_configuration.Azimuth, _configuration.Elevation);
+    public SphericVector OrientationRad => SphericVector.FromDegrees(Configuration.Azimuth, Configuration.Elevation);
+
+    CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
 }

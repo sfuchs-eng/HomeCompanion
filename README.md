@@ -57,6 +57,75 @@ Responsibilities are split as follows:
 
 This avoids per-value event bus subscriptions and keeps bus-specific logic in connectivity providers.
 
+### Model value binding (generic, hybrid)
+
+Runtime model entities can bind `IValue` references from their corresponding `CfgEntity` configuration without hardcoded binder logic.
+
+Binding is performed by `ModelValueBinder` during startup after values are registered and before `InitModelReady` is signaled.
+
+The binder scans the runtime model graph via reflection and processes every entity implementing `IConfigBackedModelEntity`:
+
+- target properties: writable instance properties assignable to `IValue`
+- source property resolution:
+  - explicit via `[ModelValueBinding(SourceConfigPropertyName = ...)]`
+  - fallback convention: `<TargetPropertyName>Reference`
+- optional validation via attribute flags:
+  - `RequireNumeric = true`
+  - `RequiredValueType = typeof(...)`
+
+Fail-fast behavior:
+
+- invalid or unresolved references throw and fail startup
+- non-assignable resolved value types throw
+- missing explicit source properties throw
+
+Example in runtime model entity:
+
+```csharp
+public class Shutter : ModelEntity, IConfigBackedModelEntity
+{
+    public CfgShutter Configuration { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.PositionValueReference), RequireNumeric = true)]
+    public IValue? PositionValue { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.AngleValueReference), RequireNumeric = true)]
+    public IValue? AngleValue { get; set; }
+
+    CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
+}
+```
+
+Matching config properties:
+
+```csharp
+public class CfgShutter : CfgEntity
+{
+    public string? PositionValueReference { get; set; }
+    public string? AngleValueReference { get; set; }
+}
+```
+
+The value reference resolver accepts flexible formats and normalizes internally, including:
+
+- `ContainerType[ContainerName]:ValueName`
+- `ContainerType:ValueName`
+- `ContainerType.ContainerName.ValueName`
+- `ContainerType.ValueName`
+- `ValueName`
+
+### Logic property value binding
+
+`ILogic` implementations can bind properties of type `IValue` / `IValue<T>` by attribute and/or configuration.
+
+- attribute: `[ValueBinding("...")]` on writable logic property
+- config override: `HomeCompanion:LogicValueBindings` dictionary
+  - key: `FullLogicTypeName.PropertyName` or `LogicTypeName.PropertyName`
+  - value: value reference string in any supported resolver format
+- precedence: configuration wins over attribute, and a warning is logged when both are present
+
+This enables flexible runtime wiring while preserving explicit defaults in code.
+
 ### Dependencies
 
 The application uses the following main dependencies:

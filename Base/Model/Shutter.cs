@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using HomeCompanion.Values;
 
 namespace HomeCompanion.Base.Model;
 
@@ -9,6 +10,22 @@ public class CfgShutter : CfgEntity
 {
     public ShutterType Type { get; set; } = ShutterType.VenetianBlind;
     public ShutterConstraints Constraints { get; set; } = new();
+
+    /// <summary>
+    /// Optional reference to the value that carries the shutter position.
+    /// </summary>
+    /// <remarks>
+    /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
+    /// </remarks>
+    public string? PositionValueReference { get; set; }
+
+    /// <summary>
+    /// Optional reference to the value that carries the shutter lamella angle.
+    /// </summary>
+    /// <remarks>
+    /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
+    /// </remarks>
+    public string? AngleValueReference { get; set; }
 }
 
 public enum ShutterType
@@ -73,7 +90,7 @@ public enum ShutterConstraints
 /// <summary>
 /// Runtime representation of a shutter.
 /// </summary>
-public class Shutter : ModelEntity
+public class Shutter : ModelEntity, IConfigBackedModelEntity
 {
     public Shutter(string name, CfgShutter config)
     {
@@ -85,4 +102,18 @@ public class Shutter : ModelEntity
     /// Source configuration used to create this runtime model instance.
     /// </summary>
     public CfgShutter Configuration { get; set; }
+
+    /// <summary>
+    /// Bound runtime position value resolved from <see cref="CfgShutter.PositionValueReference"/>.
+    /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.PositionValueReference), RequireNumeric = true)]
+    public IValue? PositionValue { get; set; }
+
+    /// <summary>
+    /// Bound runtime angle value resolved from <see cref="CfgShutter.AngleValueReference"/>.
+    /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.AngleValueReference), RequireNumeric = true)]
+    public IValue? AngleValue { get; set; }
+
+    CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
 }
