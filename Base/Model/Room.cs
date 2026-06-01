@@ -9,6 +9,19 @@ public class CfgRoom : CfgEntity
     /// Shutters keyed by their configured name.
     /// </summary>
     public Dictionary<string, CfgShutter> Shutters { get; set; } = [];
+
+    /// <summary>
+    /// Default constraints for shutters in this room.
+    /// OR'ed with individual shutter constraints, if any.
+    /// </summary>
+    /// <value></value>
+    public ShutterConstraints ShutterConstraints { get; set; } = ShutterConstraints.None;
+
+    public string? ShutterSceneReference { get; set; }
+
+    public string? TemperatureReference { get; set; }
+
+    public double AutoShadowTemperatureThreshold { get; set; } = 25.0;
 }
 
 /// <summary>

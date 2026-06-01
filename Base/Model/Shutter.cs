@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using HomeCompanion.Abstractions.Serialization;
 using HomeCompanion.Values;
 
 namespace HomeCompanion.Base.Model;
@@ -8,8 +9,26 @@ namespace HomeCompanion.Base.Model;
 /// </summary>
 public class CfgShutter : CfgEntity
 {
+    /// <summary>
+    /// The type of the shutter, defining its machinal properties, basic features and control method.
+    /// </summary>
     public ShutterType Type { get; set; } = ShutterType.VenetianBlind;
-    public ShutterConstraints Constraints { get; set; } = new();
+
+    /// <summary>
+    /// Constraints for the shutter, defining its behavior.
+    /// OR'ed with room-level constraints defined in <see cref="CfgRoom.ShutterConstraints"/>.
+    /// </summary>
+    public ShutterConstraints Constraints { get; set; } = ShutterConstraints.None;
+
+    /// <summary>
+    /// The actual shutter constraints are derived from <see cref="EffectiveConstraints(ShutterConstraints)"/>
+    /// </summary>
+    public ShutterConstraints RoomConstraintsMask { get; set; } = ShutterConstraints.None;
+
+    public ShutterConstraints EffectiveConstraints(ShutterConstraints roomConstraints)
+    {
+        return (roomConstraints & ~RoomConstraintsMask) | Constraints;
+    }
 
     /// <summary>
     /// Optional reference to the value that carries the shutter position.
@@ -21,11 +40,29 @@ public class CfgShutter : CfgEntity
 
     /// <summary>
     /// Optional reference to the value that carries the shutter lamella angle.
+    /// Required for <see cref="ShutterType.VenetianBlind"/>, ignored for other shutter types.
     /// </summary>
     /// <remarks>
     /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
     /// </remarks>
     public string? AngleValueReference { get; set; }
+
+    /// <summary>
+    /// For Shutters of type <see cref="ShutterType.OpenClose"/>, a reference to the value that carries the open/close state.
+    /// </summary>
+    public string? OpenCloseReference { get; set; }
+
+    /// <summary>
+    /// Do not close shutter beyond this position in percent.
+    /// [%]
+    /// </summary>
+    public int MaxClose { get; set; } = 100;
+
+    /// <summary>
+    /// Default angle for shadowing in case of missing or zero angle value, e.g. for a venetian blind.
+    /// [%]
+    /// </summary>
+    public int DefaultShadowSlat { get; set; } = 45;
 }
 
 public enum ShutterType
@@ -46,7 +83,7 @@ public enum ShutterType
     VenetianBlind,
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(CommaSeparatedFlagsEnumJsonConverter<ShutterConstraints>))]
 [Flags]
 public enum ShutterConstraints
 {

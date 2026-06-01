@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using HomeCompanion.Abstractions.Serialization;
+
 namespace HomeCompanion.Values;
 
 /// <summary>
@@ -5,6 +8,7 @@ namespace HomeCompanion.Values;
 /// TODO: presently kept simple. Consider extending towards what KNX allows for device objects (see comment in source file of this enum) if needed in the future.
 /// Could also be entirely replaced by the KNX-specific <see cref="KnxObjectBusCommunication"/> if the communication requirements of other bus mappings are similar enough or can be expressed via the same flags. For now, we keep it separate to avoid unnecessary coupling of HomeCompanion core abstractions to KNX-specific concepts.
 /// </summary>
+[JsonConverter(typeof(CommaSeparatedFlagsEnumJsonConverter<BusCommunication>))]
 [Flags]
 public enum BusCommunication
 {

@@ -1,3 +1,5 @@
+using HomeCompanion.Base.Utilities;
+
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace HomeCompanion.Base.Model;
 /// </summary>
 public class CfgBuilding : CfgEntity
 {
+    /// <summary>
+    /// The geographical location of the building.
+    /// </summary>
+    public GeodeticCoordinateWGS84? Location { get; set; }
+
     /// <summary>
     /// Facades keyed by their configured name.
     /// </summary>
