@@ -9,6 +9,14 @@ public class Model
     /// Buildings keyed by their configured name.
     /// </summary>
     public Dictionary<string, Building> Buildings { get; set; } = [];
+
+    /// <summary>
+    /// Specials keyed by their configured name.
+    /// This is for any customization that doesn't fit into the building, facade, or floor categories.
+    /// Consider whether to use <see cref="ILogic"/> or <see cref="IConfigBackedModelEntity"/> for these.
+    /// </summary>
+    public Dictionary<string, CfgSpecial> Specials { get; set; } = [];
+
 }
 
 /// <summary>

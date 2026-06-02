@@ -6,11 +6,6 @@ Completed items are tracked in `TODO_completed.md`.
 
 ## Present work focus
 
-### Last stop
-
-I want to have references to IValue objects from the values framework in properties of HomeCompanion.Base.Model.ModelEntity classes. They would get associated based on configuration properties from #sym:CfgEntity implementations. E.g. Position & Angle for a VenetianBlind.
-Evaluation different options. I would assume a string encoding scheme like "<IValuesContainerType>[<ContainerName>]:<IValueName>" in json to refer to IValues could support the scheme in combination with an IValueProvider singleton that resolves from string references to actual IValue objects from the IEnumerable<IValuesContainer> injections. Look-up would take place during startup mostly, hence performance is not crucial.
-
 ### Port existing functionality from the old HomeCompanion solution into the one at hand
 
 - [x] InfluxDB connectivity

@@ -24,6 +24,10 @@ public class CfgBuilding : CfgEntity
 
     /// <summary>
     /// Specials keyed by their configured name.
+    /// This is for any customization that doesn't fit into the facade or floor categories.
+    /// Such might be heating systems, solar panels, or other building-wide features that
+    /// require configuration and runtime representation.<br/>
+    /// Consider whether to use <see cref="ILogic"/> or <see cref="IConfigBackedModelEntity"/> for these.
     /// </summary>
     public Dictionary<string, CfgSpecial> Specials { get; set; } = [];
 }

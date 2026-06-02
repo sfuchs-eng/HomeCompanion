@@ -15,6 +15,12 @@ public class CfgShutter : CfgEntity
     public ShutterType Type { get; set; } = ShutterType.VenetianBlind;
 
     /// <summary>
+    /// Reference to the facade the shutter is part of for object linkage in the model
+    /// </summary>
+    /// <value></value>
+    public string? FacadeReference { get; set; }
+
+    /// <summary>
     /// Constraints for the shutter, defining its behavior.
     /// OR'ed with room-level constraints defined in <see cref="CfgRoom.ShutterConstraints"/>.
     /// </summary>

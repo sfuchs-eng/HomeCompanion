@@ -83,24 +83,20 @@ public static class HostingExtensions
     /// Files loaded, in order (later sources override earlier ones):
     /// <list type="number">
     ///   <item><c>/etc/HomeCompanion.json</c> — system-wide defaults</item>
+    ///   <item><c>/etc/homecompanion/HomeCompanion.json</c> — system defaults in config folder style</item>
     ///   <item><c>$XDG_CONFIG_HOME/HomeCompanion.json</c> (<c>~/.config/HomeCompanion.json</c> on Linux) — per-user overrides</item>
+    ///   <item>top-level <c>*.json</c> files in <c>/etc/homecompanion</c> (alphabetical order)</item>
+    ///   <item>top-level <c>*.json</c> files in <c>$XDG_CONFIG_HOME/homecompanion</c> and <c>~/.config/homecompanion</c> (alphabetical order)</item>
     /// </list>
-    /// Both files are optional; missing files are silently skipped.
-    /// Changes to either file are picked up at runtime without a restart (<c>reloadOnChange: true</c>).
+    /// All files are optional; missing files are silently skipped.
+    /// Changes to these files are picked up at runtime without a restart (<c>reloadOnChange: true</c>).
     /// </remarks>
     /// <param name="builder">The <see cref="IHostApplicationBuilder"/> to configure.</param>
     /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
     public static IHostApplicationBuilder AddHomeCompanionConfiguration(this IHostApplicationBuilder builder)
     {
-        string[] extraPaths =
-        [
-            // later ones override earlier, so system-wide defaults come first and user overrides come after
-            Path.Combine("/etc", $"{AppName}.json"),
-            Path.Combine("/etc/homecompanion", $"{AppName}.json"),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify),
-                $"{AppName}.json")
-        ];
+        var extraPaths = ResolveHomeCompanionJsonConfigurationPaths();
+        var extraPathSet = new HashSet<string>(extraPaths, StringComparer.OrdinalIgnoreCase);
 
         var sources = builder.Configuration.Sources;
 
@@ -119,7 +115,7 @@ public static class HostingExtensions
             if (sources[i] is JsonConfigurationSource jsonSource)
             {
                 var path = jsonSource.Path;
-                if (extraPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(path) && extraPathSet.Contains(NormalizePath(path)))
                 {
                     sources.RemoveAt(i);
                 }
@@ -136,6 +132,109 @@ public static class HostingExtensions
             sources.Add(source);
 
         return builder;
+    }
+
+    internal static IReadOnlyList<string> ResolveHomeCompanionJsonConfigurationPaths(
+        Func<string, bool>? directoryExists = null,
+        Func<string, IEnumerable<string>>? enumerateFiles = null,
+        Func<string?>? xdgConfigHomeAccessor = null,
+        Func<string>? appDataPathAccessor = null,
+        Func<string?>? homePathAccessor = null)
+    {
+        directoryExists ??= Directory.Exists;
+        enumerateFiles ??= path => Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly);
+        xdgConfigHomeAccessor ??= () => Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        appDataPathAccessor ??= () => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify);
+        homePathAccessor ??= () => Environment.GetEnvironmentVariable("HOME");
+
+        var userConfigRoot = ResolveUserConfigRoot(xdgConfigHomeAccessor, appDataPathAccessor, homePathAccessor);
+        var homeDotConfig = ResolveHomeDotConfigRoot(homePathAccessor);
+
+        var paths = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddPath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            var normalized = NormalizePath(path);
+            if (seen.Add(normalized))
+                paths.Add(normalized);
+        }
+
+        // Legacy single-file locations are kept for backwards compatibility.
+        AddPath(Path.Combine("/etc", $"{AppName}.json"));
+        AddPath(Path.Combine("/etc/homecompanion", $"{AppName}.json"));
+        AddPath(Path.Combine(userConfigRoot, $"{AppName}.json"));
+        AddPath(Path.Combine(homeDotConfig, $"{AppName}.json"));
+
+        var directories = new List<string>
+        {
+            Path.Combine("/etc", "homecompanion"),
+            Path.Combine(userConfigRoot, "homecompanion"),
+            Path.Combine(homeDotConfig, "homecompanion"),
+        };
+
+        foreach (var directoryPath in directories)
+        {
+            foreach (var filePath in EnumerateJsonFilesInDirectory(directoryPath, directoryExists, enumerateFiles))
+                AddPath(filePath);
+        }
+
+        return paths;
+    }
+
+    internal static IReadOnlyList<string> EnumerateJsonFilesInDirectory(
+        string directoryPath,
+        Func<string, bool> directoryExists,
+        Func<string, IEnumerable<string>> enumerateFiles)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath) || !directoryExists(directoryPath))
+            return [];
+
+        return enumerateFiles(directoryPath)
+            .Where(path => string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase))
+            .Select(NormalizePath)
+            .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    internal static string ResolveUserConfigRoot(
+        Func<string?> xdgConfigHomeAccessor,
+        Func<string> appDataPathAccessor,
+        Func<string?> homePathAccessor)
+    {
+        var xdgConfigHome = xdgConfigHomeAccessor();
+        if (!string.IsNullOrWhiteSpace(xdgConfigHome))
+            return NormalizePath(xdgConfigHome);
+
+        var appDataPath = appDataPathAccessor();
+        if (!string.IsNullOrWhiteSpace(appDataPath))
+            return NormalizePath(appDataPath);
+
+        var homePath = homePathAccessor();
+        if (!string.IsNullOrWhiteSpace(homePath))
+            return NormalizePath(Path.Combine(homePath, ".config"));
+
+        return NormalizePath(Path.Combine("~", ".config"));
+    }
+
+    internal static string ResolveHomeDotConfigRoot(Func<string?> homePathAccessor)
+    {
+        var homePath = homePathAccessor();
+        if (!string.IsNullOrWhiteSpace(homePath))
+            return NormalizePath(Path.Combine(homePath, ".config"));
+
+        return NormalizePath(Path.Combine("~", ".config"));
+    }
+
+    internal static string NormalizePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+            return Path.GetFullPath(path);
+
+        return path;
     }
 
     private static JsonConfigurationSource BuildJsonSource(string path)

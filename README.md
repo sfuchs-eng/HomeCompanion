@@ -318,14 +318,20 @@ In this setup:
 HomeCompanion reads configuration from the normal ASP.NET Core sources and additionally from these optional JSON files:
 
 - `/etc/HomeCompanion.json` for system-wide defaults
-- `~/.config/HomeCompanion.json` for per-user overrides on Linux
+- `/etc/homecompanion/HomeCompanion.json` as an alternative system-wide location
+- `~/.config/HomeCompanion.json` (or `$XDG_CONFIG_HOME/HomeCompanion.json`) for per-user overrides on Linux
+- all top-level `*.json` files in `/etc/homecompanion` (alphabetical order)
+- all top-level `*.json` files in `$XDG_CONFIG_HOME/homecompanion` and `~/.config/homecompanion` (alphabetical order)
 
 Those files are loaded after `appsettings.json` and `appsettings.{Environment}.json`, but before environment variables. In practice this means:
 
 - repository defaults live in the local host project's `appsettings.json` (`Server/HomeCompanion.Local.Server.csproj`)
 - machine-specific settings belong in `/etc/HomeCompanion.json`
 - user-specific or development overrides belong in `~/.config/HomeCompanion.json`
+- modular split configuration can be placed in `/etc/homecompanion/*.json` and `~/.config/homecompanion/*.json`
 - environment variables still have the highest precedence
+
+When multiple files in a config directory define the same key, alphabetical ordering is used and the lexicographically later filename wins.
 
 For a KNX/IP Routing setup, a minimal user configuration can look like this:
 
