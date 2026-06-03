@@ -22,6 +22,11 @@ public class CfgRoom : CfgEntity
     public string? TemperatureReference { get; set; }
 
     public double AutoShadowTemperatureThreshold { get; set; } = 25.0;
+
+    /// <summary>
+    /// Additional room-level shadowing behavior options not fully represented by <see cref="ShutterConstraints"/>.
+    /// </summary>
+    public ShadowingOptions ShadowingOptions { get; set; } = ShadowingOptions.None;
 }
 
 /// <summary>

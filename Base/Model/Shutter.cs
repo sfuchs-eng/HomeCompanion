@@ -31,6 +31,11 @@ public class CfgShutter : CfgEntity
     /// </summary>
     public ShutterConstraints RoomConstraintsMask { get; set; } = ShutterConstraints.None;
 
+    /// <summary>
+    /// Additional shadowing behavior options not covered by general shutter constraints.
+    /// </summary>
+    public ShadowingOptions ShadowingOptions { get; set; } = ShadowingOptions.None;
+
     public ShutterConstraints EffectiveConstraints(ShutterConstraints roomConstraints)
     {
         return (roomConstraints & ~RoomConstraintsMask) | Constraints;
@@ -69,6 +74,95 @@ public class CfgShutter : CfgEntity
     /// [%]
     /// </summary>
     public int DefaultShadowSlat { get; set; } = 45;
+
+    /// <summary>
+    /// Shutter-local sun-position zones that affect whether this shutter should be treated as naturally shadowed.
+    /// </summary>
+    public Dictionary<string, CfgShadowingZone> ShadowingZones { get; set; } = [];
+}
+
+/// <summary>
+/// Legacy-compatible shadowing feature flags that are orthogonal to generic shutter constraints.
+/// </summary>
+[JsonConverter(typeof(CommaSeparatedFlagsEnumJsonConverter<ShadowingOptions>))]
+[Flags]
+public enum ShadowingOptions
+{
+    None = 0,
+
+    /// <summary>
+    /// Exclude from automatic shadowing close actions.
+    /// </summary>
+    ExcludeFromAutoShadow = 1,
+
+    /// <summary>
+    /// Closing requires additional permission from external logic or state.
+    /// ThermalConntrol status may override and force close in case of very hot conditions even if permission is not granted.
+    /// </summary>
+    RequireClosePermission = 2,
+
+    /// <summary>
+    /// Delay automatic shadowing until an explicit time or condition window has passed.
+    /// </summary>
+    DelayAutoShadow = 4,
+
+    /// <summary>
+    /// Reopen when direct sun exposure is over.
+    /// </summary>
+    ReopenAfterSunExposure = 8,
+}
+
+/// <summary>
+/// Defines a sun-position box that changes shutter behavior when the sun is inside or outside the box.
+/// </summary>
+public class CfgShadowingZone
+{
+    /// <summary>
+    /// Zone matching mode.
+    /// </summary>
+    public ShadowingZoneMode Mode { get; set; } = ShadowingZoneMode.Inside;
+
+    /// <summary>
+    /// Optional azimuth lower bound in degrees.
+    /// </summary>
+    public double? AzimuthMin { get; set; }
+
+    /// <summary>
+    /// Optional azimuth upper bound in degrees.
+    /// </summary>
+    public double? AzimuthMax { get; set; }
+
+    /// <summary>
+    /// Optional elevation lower bound in degrees.
+    /// </summary>
+    public double? ElevationMin { get; set; }
+
+    /// <summary>
+    /// Optional elevation upper bound in degrees.
+    /// </summary>
+    public double? ElevationMax { get; set; }
+}
+
+/// <summary>
+/// Determines if a zone applies when sun is inside or outside the configured box.
+/// </summary>
+public enum ShadowingZoneMode
+{
+    /// <summary>
+    /// The shutter is affected by sun exposure if the sun position is within 90°deg spheric range of the shutter's normal.
+    /// Box bounds are ignored in this mode, if configured at all.
+    /// </summary>
+    Default,
+
+    /// <summary>
+    /// There can only be sun exposure when the Sun is inside this box.
+    /// </summary>
+    Inside,
+
+    /// <summary>
+    /// There might be sun exposure when the Sun is outside this box yet 90°deg in spheric range of the shutter's normal.
+    /// </summary>
+    Outside,
 }
 
 public enum ShutterType

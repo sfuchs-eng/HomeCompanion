@@ -68,6 +68,57 @@ public class ModelValueBinderTests
         Assert.That(special.OverriddenProbeValue, Is.SameAs(overrideValue));
     }
 
+    [Test]
+    public void Bind_BindsShadowingSpecialReferences_UsingAttributes()
+    {
+        var globalScene = CreateValue<byte>("GlobalScene");
+        var autoShadowStatus = CreateValue<bool>("AutoShadowStatus");
+        var absence = CreateValue<bool>("Absence");
+        var disableAssessment = CreateValue<bool>("DisableAssessment");
+        var outdoorTemperature = CreateValue<float>("OutdoorTemperature");
+        var sunEast = CreateValue<float>("SunEast");
+        var sunSouth = CreateValue<float>("SunSouth");
+        var sunWest = CreateValue<float>("SunWest");
+
+        var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ref-global-scene"] = globalScene,
+            ["ref-auto-shadow-status"] = autoShadowStatus,
+            ["ref-absence"] = absence,
+            ["ref-disable-assessment"] = disableAssessment,
+            ["ref-outdoor-temperature"] = outdoorTemperature,
+            ["ref-sun-east"] = sunEast,
+            ["ref-sun-south"] = sunSouth,
+            ["ref-sun-west"] = sunWest,
+        });
+
+        var sut = new ModelValueBinder(resolver, NullLogger<ModelValueBinder>.Instance);
+        var model = BuildModelWithShadowingSpecial(
+            new CfgShadowingSpecial
+            {
+                GlobalShutterSceneReference = "ref-global-scene",
+                AutoShadowStatusReference = "ref-auto-shadow-status",
+                AbsenceReference = "ref-absence",
+                DisableAutoShadowAssessmentReference = "ref-disable-assessment",
+                OutdoorTemperatureReference = "ref-outdoor-temperature",
+                SunIntensityEastReference = "ref-sun-east",
+                SunIntensitySouthReference = "ref-sun-south",
+                SunIntensityWestReference = "ref-sun-west",
+            },
+            out var special);
+
+        sut.Bind(model);
+
+        Assert.That(special.GlobalShutterScene, Is.SameAs(globalScene));
+        Assert.That(special.AutoShadowStatus, Is.SameAs(autoShadowStatus));
+        Assert.That(special.Absence, Is.SameAs(absence));
+        Assert.That(special.DisableAutoShadowAssessment, Is.SameAs(disableAssessment));
+        Assert.That(special.OutdoorTemperature, Is.SameAs(outdoorTemperature));
+        Assert.That(special.SunIntensityEast, Is.SameAs(sunEast));
+        Assert.That(special.SunIntensitySouth, Is.SameAs(sunSouth));
+        Assert.That(special.SunIntensityWest, Is.SameAs(sunWest));
+    }
+
     private static ValueBase<T> CreateValue<T>(string name)
         => new(NullLogger<ValueBase<T>>.Instance) { Name = name };
 
@@ -118,6 +169,27 @@ public class ModelValueBinderTests
             Specials = new Dictionary<string, Special>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Special"] = special,
+            },
+        };
+
+        return new Model
+        {
+            Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main"] = building,
+            },
+        };
+    }
+
+    private static Model BuildModelWithShadowingSpecial(CfgShadowingSpecial cfg, out ShadowingSpecial special)
+    {
+        special = new ShadowingSpecial("Shadowing", cfg);
+        var building = new Building
+        {
+            Name = "Main",
+            Specials = new Dictionary<string, Special>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Shadowing"] = special,
             },
         };
 

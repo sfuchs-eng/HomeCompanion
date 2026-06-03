@@ -123,6 +123,20 @@ public class ModelFactoryPolymorphismTests
     }
 
     [Test]
+    public void CreateSpecial_WithShadowingSpecialConfig_ResolvesShadowingSpecialRuntimeType()
+    {
+        var model = new Model();
+        var building = new Building { Name = "Main" };
+
+        var special = Sut.CreateSpecial(
+            new SpecialCreationContext(model, building),
+            "Shadowing",
+            new CfgShadowingSpecial());
+
+        Assert.That(special, Is.TypeOf<ShadowingSpecial>());
+    }
+
+    [Test]
     public void CreateRoomConfig_WithUnknownKind_ThrowsWithConfigurationPath()
     {
         var configurationPath = "Model:Buildings:Main:Floors:Ground:Rooms:Living";
