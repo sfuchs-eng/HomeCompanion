@@ -84,6 +84,58 @@ public class CfgShadowingSpecial : CfgSpecial
     public double MinSunElevationToConsider { get; set; } = 4.0;
 
     /// <summary>
+    /// Default facade incidence cut-over angle in degrees.
+    /// <para>
+    /// 0deg means sun must be perpendicular to the facade normal to count as exposed.
+    /// 20deg means sun beyond 70deg incidence to facade normal is treated as not exposed.
+    /// </para>
+    /// </summary>
+    public double DefaultFacadeSunCutoverAngle { get; set; } = 20.0;
+
+    /// <summary>
+    /// Optional dynamic cut-over angle rules.
+    /// The first matching rule wins.
+    /// </summary>
+    public List<CfgDynamicCutoverAngleRule> DynamicFacadeSunCutoverRules { get; set; } = [];
+
+    /// <summary>
+    /// Global thermal-control mode used to derive default room objectives.
+    /// </summary>
+    public ThermalControlMode ThermalControl { get; set; } = ThermalControlMode.Balanced;
+
+    /// <summary>
+    /// Optional reference to an externally managed thermal-control mode value.
+    /// If bound and initialized, this value overrides <see cref="ThermalControl"/>.
+    /// </summary>
+    public string? ThermalControlModeReference { get; set; }
+
+    /// <summary>
+    /// Default automation level used when rooms do not define an override.
+    /// </summary>
+    public ShadowingAutomationLevel DefaultAutomationLevel { get; set; } = ShadowingAutomationLevel.AutomaticWithTemporaryManualOverride;
+
+    /// <summary>
+    /// Enables persistence of manual overrides by default.
+    /// </summary>
+    public bool PersistManualOverrides { get; set; } = true;
+
+    /// <summary>
+    /// Default duration used for temporary manual overrides if a room does not override it.
+    /// </summary>
+    public TimeSpan DefaultManualOverrideDuration { get; set; } = TimeSpan.FromHours(2);
+
+    /// <summary>
+    /// Scene numbers that clear manual override and resume automation.
+    /// Defaults to legacy-compatible scenes 50 and 52.
+    /// </summary>
+    public List<int> ResumeAutomationScenes { get; set; } = [50, 52];
+
+    /// <summary>
+    /// Schedule evaluation engine used for room cron transitions.
+    /// </summary>
+    public ShadowingScheduleEngine ScheduleEngine { get; set; } = ShadowingScheduleEngine.InProcess;
+
+    /// <summary>
     /// Reference to the global shutter scene value.
     /// </summary>
     public string? GlobalShutterSceneReference { get; set; }
@@ -124,6 +176,21 @@ public class CfgShadowingSpecial : CfgSpecial
     public string? SunIntensityWestReference { get; set; }
 
     /// <summary>
+    /// Optional reference to a sun azimuth value in degrees.
+    /// </summary>
+    public string? SunPositionAzimuthReference { get; set; }
+
+    /// <summary>
+    /// Optional reference to a sun elevation value in degrees.
+    /// </summary>
+    public string? SunPositionElevationReference { get; set; }
+
+    /// <summary>
+    /// Optional reference to UV index or UV intensity value.
+    /// </summary>
+    public string? UvIntensityReference { get; set; }
+
+    /// <summary>
     /// Scene controllers keyed by scene key for explicit multi-command room or facade presets.
     /// </summary>
     public Dictionary<string, CfgShadowingSceneController> SpecialScenes { get; set; } = [];
@@ -135,7 +202,14 @@ public class CfgShadowingSpecial : CfgSpecial
 public class CfgShadowingSceneController
 {
     /// <summary>
-    /// Reference to the scene value that triggers the command set.
+    /// Optional room key in the format <c>Building/Floor/Room</c>.
+    /// When set, this controller is scoped to the referenced room.
+    /// </summary>
+    public string? RoomReference { get; set; }
+
+    /// <summary>
+    /// Optional explicit reference to the scene value that triggers the command set.
+    /// Prefer <see cref="RoomReference"/> for room-specific mappings.
     /// </summary>
     public string? SceneReference { get; set; }
 
@@ -217,4 +291,16 @@ public class ShadowingSpecial : Special
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityWestReference), RequireNumeric = true)]
     public IValue? SunIntensityWest { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionAzimuthReference), RequireNumeric = true)]
+    public IValue? SunPositionAzimuth { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionElevationReference), RequireNumeric = true)]
+    public IValue? SunPositionElevation { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.ThermalControlModeReference), RequireNumeric = true)]
+    public IValue? ThermalControlMode { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.UvIntensityReference), RequireNumeric = true)]
+    public IValue? UvIntensity { get; set; }
 }

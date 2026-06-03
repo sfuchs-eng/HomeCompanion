@@ -1,0 +1,424 @@
+using HomeCompanion.Base.Logics.Shutters;
+using HomeCompanion.Base.Model;
+using HomeCompanion.Events;
+using HomeCompanion.Persistence;
+using HomeCompanion.Values;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace HomeCompanion.Tests.Shutters;
+
+[TestFixture]
+public class ShutterSceneCommandControlTests
+{
+    [Test]
+    public async Task ManualSceneController_ExecutesCommands_AndSetsManualOverride()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)20, this);
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+        Assert.That(fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey), Is.True);
+    }
+
+    [Test]
+    public async Task ResumeAutomationScene_ClearsManualOverride()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)2, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == true);
+
+        fixture.RoomScene.Write((byte)50, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == false);
+
+        Assert.That(fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey), Is.False);
+    }
+
+    [Test]
+    public async Task ConfiguredResumeAutomationScene_ClearsManualOverride()
+    {
+        var fixture = TestFixtureRuntime.Create([60]);
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)2, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == true);
+
+        fixture.RoomScene.Write((byte)60, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == false);
+
+        Assert.That(fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey), Is.False);
+    }
+
+    [Test]
+    public async Task ScheduleDue_ExecutesCommands_OnlyWhenInAutomationScene()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+
+        fixture.RoomScene.Write((byte)2, this);
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "NightClose",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 22, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await Task.Delay(50);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+
+        fixture.RoomScene.Write((byte)52, this);
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "NightClose",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 22, 5, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+    }
+
+    [Test]
+    public async Task ScheduleDue_SkipsFacadeTarget_WhenSunNotExposed()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)52, this);
+
+        // Facade SE (~129deg); sun from NW should be beyond exposure threshold.
+        fixture.SunAzimuth.Write(309f, this);
+        fixture.SunElevation.Write(20f, this);
+
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "Shadowing",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 15, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await Task.Delay(50);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task ScheduleDue_UsesRoomCutoverOverride()
+    {
+        var fixture = TestFixtureRuntime.Create();
+        fixture.RoomConfig.FacadeSunCutoverAngleOverride = 75;
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)52, this);
+
+        // About 60deg incidence for SE facade -> would pass default 20deg cut-over, but should fail room override 75deg.
+        fixture.SunAzimuth.Write(189f, this);
+        fixture.SunElevation.Write(20f, this);
+
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "Shadowing",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 15, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await Task.Delay(50);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task ScheduleDue_UsesDynamicCutoverRule_ByThermalModeAndTemperature()
+    {
+        var fixture = TestFixtureRuntime.Create();
+        fixture.ShadowingConfig.DynamicFacadeSunCutoverRules =
+        [
+            new CfgDynamicCutoverAngleRule
+            {
+                ThermalControlMode = ThermalControlMode.CoolingPriority,
+                OutdoorTemperatureMin = 28,
+                CutoverAngle = 70,
+            },
+        ];
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)52, this);
+
+        fixture.ThermalMode.Write(2f, this); // CoolingPriority in 0-based encoding
+        fixture.OutdoorTemperature.Write(30f, this);
+
+        // Roughly 60deg incidence: allowed with default cut-over 20deg, blocked with dynamic cut-over 70deg.
+        fixture.SunAzimuth.Write(189f, this);
+        fixture.SunElevation.Write(20f, this);
+
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "Shadowing",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 15, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await Task.Delay(50);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+    }
+
+    private sealed class TestFixtureRuntime
+    {
+        public required ShutterSceneCommandControl Logic { get; init; }
+        public required ValueBase<byte> RoomScene { get; init; }
+        public required ValueBase<byte> TargetPosition { get; init; }
+        public required ValueBase<float> SunAzimuth { get; init; }
+        public required ValueBase<float> SunElevation { get; init; }
+        public required ValueBase<float> OutdoorTemperature { get; init; }
+        public required ValueBase<float> ThermalMode { get; init; }
+        public required StubStateStore StateStore { get; init; }
+        public required StubSubscriber Subscriber { get; init; }
+        public required CfgRoom RoomConfig { get; init; }
+        public required CfgShadowingSpecial ShadowingConfig { get; init; }
+        public required string RoomKey { get; init; }
+
+        public static TestFixtureRuntime Create(IEnumerable<int>? resumeAutomationScenes = null)
+        {
+            var roomScene = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "RoomScene" };
+            var targetPosition = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "TargetPosition" };
+            var sunAzimuth = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunAzimuth" };
+            var sunElevation = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunElevation" };
+            var outdoorTemperature = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "OutdoorTemperature" };
+            var thermalMode = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "ThermalMode" };
+
+            var seedSource = new object();
+            sunAzimuth.Write(129f, seedSource);
+            sunElevation.Write(25f, seedSource);
+            outdoorTemperature.Write(24f, seedSource);
+            thermalMode.Write(1f, seedSource);
+
+            var roomConfig = new CfgRoom
+            {
+                Shutters =
+                {
+                    ["MainShutter"] = new CfgShutter
+                    {
+                        FacadeReference = "SE",
+                        PositionValueReference = "TargetPosition",
+                    },
+                },
+            };
+
+            var room = new Room("Living", roomConfig)
+            {
+                ShutterScene = roomScene,
+                Shutters = new Dictionary<string, Shutter>
+                {
+                    ["MainShutter"] = new("MainShutter", roomConfig.Shutters["MainShutter"]),
+                },
+            };
+
+            var floor = new Floor
+            {
+                Name = "Ground",
+                Rooms = new Dictionary<string, Room>
+                {
+                    [room.Name] = room,
+                },
+            };
+
+            var shadowCfg = new CfgShadowingSpecial
+            {
+                ResumeAutomationScenes = resumeAutomationScenes?.ToList() ?? [50, 52],
+                SpecialScenes =
+                {
+                    ["Manual20"] = new CfgShadowingSceneController
+                    {
+                        RoomReference = "Main/Ground/Living",
+                        Number = 20,
+                        Commands =
+                        {
+                            ["SetPosition"] = new CfgShadowingSceneCommand
+                            {
+                                TargetValueReference = "TargetPosition",
+                                Value = 77,
+                            },
+                        },
+                    },
+                },
+            };
+
+            var building = new Building
+            {
+                Name = "Main",
+                Facades = new Dictionary<string, Facade>
+                {
+                    ["SE"] = new("SE", new CfgFacade { Azimuth = 129, Elevation = 0 }),
+                    ["NW"] = new("NW", new CfgFacade { Azimuth = 309, Elevation = 0 }),
+                },
+                Floors = new Dictionary<string, Floor>
+                {
+                    [floor.Name] = floor,
+                },
+                Specials = new Dictionary<string, Special>
+                {
+                    ["Shadowing"] = new ShadowingSpecial("Shadowing", shadowCfg)
+                    {
+                        SunPositionAzimuth = sunAzimuth,
+                        SunPositionElevation = sunElevation,
+                        OutdoorTemperature = outdoorTemperature,
+                        ThermalControlMode = thermalMode,
+                    },
+                },
+            };
+
+            var model = new HomeCompanion.Base.Model.Model
+            {
+                Buildings = new Dictionary<string, Building>
+                {
+                    [building.Name] = building,
+                },
+            };
+
+            var valueProvider = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["TargetPosition"] = targetPosition,
+            });
+
+            var publisher = new StubPublisher();
+            var subscriber = new StubSubscriber();
+            var stateStore = new StubStateStore();
+
+            var logic = new ShutterSceneCommandControl(
+                new StubModelProvider(model),
+                valueProvider,
+                stateStore,
+                TimeProvider.System,
+                NullLogger<ShutterSceneCommandControl>.Instance,
+                publisher,
+                subscriber);
+
+            return new TestFixtureRuntime
+            {
+                Logic = logic,
+                RoomScene = roomScene,
+                TargetPosition = targetPosition,
+                SunAzimuth = sunAzimuth,
+                SunElevation = sunElevation,
+                OutdoorTemperature = outdoorTemperature,
+                ThermalMode = thermalMode,
+                StateStore = stateStore,
+                Subscriber = subscriber,
+                RoomConfig = roomConfig,
+                ShadowingConfig = shadowCfg,
+                RoomKey = "Main/Ground/Living",
+            };
+        }
+
+        public async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 1500)
+        {
+            var start = Environment.TickCount64;
+            while (!condition())
+            {
+                if (Environment.TickCount64 - start > timeoutMs)
+                    Assert.Fail("Condition was not reached in time.");
+                await Task.Delay(10);
+            }
+        }
+    }
+
+    private sealed class StubModelProvider(HomeCompanion.Base.Model.Model model) : IModelProvider
+    {
+        public HomeCompanion.Base.Model.Model GetModel() => model;
+
+        public bool IsInitialized => true;
+    }
+
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    {
+        public IValue Resolve(string reference) => byReference[reference];
+
+        public bool TryResolve(string reference, out IValue? value)
+            => byReference.TryGetValue(reference, out value);
+
+        public bool TryResolve<T>(string reference, out IValue<T>? value)
+        {
+            if (byReference.TryGetValue(reference, out var untyped) && untyped is IValue<T> typed)
+            {
+                value = typed;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+    }
+
+    private sealed class StubStateStore : IStateStore
+    {
+        public ShutterManualOverrideStateSet? Stored { get; private set; }
+
+        public Task<StateLoadingResult<T>> LoadAsync<T>(string stateSetName, TimeSpan maxAge) where T : class, new()
+            => Task.FromResult(new StateLoadingResult<T>
+            {
+                IsSuccess = true,
+                IsRecent = true,
+                StateSet = new T(),
+            });
+
+        public Task<StateLoadingResult<T>> LoadAsync<T>(string stateSetName) where T : class, new()
+            => LoadAsync<T>(stateSetName, TimeSpan.FromMinutes(30));
+
+        public Task SaveAsync<T>(string stateSetName, T stateSet, CancellationToken cancellation) where T : class, new()
+        {
+            if (stateSet is ShutterManualOverrideStateSet typed)
+                Stored = typed;
+            return Task.CompletedTask;
+        }
+
+        public Task SaveAsync<T>(string stateSetName, T stateSet, int timeoutSeconds = 30) where T : class, new()
+        {
+            if (stateSet is ShutterManualOverrideStateSet typed)
+                Stored = typed;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubPublisher : IEventPublisher
+    {
+        public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+    }
+
+    private sealed class StubSubscriber : IEventSubscriber
+    {
+        private readonly Dictionary<Type, List<object>> _handlersByType = [];
+
+        public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
+        {
+            if (!_handlersByType.TryGetValue(typeof(T), out var handlers))
+            {
+                handlers = [];
+                _handlersByType[typeof(T)] = handlers;
+            }
+
+            handlers.Add(handler);
+        }
+
+        public async Task PublishAsync<T>(T @event) where T : IEvent
+        {
+            if (!_handlersByType.TryGetValue(typeof(T), out var handlers))
+                return;
+
+            foreach (var handler in handlers.Cast<IEventHandler<T>>())
+                await handler.HandleAsync(@event);
+        }
+    }
+}
