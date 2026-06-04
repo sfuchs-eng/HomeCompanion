@@ -32,7 +32,7 @@ public sealed class ShutterSceneCommandControl(
     : LogicBase(publisher, subscriber)
 {
     private const string StateSetName = "ShutterControlManualOverrides";
-    private static readonly HashSet<int> ManualActorScenes = [1, 2, 3];
+    private static readonly HashSet<int> ManualActorScenes = [1, 2, 3, 4, 5];
     private static readonly HashSet<int> DefaultResumeAutomationScenes = [50, 52];
 
     private readonly IModelProvider _modelProvider = modelProvider;
@@ -45,7 +45,7 @@ public sealed class ShutterSceneCommandControl(
     private readonly Dictionary<IValue, RoomRuntime> _roomBySceneValue = [];
     private readonly Dictionary<string, RoomRuntime> _roomByRoomKey = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<(string RoomKey, int Scene), CfgShadowingSceneController> _sceneControllers = [];
-    private readonly Dictionary<string, FacadeExposureBinding> _facadeExposureByTarget = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ShutterRuntime> _shutterByTarget = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<IValue> _subscribedSceneValues = [];
     private readonly Dictionary<string, CancellationTokenSource> _scheduledResumeByRoom = new(StringComparer.OrdinalIgnoreCase);
 
@@ -89,7 +89,7 @@ public sealed class ShutterSceneCommandControl(
         var nextRoomByScene = new Dictionary<IValue, RoomRuntime>();
         var nextRoomByKey = new Dictionary<string, RoomRuntime>(StringComparer.OrdinalIgnoreCase);
         var nextControllers = new Dictionary<(string RoomKey, int Scene), CfgShadowingSceneController>();
-        var nextFacadeExposureByTarget = new Dictionary<string, FacadeExposureBinding>(StringComparer.OrdinalIgnoreCase);
+        var nextShutterByTarget = new Dictionary<string, ShutterRuntime>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var building in model.Buildings.Values)
         {
@@ -113,22 +113,7 @@ public sealed class ShutterSceneCommandControl(
                     var persistManualOverride = roomConfig.PersistManualOverride ?? globalConfig.PersistManualOverrides;
                     var resumeAutomationScenes = ResolveResumeAutomationScenes(globalConfig);
                     var defaultResumeAutomationScene = ResolveDefaultResumeAutomationScene(globalConfig, resumeAutomationScenes);
-
-                    var roomRuntime = new RoomRuntime(
-                        roomKey,
-                        room.ShutterScene,
-                        manualOverrideDuration,
-                        persistManualOverride,
-                        resumeAutomationScenes,
-                        defaultResumeAutomationScene,
-                        shadowing,
-                        roomConfig.FacadeSunCutoverAngleOverride,
-                        [.. roomConfig.FacadeSunCutoverAngleDynamicRules],
-                        [.. globalConfig.DynamicFacadeSunCutoverRules],
-                        globalConfig.DefaultFacadeSunCutoverAngle,
-                        globalConfig.MinSunElevationToConsider);
-                    nextRoomByScene[room.ShutterScene] = roomRuntime;
-                    nextRoomByKey[roomKey] = roomRuntime;
+                    var shutterRuntimes = new List<ShutterRuntime>();
 
                     foreach (var shutter in room.Shutters.Values)
                     {
@@ -146,10 +131,39 @@ public sealed class ShutterSceneCommandControl(
                             continue;
                         }
 
-                        RegisterFacadeTarget(nextFacadeExposureByTarget, roomKey, shutterConfig.PositionValueReference, facade, shutterConfig.ShadowingZones);
-                        RegisterFacadeTarget(nextFacadeExposureByTarget, roomKey, shutterConfig.AngleValueReference, facade, shutterConfig.ShadowingZones);
-                        RegisterFacadeTarget(nextFacadeExposureByTarget, roomKey, shutterConfig.OpenCloseReference, facade, shutterConfig.ShadowingZones);
+                        var shutterRuntime = new ShutterRuntime(
+                            roomKey,
+                            shutter.Name,
+                            shutterConfig.Type,
+                            facade.OrientationRad,
+                            shutterConfig.ShadowingZones,
+                            shutterConfig.PositionValueReference,
+                            shutterConfig.AngleValueReference,
+                            shutterConfig.OpenCloseReference,
+                            shutterConfig.DefaultShadowSlat);
+                        shutterRuntimes.Add(shutterRuntime);
+
+                        RegisterShutterTarget(nextShutterByTarget, shutterRuntime, shutterConfig.PositionValueReference);
+                        RegisterShutterTarget(nextShutterByTarget, shutterRuntime, shutterConfig.AngleValueReference);
+                        RegisterShutterTarget(nextShutterByTarget, shutterRuntime, shutterConfig.OpenCloseReference);
                     }
+
+                    var roomRuntime = new RoomRuntime(
+                        roomKey,
+                        room.ShutterScene,
+                        manualOverrideDuration,
+                        persistManualOverride,
+                        resumeAutomationScenes,
+                        defaultResumeAutomationScene,
+                        shadowing,
+                        roomConfig.FacadeSunCutoverAngleOverride,
+                        [.. roomConfig.FacadeSunCutoverAngleDynamicRules],
+                        [.. globalConfig.DynamicFacadeSunCutoverRules],
+                        globalConfig.DefaultFacadeSunCutoverAngle,
+                        globalConfig.MinSunElevationToConsider,
+                        shutterRuntimes);
+                    nextRoomByScene[room.ShutterScene] = roomRuntime;
+                    nextRoomByKey[roomKey] = roomRuntime;
 
                     if (!string.IsNullOrWhiteSpace(roomConfig.ShutterSceneReference))
                         roomBySceneReference[roomConfig.ShutterSceneReference] = roomKey;
@@ -192,23 +206,21 @@ public sealed class ShutterSceneCommandControl(
             foreach (var kv in nextControllers)
                 _sceneControllers[kv.Key] = kv.Value;
 
-            _facadeExposureByTarget.Clear();
-            foreach (var kv in nextFacadeExposureByTarget)
-                _facadeExposureByTarget[kv.Key] = kv.Value;
+            _shutterByTarget.Clear();
+            foreach (var kv in nextShutterByTarget)
+                _shutterByTarget[kv.Key] = kv.Value;
         }
     }
 
-    private static void RegisterFacadeTarget(
-        Dictionary<string, FacadeExposureBinding> bindings,
-        string roomKey,
-        string? targetReference,
-        Facade facade,
-        Dictionary<string, CfgShadowingZone> shadowingZones)
+    private static void RegisterShutterTarget(
+        Dictionary<string, ShutterRuntime> bindings,
+        ShutterRuntime shutter,
+        string? targetReference)
     {
         if (string.IsNullOrWhiteSpace(targetReference))
             return;
 
-        bindings[BuildRoomTargetKey(roomKey, targetReference)] = new FacadeExposureBinding(facade.OrientationRad, shadowingZones);
+        bindings[BuildRoomTargetKey(shutter.RoomKey, targetReference)] = shutter;
     }
 
     private string? ResolveControllerRoomKey(
@@ -239,9 +251,10 @@ public sealed class ShutterSceneCommandControl(
 
     private void OnRoomSceneChanged(object? sender, ValueChangedEventArgs e)
     {
-        _ = e;
-
         if (sender is not IValue sceneValue)
+            return;
+
+        if (ReferenceEquals(e.Initiator, this))
             return;
 
         RoomRuntime? room;
@@ -319,7 +332,7 @@ public sealed class ShutterSceneCommandControl(
         _ = ActivateManualOverrideAsync(room.RoomKey, room.ManualOverrideDuration);
 
         if (TryResolveSceneController(room.RoomKey, due.Scene, out var controller))
-            ExecuteSceneControllerCommands(controller, room, due.Scene, "automation-schedule", applySunExposureGate: false);
+            ExecuteSceneControllerCommands(controller, room, due.Scene, "automation-schedule", applySunExposureGate: true);
 
         ScheduleResumeAutomation(room, due);
 
@@ -442,10 +455,10 @@ public sealed class ShutterSceneCommandControl(
             if (!TryGetRoom(roomKey, out var room))
                 return;
 
-            if (!IsRoomSunExposed(room))
+            if (!HasAnySunExposedShutter(room))
             {
                 _logger.LogInformation(
-                    "Room {RoomKey}: skipped auto-resume scene {Scene} ({Reason}) because sun exposure is inactive.",
+                    "Room {RoomKey}: skipped auto-resume scene {Scene} ({Reason}) because no shutter is sun-exposed.",
                     roomKey,
                     plan.ResumeScene,
                     plan.Reason);
@@ -460,6 +473,10 @@ public sealed class ShutterSceneCommandControl(
                     plan.ResumeScene,
                     plan.Reason,
                     room.SceneValue.Name);
+            }
+            else
+            {
+                await ClearManualOverrideAsync(roomKey).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -476,8 +493,11 @@ public sealed class ShutterSceneCommandControl(
         }
     }
 
-    private bool IsRoomSunExposed(RoomRuntime room)
+    private bool HasAnySunExposedShutter(RoomRuntime room)
     {
+        if (room.Shutters.Count == 0)
+            return false;
+
         if (!TryGetNumericValue(room.Shadowing.SunPositionAzimuth, out var sunAzimuthDeg) ||
             !TryGetNumericValue(room.Shadowing.SunPositionElevation, out var sunElevationDeg))
         {
@@ -487,44 +507,16 @@ public sealed class ShutterSceneCommandControl(
         if (sunElevationDeg < room.MinSunElevationToConsider)
             return false;
 
-        var bindings = GetRoomFacadeBindings(room.RoomKey);
-        if (bindings.Count == 0)
-            return true;
-
         var cutover = ResolveEffectiveCutoverAngle(room);
         var maxIncidence = 90.0 - ClampCutoverAngle(cutover);
 
-        foreach (var binding in bindings)
+        foreach (var shutter in room.Shutters)
         {
-            if (IsBlockedByShadowingZones(binding.ShadowingZones, sunAzimuthDeg, sunElevationDeg))
-                continue;
-
-            var incidence = ComputeIncidenceAngleDeg(binding.FacadeOrientationDeg, sunAzimuthDeg, sunElevationDeg);
-            if (incidence <= maxIncidence)
+            if (IsShutterSunExposed(shutter, sunAzimuthDeg, sunElevationDeg, maxIncidence))
                 return true;
         }
 
         return false;
-    }
-
-    private IReadOnlyList<FacadeExposureBinding> GetRoomFacadeBindings(string roomKey)
-    {
-        var prefix = roomKey + "|";
-        var result = new List<FacadeExposureBinding>();
-
-        lock (_syncLock)
-        {
-            foreach (var kv in _facadeExposureByTarget)
-            {
-                if (!kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                if (!result.Contains(kv.Value))
-                    result.Add(kv.Value);
-            }
-        }
-
-        return result;
     }
 
     private bool TryResolveSceneController(string roomKey, int scene, out CfgShadowingSceneController controller)
@@ -554,6 +546,12 @@ public sealed class ShutterSceneCommandControl(
         {
             if (string.IsNullOrWhiteSpace(command.TargetValueReference))
                 continue;
+
+            if (TryResolveShutter(room.RoomKey, command.TargetValueReference, out var shutter))
+            {
+                ExecuteShutterCommand(shutter, command, room, scene, source, applySunExposureGate);
+                continue;
+            }
 
             if (applySunExposureGate && IsSunExposureBlocked(room, command.TargetValueReference))
             {
@@ -600,6 +598,169 @@ public sealed class ShutterSceneCommandControl(
         }
     }
 
+    private bool TryResolveShutter(string roomKey, string targetValueReference, out ShutterRuntime shutter)
+    {
+        var key = BuildRoomTargetKey(roomKey, targetValueReference);
+
+        lock (_syncLock)
+        {
+            return _shutterByTarget.TryGetValue(key, out shutter!);
+        }
+    }
+
+    private void ExecuteShutterCommand(
+        ShutterRuntime shutter,
+        CfgShadowingSceneCommand command,
+        RoomRuntime room,
+        int scene,
+        string source,
+        bool applySunExposureGate)
+    {
+        if (applySunExposureGate && IsShutterSunExposureBlocked(room, shutter))
+        {
+            _logger.LogInformation(
+                "Room {RoomKey}: scene {Scene} ({Source}) skipped shutter '{ShutterName}' because its facade is not sun-exposed.",
+                room.RoomKey,
+                scene,
+                source,
+                shutter.Name);
+            return;
+        }
+
+        switch (shutter.Type)
+        {
+            case ShutterType.OpenClose:
+                ExecuteOpenCloseShutterCommand(shutter, command, room, scene, source);
+                return;
+
+            case ShutterType.VenetianBlind:
+                ExecuteVenetianBlindCommand(shutter, command, room, scene, source);
+                return;
+
+            default:
+                ExecutePositionalShutterCommand(shutter, command, room, scene, source);
+                return;
+        }
+    }
+
+    private void ExecutePositionalShutterCommand(
+        ShutterRuntime shutter,
+        CfgShadowingSceneCommand command,
+        RoomRuntime room,
+        int scene,
+        string source)
+    {
+        if (string.IsNullOrWhiteSpace(shutter.PositionValueReference))
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: scene {Scene} ({Source}) shutter '{ShutterName}' has no position target configured.",
+                room.RoomKey,
+                scene,
+                source,
+                shutter.Name);
+            return;
+        }
+
+        WriteResolvedTarget(shutter.PositionValueReference, command.Value, room, scene, source, shutter.Name, "position");
+    }
+
+    private void ExecuteVenetianBlindCommand(
+        ShutterRuntime shutter,
+        CfgShadowingSceneCommand command,
+        RoomRuntime room,
+        int scene,
+        string source)
+    {
+        if (!string.IsNullOrWhiteSpace(shutter.PositionValueReference))
+            WriteResolvedTarget(shutter.PositionValueReference, command.Value, room, scene, source, shutter.Name, "position");
+
+        if (string.IsNullOrWhiteSpace(shutter.AngleValueReference))
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: scene {Scene} ({Source}) venetian shutter '{ShutterName}' has no angle target configured.",
+                room.RoomKey,
+                scene,
+                source,
+                shutter.Name);
+            return;
+        }
+
+        var angleValue = command.Value > 0
+            ? shutter.DefaultShadowSlat
+            : 0;
+        WriteResolvedTarget(shutter.AngleValueReference, angleValue, room, scene, source, shutter.Name, "angle");
+    }
+
+    private void ExecuteOpenCloseShutterCommand(
+        ShutterRuntime shutter,
+        CfgShadowingSceneCommand command,
+        RoomRuntime room,
+        int scene,
+        string source)
+    {
+        if (string.IsNullOrWhiteSpace(shutter.OpenCloseReference))
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: scene {Scene} ({Source}) open/close shutter '{ShutterName}' has no open/close target configured.",
+                room.RoomKey,
+                scene,
+                source,
+                shutter.Name);
+            return;
+        }
+
+        var closed = Math.Abs(command.Value) >= 0.5;
+        WriteResolvedTarget(shutter.OpenCloseReference, closed ? 1 : 0, room, scene, source, shutter.Name, "open-close");
+    }
+
+    private void WriteResolvedTarget(
+        string targetValueReference,
+        double value,
+        RoomRuntime room,
+        int scene,
+        string source,
+        string shutterName,
+        string aspect)
+    {
+        if (!_valueReferenceProvider.TryResolve(targetValueReference, out var targetValue) || targetValue is null)
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: scene {Scene} ({Source}) shutter '{ShutterName}' {Aspect} target '{TargetValueReference}' could not be resolved.",
+                room.RoomKey,
+                scene,
+                source,
+                shutterName,
+                aspect,
+                targetValueReference);
+            return;
+        }
+
+        if (!TryWriteNumeric(targetValue, value))
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: scene {Scene} ({Source}) could not write {Aspect} value {Value} to shutter '{ShutterName}' target '{TargetName}' ({TargetType}).",
+                room.RoomKey,
+                scene,
+                source,
+                aspect,
+                value,
+                shutterName,
+                targetValue.Name,
+                targetValue.ValueType.Name);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Room {RoomKey}: scene {Scene} ({Source}) wrote {Aspect} value {Value} to shutter '{ShutterName}' target '{TargetName}'.",
+            room.RoomKey,
+            scene,
+            source,
+            aspect,
+            value,
+            shutterName,
+            targetValue.Name);
+    }
+
     /// <summary>
     /// Determines whether the sun exposure is blocked for a given room and target value reference.
     /// Blocked meaning that the target is not currently exposed to the sun, either because the sun is below the elevation threshold or because the facade orientation relative to the sun position is such that the sun's rays would be blocked by the building itself.
@@ -610,31 +771,44 @@ public sealed class ShutterSceneCommandControl(
     /// <returns>True if sun exposure is blocked; otherwise, false.</returns>
     private bool IsSunExposureBlocked(RoomRuntime room, string targetValueReference)
     {
-        var key = BuildRoomTargetKey(room.RoomKey, targetValueReference);
-        if (!_facadeExposureByTarget.TryGetValue(key, out var binding))
+        if (!TryResolveShutter(room.RoomKey, targetValueReference, out var shutter))
             return false;
 
+        return IsShutterSunExposureBlocked(room, shutter);
+    }
+
+    private bool IsShutterSunExposureBlocked(RoomRuntime room, ShutterRuntime shutter)
+    {
         if (!TryGetNumericValue(room.Shadowing.SunPositionAzimuth, out var sunAzimuthDeg) ||
             !TryGetNumericValue(room.Shadowing.SunPositionElevation, out var sunElevationDeg))
         {
             _logger.LogWarning(
-                "Room {RoomKey}: sun position values are missing or invalid; skipping automation command for facade-scoped target '{TargetValueReference}'.",
+                "Room {RoomKey}: sun position values are missing or invalid; skipping automation command for shutter '{ShutterName}'.",
                 room.RoomKey,
-                targetValueReference);
+                shutter.Name);
             return true;
         }
 
         if (sunElevationDeg < room.MinSunElevationToConsider)
             return true;
 
-        if (IsBlockedByShadowingZones(binding.ShadowingZones, sunAzimuthDeg, sunElevationDeg))
-            return true;
-
         var cutover = ResolveEffectiveCutoverAngle(room);
         var maxIncidence = 90.0 - ClampCutoverAngle(cutover);
-        var incidence = ComputeIncidenceAngleDeg(binding.FacadeOrientationDeg, sunAzimuthDeg, sunElevationDeg);
 
-        return incidence > maxIncidence;
+        return !IsShutterSunExposed(shutter, sunAzimuthDeg, sunElevationDeg, maxIncidence);
+    }
+
+    private static bool IsShutterSunExposed(
+        ShutterRuntime shutter,
+        double sunAzimuthDeg,
+        double sunElevationDeg,
+        double maxIncidence)
+    {
+        if (IsBlockedByShadowingZones(shutter.ShadowingZones, sunAzimuthDeg, sunElevationDeg))
+            return false;
+
+        var incidence = ComputeIncidenceAngleDeg(shutter.FacadeOrientationDeg, sunAzimuthDeg, sunElevationDeg);
+        return incidence <= maxIncidence;
     }
 
     private double ResolveEffectiveCutoverAngle(RoomRuntime room)
@@ -974,11 +1148,19 @@ public sealed class ShutterSceneCommandControl(
         List<CfgDynamicCutoverAngleRule> RoomDynamicCutoverRules,
         List<CfgDynamicCutoverAngleRule> GlobalDynamicCutoverRules,
         double GlobalCutoverAngle,
-        double MinSunElevationToConsider);
+        double MinSunElevationToConsider,
+        List<ShutterRuntime> Shutters);
 
-    private sealed record FacadeExposureBinding(
+    private sealed record ShutterRuntime(
+        string RoomKey,
+        string Name,
+        ShutterType Type,
         SphericVector FacadeOrientationDeg,
-        Dictionary<string, CfgShadowingZone> ShadowingZones);
+        Dictionary<string, CfgShadowingZone> ShadowingZones,
+        string? PositionValueReference,
+        string? AngleValueReference,
+        string? OpenCloseReference,
+        int DefaultShadowSlat);
 
     private readonly record struct ResumePlan(int ResumeScene, TimeSpan Delay, string Reason);
 

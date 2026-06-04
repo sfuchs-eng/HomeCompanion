@@ -88,7 +88,7 @@ public class ShutterScenarioIntegrationExecutionTests
     }
 
     [Test]
-    public async Task Scenario17_FacadeSplitRoom_ScheduledSceneAppliesMappedCommands()
+    public async Task Scenario17_FacadeSplitRoom_ScheduledScene_ActsPerSunExposedShutter()
     {
         var fixture = ScenarioFixtureRuntime.CreateFacadeSplitRoom();
 
@@ -108,10 +108,10 @@ public class ShutterScenarioIntegrationExecutionTests
         });
 
         await fixture.WaitUntilAsync(() => fixture.TargetEast.Value == 80);
-        await fixture.WaitUntilAsync(() => fixture.TargetWest.Value == 30);
+        await Task.Delay(250);
 
         Assert.That(fixture.TargetEast.Value, Is.EqualTo((byte)80));
-        Assert.That(fixture.TargetWest.Value, Is.EqualTo((byte)30));
+        Assert.That(fixture.TargetWest.Value, Is.EqualTo((byte)0));
         Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)20));
     }
 

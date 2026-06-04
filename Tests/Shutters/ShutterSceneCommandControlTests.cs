@@ -41,7 +41,7 @@ public class ShutterSceneCommandControlTests
     [Test]
     public async Task ConfiguredResumeAutomationScene_ClearsManualOverride()
     {
-        var fixture = TestFixtureRuntime.Create([60]);
+        var fixture = TestFixtureRuntime.Create(resumeAutomationScenes: [60]);
 
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)2, this);
@@ -142,7 +142,35 @@ public class ShutterSceneCommandControlTests
     }
 
     [Test]
-    public async Task ScheduleDue_ManualScene_IgnoresRoomCutoverOverride()
+    public async Task ManualSceneController_VenetianBlind_WritesPositionAndAngle()
+    {
+        var fixture = TestFixtureRuntime.Create(ShutterType.VenetianBlind, includeAngleTarget: true);
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)20, this);
+
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+        await fixture.WaitUntilAsync(() => fixture.TargetAngle!.Value == 45);
+
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+        Assert.That(fixture.TargetAngle!.Value, Is.EqualTo(45));
+    }
+
+    [Test]
+    public async Task ManualSceneController_OpenCloseShutter_WritesClosedState()
+    {
+        var fixture = TestFixtureRuntime.Create(ShutterType.OpenClose, includeOpenCloseTarget: true);
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)20, this);
+
+        await fixture.WaitUntilAsync(() => fixture.TargetOpenClose!.Value);
+
+        Assert.That(fixture.TargetOpenClose!.Value, Is.True);
+    }
+
+    [Test]
+    public async Task ScheduleDue_ManualScene_RespectsRoomCutoverOverride_PerShutter()
     {
         var fixture = TestFixtureRuntime.Create();
         fixture.RoomConfig.FacadeSunCutoverAngleOverride = 75;
@@ -150,8 +178,7 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        // Scheduled transitions now apply room scene/manual semantics, so command execution is not
-        // gated by facade cutover checks in this path.
+        // Scheduled transitions are now gated per shutter, so a strict room cutover override blocks the command.
         fixture.SunAzimuth.Write(189f, this);
         fixture.SunElevation.Write(20f, this);
 
@@ -164,8 +191,8 @@ public class ShutterSceneCommandControlTests
             Timestamp = DateTimeOffset.UtcNow,
         });
 
-        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
-        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+        await Task.Delay(250);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
     }
 
     [Test]
@@ -287,6 +314,8 @@ public class ShutterSceneCommandControlTests
         public required ShutterSceneCommandControl Logic { get; init; }
         public required ValueBase<byte> RoomScene { get; init; }
         public required ValueBase<byte> TargetPosition { get; init; }
+        public ValueBase<byte>? TargetAngle { get; init; }
+        public ValueBase<bool>? TargetOpenClose { get; init; }
         public required ValueBase<float> SunAzimuth { get; init; }
         public required ValueBase<float> SunElevation { get; init; }
         public required ValueBase<float> OutdoorTemperature { get; init; }
@@ -298,11 +327,16 @@ public class ShutterSceneCommandControlTests
         public required string RoomKey { get; init; }
 
         public static TestFixtureRuntime Create(
+            ShutterType shutterType = ShutterType.Positional,
+            bool includeAngleTarget = false,
+            bool includeOpenCloseTarget = false,
             IEnumerable<int>? resumeAutomationScenes = null,
             ShutterManualOverrideStateSet? preloadedState = null)
         {
             var roomScene = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "RoomScene" };
             var targetPosition = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "TargetPosition" };
+            var targetAngle = includeAngleTarget ? new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "TargetAngle" } : null;
+            var targetOpenClose = includeOpenCloseTarget ? new ValueBase<bool>(NullLogger<ValueBase<bool>>.Instance) { Name = "TargetOpenClose" } : null;
             var sunAzimuth = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunAzimuth" };
             var sunElevation = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunElevation" };
             var outdoorTemperature = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "OutdoorTemperature" };
@@ -320,8 +354,11 @@ public class ShutterSceneCommandControlTests
                 {
                     ["MainShutter"] = new CfgShutter
                     {
+                        Type = shutterType,
                         FacadeReference = "SE",
                         PositionValueReference = "TargetPosition",
+                        AngleValueReference = includeAngleTarget ? "TargetAngle" : null,
+                        OpenCloseReference = includeOpenCloseTarget ? "TargetOpenClose" : null,
                     },
                 },
             };
@@ -402,6 +439,12 @@ public class ShutterSceneCommandControlTests
                 ["TargetPosition"] = targetPosition,
             });
 
+            if (targetAngle is not null)
+                valueProvider.Add("TargetAngle", targetAngle);
+
+            if (targetOpenClose is not null)
+                valueProvider.Add("TargetOpenClose", targetOpenClose);
+
             var publisher = new StubPublisher();
             var subscriber = new StubSubscriber();
             var stateStore = new StubStateStore(preloadedState);
@@ -420,6 +463,8 @@ public class ShutterSceneCommandControlTests
                 Logic = logic,
                 RoomScene = roomScene,
                 TargetPosition = targetPosition,
+                TargetAngle = targetAngle,
+                TargetOpenClose = targetOpenClose,
                 SunAzimuth = sunAzimuth,
                 SunElevation = sunElevation,
                 OutdoorTemperature = outdoorTemperature,
@@ -453,6 +498,8 @@ public class ShutterSceneCommandControlTests
 
     private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
     {
+        public void Add(string reference, IValue value) => byReference[reference] = value;
+
         public IValue Resolve(string reference) => byReference[reference];
 
         public bool TryResolve(string reference, out IValue? value)

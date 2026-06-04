@@ -63,12 +63,14 @@ public static class ShutterPolicyResolver
         {
             var mode = (int)Math.Round(rawMode, MidpointRounding.AwayFromZero);
 
-            // Accept both 0-based and 1-based external numeric encodings.
-            if (mode is >= 0 and <= 2 && Enum.IsDefined(typeof(ThermalControlMode), mode))
+            // Thermal control mode is an external input encoding the same values as <see cref="ThermalControlMode"/>
+            if (Enum.IsDefined(typeof(ThermalControlMode), mode))
                 return (ThermalControlMode)mode;
-
-            if (mode is >= 1 and <= 3 && Enum.IsDefined(typeof(ThermalControlMode), mode - 1))
-                return (ThermalControlMode)(mode - 1);
+            
+            // fallback to the closest defined mode if the value is out of range
+            var definedModes = Enum.GetValues<ThermalControlMode>();
+            var closestMode = definedModes.OrderBy(m => Math.Abs((int)m - mode)).First();
+            return closestMode;
         }
 
         return globalShadowing.Configuration.ThermalControl;
@@ -86,8 +88,11 @@ public static class ShutterPolicyResolver
     internal static RoomObjectiveProfile ResolveObjectiveFromThermalControl(ThermalControlMode thermalControl)
         => thermalControl switch
         {
-            ThermalControlMode.Disabled => RoomObjectiveProfile.DaylightPriority,
-            ThermalControlMode.Balanced => RoomObjectiveProfile.BalancedDefault,
+            ThermalControlMode.Undefined => RoomObjectiveProfile.DaylightPriority,
+            ThermalControlMode.Winter => RoomObjectiveProfile.DaylightPriority,
+            ThermalControlMode.LightHeating => RoomObjectiveProfile.DaylightPriority,
+            ThermalControlMode.Passive => RoomObjectiveProfile.DaylightPriority,
+            ThermalControlMode.BalancedCooling => RoomObjectiveProfile.BalancedDefault,
             ThermalControlMode.CoolingPriority => RoomObjectiveProfile.ThermalPriority,
             _ => RoomObjectiveProfile.BalancedDefault,
         };

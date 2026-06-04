@@ -88,6 +88,11 @@ public class ShutterControl(
         await base.DisableAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Materializes the room policy snapshots for all rooms in the given model.
+    /// This is called on initialization and whenever the model changes in a way that may affect shadowing policy (e.g. configuration changes or dynamic input value changes).
+    /// </summary>
+    /// <param name="model">The model containing the buildings, floors, and rooms to materialize.</param>
     private void MaterializeRoomPolicy(HomeCompanion.Base.Model.Model model)
     {
         _roomPolicyByRoomKey.Clear();
@@ -147,6 +152,7 @@ public class ShutterControl(
     {
         var nextValues = new HashSet<IValue>();
 
+        // collect all relevant dynamic input values based on the current model, including global shadowing inputs and room-level objective selector inputs
         foreach (var building in model.Buildings.Values)
         {
             foreach (var shadowing in building.Specials.Values.OfType<ShadowingSpecial>())
@@ -181,12 +187,14 @@ public class ShutterControl(
             }
         }
 
+        // Unsubscribe from values that are no longer relevant
         foreach (var value in _subscribedValues.Except(nextValues).ToArray())
         {
             value.Changed -= OnDynamicInputChanged;
             _subscribedValues.Remove(value);
         }
 
+        // Subscribe to new values
         foreach (var value in nextValues.Except(_subscribedValues))
         {
             value.Changed += OnDynamicInputChanged;
@@ -194,10 +202,24 @@ public class ShutterControl(
         }
     }
 
+    System.Threading.Timer? dynamicInputChangeDebounceTimer = null;
+
     private void OnDynamicInputChanged(object? sender, ValueChangedEventArgs e)
     {
-        _ = e;
-        _ = ReevaluateFromModelAsync();
+        // we perform a delayed reevaluation in order to debounce potential cascades of changes and to ensure that the model is in a consistent state when we reevaluate
+        // the actual value change that triggered this is not relevant for the decision to reevaluate, since we will reevaluate all relevant inputs anyway, acting on state instead of event.
+
+        // just return in case we're already waiting for a pending debounce timer, which means a reevaluation is already scheduled. This can happen when multiple inputs change at the same time, e.g. when a new model is loaded or when multiple related inputs are updated together.
+        if (dynamicInputChangeDebounceTimer is not null)
+            return;
+
+        dynamicInputChangeDebounceTimer?.Dispose();
+        dynamicInputChangeDebounceTimer = new System.Threading.Timer(_ =>
+        {
+            dynamicInputChangeDebounceTimer?.Dispose();
+            dynamicInputChangeDebounceTimer = null;
+            _ = ReevaluateFromModelAsync();
+        }, null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
     }
 
     private void StartScheduleLoop()
@@ -238,7 +260,7 @@ public class ShutterControl(
 
     private async Task RunScheduleLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
 
         await ReevaluateFromModelAsync().ConfigureAwait(false);
 

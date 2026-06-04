@@ -107,7 +107,7 @@ public class CfgShadowingSpecial : CfgSpecial
     /// <summary>
     /// Global thermal-control mode used to derive default room objectives.
     /// </summary>
-    public ThermalControlMode ThermalControl { get; set; } = ThermalControlMode.Balanced;
+    public ThermalControlMode ThermalControl { get; set; } = ThermalControlMode.BalancedCooling;
 
     /// <summary>
     /// Optional reference to an externally managed thermal-control mode value.

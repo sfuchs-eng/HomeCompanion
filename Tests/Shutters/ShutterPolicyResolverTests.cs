@@ -32,7 +32,7 @@ public class ShutterPolicyResolverTests
     {
         var global = new ShadowingSpecial("Shadowing", new CfgShadowingSpecial
         {
-            ThermalControl = ThermalControlMode.Disabled,
+            ThermalControl = ThermalControlMode.Passive,
         });
 
         var room = new Room("Living", new CfgRoom
@@ -50,7 +50,7 @@ public class ShutterPolicyResolverTests
     {
         var global = new ShadowingSpecial("Shadowing", new CfgShadowingSpecial
         {
-            ThermalControl = ThermalControlMode.Balanced,
+            ThermalControl = ThermalControlMode.BalancedCooling,
         });
 
         var room = new Room("Living", new CfgRoom
@@ -83,10 +83,10 @@ public class ShutterPolicyResolverTests
     {
         var global = new ShadowingSpecial("Shadowing", new CfgShadowingSpecial
         {
-            ThermalControl = ThermalControlMode.Disabled,
+            ThermalControl = ThermalControlMode.Passive,
         })
         {
-            ThermalControlMode = new StubNumericValue(2.0),
+            ThermalControlMode = new StubNumericValue((double)ThermalControlMode.CoolingPriority),
         };
 
         var mode = ShutterPolicyResolver.ResolveThermalControlMode(global);
@@ -130,8 +130,10 @@ public class ShutterPolicyResolverTests
         public string? Name => "StubNumeric";
         public string? Label => "StubNumeric";
         public object? OValue => numericValue;
+#pragma warning disable CS0067
         public event EventHandler<ValueWrittenEventArgs>? Written;
         public event EventHandler<ValueChangedEventArgs>? Changed;
+#pragma warning restore CS0067
         public Dictionary<object, IValueBusEndpointMapping> BusMappings { get; init; } = [];
         public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping) => BusMappings[busIdentifier] = mapping;
         public string? Format(System.Globalization.CultureInfo? culture = null) => numericValue.ToString(culture);
