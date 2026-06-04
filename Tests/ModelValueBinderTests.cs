@@ -1,5 +1,5 @@
 using HomeCompanion.Base.Model;
-using HomeCompanion.Core.Models;
+using HomeCompanion.Core.Model;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
 

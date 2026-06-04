@@ -5,7 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace HomeCompanion.Core.Models;
+namespace HomeCompanion.Core.Model;
 
 internal sealed class ModelProvider(
     IConfiguration configuration,
@@ -23,11 +23,11 @@ internal sealed class ModelProvider(
     private readonly CoreOptions _coreOptions = coreOptions.Value;
     private readonly ILogger<ModelProvider> _logger = logger;
 
-    private Model? _model;
+    private Base.Model.Model? _model;
 
     public bool IsInitialized => _model is not null;
 
-    public Model GetModel()
+    public Base.Model.Model GetModel()
         => _model ?? throw new InvalidOperationException("Model is not initialized yet.");
 
     public async Task StartAsync(CancellationToken cancellationToken)

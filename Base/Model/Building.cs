@@ -74,6 +74,12 @@ public class CfgShadowingSpecial : CfgSpecial
     public int DefaultMaxClose { get; set; } = 100;
 
     /// <summary>
+    /// Default constraints applied to shutters in the building.
+    /// Room-level and shutter-level constraints are layered on top of this value.
+    /// </summary>
+    public ShutterConstraints DefaultShutterConstraints { get; set; } = ShutterConstraints.None;
+
+    /// <summary>
     /// Default room temperature threshold used for auto shadowing when no room-specific value is configured.
     /// </summary>
     public double DefaultTemperatureThreshold { get; set; } = 25.0;

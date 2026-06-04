@@ -22,23 +22,19 @@ public class CfgShutter : CfgEntity
 
     /// <summary>
     /// Constraints for the shutter, defining its behavior.
-    /// OR'ed with room-level constraints defined in <see cref="CfgRoom.ShutterConstraints"/>.
+    /// OR'ed with room-level and building-level defaults defined in <see cref="CfgRoom.ShutterConstraints"/> and <see cref="CfgShadowingSpecial.DefaultShutterConstraints"/>.
     /// </summary>
     public ShutterConstraints Constraints { get; set; } = ShutterConstraints.None;
 
     /// <summary>
     /// The actual shutter constraints are derived from <see cref="EffectiveConstraints(ShutterConstraints)"/>
     /// </summary>
-    public ShutterConstraints RoomConstraintsMask { get; set; } = ShutterConstraints.None;
-
-    /// <summary>
-    /// Additional shadowing behavior options not covered by general shutter constraints.
-    /// </summary>
-    public ShadowingOptions ShadowingOptions { get; set; } = ShadowingOptions.None;
+    public ShutterConstraints? RoomConstraintsMask { get; set; }
 
     public ShutterConstraints EffectiveConstraints(ShutterConstraints roomConstraints)
     {
-        return (roomConstraints & ~RoomConstraintsMask) | Constraints;
+        var mask = RoomConstraintsMask ?? ShutterConstraints.None;
+        return (roomConstraints & ~mask) | Constraints;
     }
 
     /// <summary>
@@ -79,37 +75,6 @@ public class CfgShutter : CfgEntity
     /// Shutter-local sun-position zones that affect whether this shutter should be treated as naturally shadowed.
     /// </summary>
     public Dictionary<string, CfgShadowingZone> ShadowingZones { get; set; } = [];
-}
-
-/// <summary>
-/// Legacy-compatible shadowing feature flags that are orthogonal to generic shutter constraints.
-/// </summary>
-[JsonConverter(typeof(CommaSeparatedFlagsEnumJsonConverter<ShadowingOptions>))]
-[Flags]
-public enum ShadowingOptions
-{
-    None = 0,
-
-    /// <summary>
-    /// Exclude from automatic shadowing close actions.
-    /// </summary>
-    ExcludeFromAutoShadow = 1,
-
-    /// <summary>
-    /// Closing requires additional permission from external logic or state.
-    /// ThermalConntrol status may override and force close in case of very hot conditions even if permission is not granted.
-    /// </summary>
-    RequireClosePermission = 2,
-
-    /// <summary>
-    /// Delay automatic shadowing until an explicit time or condition window has passed.
-    /// </summary>
-    DelayAutoShadow = 4,
-
-    /// <summary>
-    /// Reopen when direct sun exposure is over.
-    /// </summary>
-    ReopenAfterSunExposure = 8,
 }
 
 /// <summary>

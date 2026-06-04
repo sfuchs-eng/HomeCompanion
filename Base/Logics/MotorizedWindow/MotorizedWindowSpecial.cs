@@ -74,24 +74,28 @@ public class MotorizedWindowSpecial(string name, CfgMotorizedWindowSpecial confi
     /// Requested window position. True means closed, false means open. This is the main control for the window position, e.g. for automatic ventilation.
     /// </summary>
     /// <value></value>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.WindowPositionReference))]
     public IValue<bool>? WindowPosition { get; set; }
 
     /// <summary>
     /// Current window position. True means closed, false means open, partly or fully, or in transition. This reflects the actual state of the window.
     /// </summary>
     /// <value></value>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.WindowPositionStatusReference))]
     public IValue<bool>? WindowPositionStatus { get; set; }
 
     /// <summary>
     /// Requested shutter position. True means closed, false means open. This is the main control for the shutter position, e.g. for shadowing logic.
     /// </summary>
     /// <value></value>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.ShutterPositionReference))]
     public IValue<bool>? ShutterPosition { get; set; }
 
     /// <summary>
     /// Current shutter position. True means closed, false means open, partly or fully, or in transition. This reflects the actual state of the shutter.
     /// </summary>
     /// <value></value>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.ShutterPositionStatusReference))]
     public IValue<bool>? ShutterPositionStatus { get; set; }
 
     // below are the inputs and outputs of the KLF 200 integrating e.g. Velux windows
@@ -99,24 +103,30 @@ public class MotorizedWindowSpecial(string name, CfgMotorizedWindowSpecial confi
     /// <summary>
     /// KLF200 close command input to the window. True means close, false means no command.
     /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.WindowCloseCommandReference))]
     public IValue<bool>? WindowCloseCommand { get; set; }
 
     /// <summary>
     /// KLF200 open command input to the window. True means open, false means no command.
     /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.WindowOpenCommandReference))]
     public IValue<bool>? WindowOpenCommand { get; set; }
 
     /// <summary>
     /// KLF200 command acknowledgment input from the window. Raises to true after the command applied is fully reached. Means the window is fully closed after a close command, or fully open after an open command. False means no acknowledgment, e.g. the command is still in progress or not applied at all.
     /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.WindowCommandAcknowledgmentReference))]
     public IValue<bool>? WindowCommandAcknowledgment { get; set; }
 
     /// <summary> KLF200 close command input to the shutter. True means close, false means no command. </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.ShutterCloseCommandReference))]
     public IValue<bool>? ShutterCloseCommand { get; set; }
 
     /// <summary> KLF200 open command input to the shutter. True means open, false means no command. </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.ShutterOpenCommandReference))]
     public IValue<bool>? ShutterOpenCommand { get; set; }
 
     /// <summary> KLF200 command acknowledgment input from the shutter. Raises to true after the command applied is fully reached. Means the shutter is fully closed after a close command, or fully open after an open command. False means no acknowledgment, e.g. the command is still in progress or not applied at all. </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgMotorizedWindowSpecial.ShutterCommandAcknowledgmentReference))]
     public IValue<bool>? ShutterCommandAcknowledgment { get; set; }
 }

@@ -12,10 +12,24 @@ public class CfgRoom : CfgEntity
 
     /// <summary>
     /// Default constraints for shutters in this room.
-    /// OR'ed with individual shutter constraints, if any.
+    /// Layered on top of building-level defaults and combined with individual shutter constraints, if any.
     /// </summary>
     /// <value></value>
     public ShutterConstraints ShutterConstraints { get; set; } = ShutterConstraints.None;
+
+    /// <summary>
+    /// Optional mask applied to the building-level shutter defaults before room-level defaults are added.
+    /// </summary>
+    public ShutterConstraints? BuildingConstraintsMask { get; set; }
+
+    /// <summary>
+    /// Resolves the room-level default shutter constraints from the building-level defaults.
+    /// </summary>
+    public ShutterConstraints EffectiveShutterConstraints(ShutterConstraints buildingConstraints)
+    {
+        var mask = BuildingConstraintsMask ?? ShutterConstraints.None;
+        return (buildingConstraints & ~mask) | ShutterConstraints;
+    }
 
     public string? ShutterSceneReference { get; set; }
 
@@ -33,11 +47,6 @@ public class CfgRoom : CfgEntity
     /// If configured, these rules override building-level dynamic cut-over rules for this room.
     /// </summary>
     public List<CfgDynamicCutoverAngleRule> FacadeSunCutoverAngleDynamicRules { get; set; } = [];
-
-    /// <summary>
-    /// Additional room-level shadowing behavior options not fully represented by <see cref="ShutterConstraints"/>.
-    /// </summary>
-    public ShadowingOptions ShadowingOptions { get; set; } = ShadowingOptions.None;
 
     /// <summary>
     /// Room objective profile. If set to <see cref="RoomObjectiveProfile.InheritFromThermalControl"/>,

@@ -5,7 +5,7 @@ using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-namespace HomeCompanion.Core.Models;
+namespace HomeCompanion.Core.Model;
 
 internal sealed class ModelValueBinder(
     IValueReferenceProvider valueReferenceProvider,
@@ -16,7 +16,7 @@ internal sealed class ModelValueBinder(
     private readonly IValueReferenceProvider _valueReferenceProvider = valueReferenceProvider;
     private readonly ILogger<ModelValueBinder> _logger = logger;
 
-    public void Bind(Model model)
+    public void Bind(Base.Model.Model model)
     {
         var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
         TraverseAndBind(model, CfgModel.ConfigurationKey, visited);

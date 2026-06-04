@@ -16,7 +16,7 @@ using HomeCompanion.Core.Mcp;
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Persistence;
 using HomeCompanion.Base.Model;
-using HomeCompanion.Core.Models;
+using HomeCompanion.Core.Model;
 
 namespace HomeCompanion.Core;
 
