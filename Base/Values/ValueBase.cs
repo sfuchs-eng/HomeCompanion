@@ -200,6 +200,15 @@ public class ValueBase<T> : ValueBase, IValue<T>
         }
     }
 
+    public virtual void WriteLocked(T value, object? initiator = null)
+    {
+        if ((Status.HasFlag(ValueStatus.Live) | Status.HasFlag(ValueStatus.Used)) && EqualityComparer<T>.Default.Equals(Value, value))
+        {
+            return;
+        }
+        Write(value, initiator);
+    }
+
     /// <inheritdoc/>
     protected override void ReceiveUpdateCore(object? rawValue)
     {

@@ -85,35 +85,64 @@ public class ShutterSceneCommandControlTests
 
         await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
         Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+        Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)20));
     }
 
     [Test]
-    public async Task ScheduleDue_SkipsFacadeTarget_WhenSunNotExposed()
+    public async Task ScheduleDue_AutoResumeAfter_ResumesWhenSunExposed()
     {
         var fixture = TestFixtureRuntime.Create();
 
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        // Facade SE (~129deg); sun from NW should be beyond exposure threshold.
-        fixture.SunAzimuth.Write(309f, this);
-        fixture.SunElevation.Write(20f, this);
-
         await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "Shadowing",
             Scene = 20,
+            ResumeAutomationAfter = TimeSpan.FromMilliseconds(100),
+            ResumeAutomationScene = 52,
             TriggerLocalTime = new DateTime(2026, 6, 3, 15, 0, 0),
             Timestamp = DateTimeOffset.UtcNow,
         });
 
-        await Task.Delay(50);
-        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+        await fixture.WaitUntilAsync(() => fixture.RoomScene.Value == 52, timeoutMs: 2500);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == false, timeoutMs: 2500);
+
+        Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)52));
     }
 
     [Test]
-    public async Task ScheduleDue_UsesRoomCutoverOverride()
+    public async Task ScheduleDue_AutoResumeAfter_DoesNotResume_WhenSunNotExposed()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)52, this);
+
+        // No sun exposure (below minimum elevation) must keep manual scene active.
+        fixture.SunElevation.Write(0f, this);
+
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "NightClose",
+            Scene = 20,
+            ResumeAutomationAfter = TimeSpan.FromMilliseconds(100),
+            ResumeAutomationScene = 52,
+            TriggerLocalTime = new DateTime(2026, 6, 3, 22, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await Task.Delay(300);
+
+        Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)20));
+        Assert.That(fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey), Is.True);
+    }
+
+    [Test]
+    public async Task ScheduleDue_ManualScene_IgnoresRoomCutoverOverride()
     {
         var fixture = TestFixtureRuntime.Create();
         fixture.RoomConfig.FacadeSunCutoverAngleOverride = 75;
@@ -121,7 +150,8 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        // About 60deg incidence for SE facade -> would pass default 20deg cut-over, but should fail room override 75deg.
+        // Scheduled transitions now apply room scene/manual semantics, so command execution is not
+        // gated by facade cutover checks in this path.
         fixture.SunAzimuth.Write(189f, this);
         fixture.SunElevation.Write(20f, this);
 
@@ -134,12 +164,12 @@ public class ShutterSceneCommandControlTests
             Timestamp = DateTimeOffset.UtcNow,
         });
 
-        await Task.Delay(50);
-        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
     }
 
     [Test]
-    public async Task ScheduleDue_UsesDynamicCutoverRule_ByThermalModeAndTemperature()
+    public async Task ScheduleDue_ManualScene_IgnoresDynamicCutoverRule_ByThermalModeAndTemperature()
     {
         var fixture = TestFixtureRuntime.Create();
         fixture.ShadowingConfig.DynamicFacadeSunCutoverRules =
@@ -158,7 +188,8 @@ public class ShutterSceneCommandControlTests
         fixture.ThermalMode.Write(2f, this); // CoolingPriority in 0-based encoding
         fixture.OutdoorTemperature.Write(30f, this);
 
-        // Roughly 60deg incidence: allowed with default cut-over 20deg, blocked with dynamic cut-over 70deg.
+        // Scheduled transitions now apply room scene/manual semantics, so command execution is not
+        // gated by dynamic cutover checks in this path.
         fixture.SunAzimuth.Write(189f, this);
         fixture.SunElevation.Write(20f, this);
 
@@ -171,8 +202,84 @@ public class ShutterSceneCommandControlTests
             Timestamp = DateTimeOffset.UtcNow,
         });
 
-        await Task.Delay(50);
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+    }
+
+    [Test]
+    public async Task ScheduleDue_InvalidTarget_DoesNotBlockValidCommands()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        fixture.ShadowingConfig.SpecialScenes["Manual20"].Commands["InvalidTarget"] = new CfgShadowingSceneCommand
+        {
+            TargetValueReference = "DoesNotExist",
+            Value = 12,
+        };
+
+        await fixture.Logic.InitializeAsync();
+        fixture.RoomScene.Write((byte)52, this);
+
+        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        {
+            RoomKey = fixture.RoomKey,
+            ScheduleKey = "MixedTargets",
+            Scene = 20,
+            TriggerLocalTime = new DateTime(2026, 6, 4, 14, 0, 0),
+            Timestamp = DateTimeOffset.UtcNow,
+        });
+
+        await fixture.WaitUntilAsync(() => fixture.TargetPosition.Value == 77);
+        Assert.That(fixture.TargetPosition.Value, Is.EqualTo(77));
+        Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)20));
+    }
+
+    [Test]
+    public async Task Startup_RestoresPersistedOverrides_PrunesExpired_NoCatchUpMovement()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var preloaded = new ShutterManualOverrideStateSet
+        {
+            RoomOverrides = new Dictionary<string, ShutterManualOverrideEntry>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main/Ground/Living"] = new()
+                {
+                    CreatedAtUtc = now.AddMinutes(-5),
+                    ExpiresAtUtc = now.AddHours(1),
+                },
+                ["Main/Ground/Expired"] = new()
+                {
+                    CreatedAtUtc = now.AddHours(-2),
+                    ExpiresAtUtc = now.AddMinutes(-1),
+                },
+            },
+        };
+
+        var fixture = TestFixtureRuntime.Create(preloadedState: preloaded);
+
+        await fixture.Logic.InitializeAsync();
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored is not null);
+
+        Assert.That(fixture.StateStore.Stored!.RoomOverrides.ContainsKey(fixture.RoomKey), Is.True);
+        Assert.That(fixture.StateStore.Stored.RoomOverrides.ContainsKey("Main/Ground/Expired"), Is.False);
         Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task SceneWriteRace_UserActionsOrdered_DeterministicFinalState()
+    {
+        var fixture = TestFixtureRuntime.Create();
+
+        await fixture.Logic.InitializeAsync();
+
+        fixture.RoomScene.Write((byte)2, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == true);
+
+        fixture.RoomScene.Write((byte)52, this);
+        await fixture.WaitUntilAsync(() => fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey) == false);
+
+        Assert.That(fixture.RoomScene.Value, Is.EqualTo((byte)52));
+        Assert.That(fixture.StateStore.Stored?.RoomOverrides.ContainsKey(fixture.RoomKey), Is.False);
     }
 
     private sealed class TestFixtureRuntime
@@ -190,7 +297,9 @@ public class ShutterSceneCommandControlTests
         public required CfgShadowingSpecial ShadowingConfig { get; init; }
         public required string RoomKey { get; init; }
 
-        public static TestFixtureRuntime Create(IEnumerable<int>? resumeAutomationScenes = null)
+        public static TestFixtureRuntime Create(
+            IEnumerable<int>? resumeAutomationScenes = null,
+            ShutterManualOverrideStateSet? preloadedState = null)
         {
             var roomScene = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "RoomScene" };
             var targetPosition = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "TargetPosition" };
@@ -295,7 +404,7 @@ public class ShutterSceneCommandControlTests
 
             var publisher = new StubPublisher();
             var subscriber = new StubSubscriber();
-            var stateStore = new StubStateStore();
+            var stateStore = new StubStateStore(preloadedState);
 
             var logic = new ShutterSceneCommandControl(
                 new StubModelProvider(model),
@@ -362,17 +471,26 @@ public class ShutterSceneCommandControlTests
         }
     }
 
-    private sealed class StubStateStore : IStateStore
+    private sealed class StubStateStore(ShutterManualOverrideStateSet? preloadedState = null) : IStateStore
     {
+        private readonly ShutterManualOverrideStateSet? _preloadedState = preloadedState;
         public ShutterManualOverrideStateSet? Stored { get; private set; }
 
         public Task<StateLoadingResult<T>> LoadAsync<T>(string stateSetName, TimeSpan maxAge) where T : class, new()
-            => Task.FromResult(new StateLoadingResult<T>
+        {
+            T state;
+            if (typeof(T) == typeof(ShutterManualOverrideStateSet) && _preloadedState is not null)
+                state = (T)(object)_preloadedState;
+            else
+                state = new T();
+
+            return Task.FromResult(new StateLoadingResult<T>
             {
                 IsSuccess = true,
                 IsRecent = true,
-                StateSet = new T(),
+                StateSet = state,
             });
+        }
 
         public Task<StateLoadingResult<T>> LoadAsync<T>(string stateSetName) where T : class, new()
             => LoadAsync<T>(stateSetName, TimeSpan.FromMinutes(30));

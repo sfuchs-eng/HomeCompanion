@@ -15,8 +15,7 @@ public class Model
     /// This is for any customization that doesn't fit into the building, facade, or floor categories.
     /// Consider whether to use <see cref="ILogic"/> or <see cref="IConfigBackedModelEntity"/> for these.
     /// </summary>
-    public Dictionary<string, CfgSpecial> Specials { get; set; } = [];
-
+    public Dictionary<string, Special> Specials { get; set; } = [];
 }
 
 /// <summary>
@@ -38,4 +37,6 @@ public class CfgModel
     /// Buildings keyed by their configured name.
     /// </summary>
     public Dictionary<string, CfgBuilding> Buildings { get; set; } = [];
+
+    public Dictionary<string, CfgSpecial> Specials { get; set; } = [];
 }

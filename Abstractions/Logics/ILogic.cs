@@ -19,6 +19,7 @@ public interface ILogic
     /// Might be called multiple times, e.g. also by dependent logics before or after being called by the host.
     /// Parallel calls shall await the first initialization to complete and then return immediately, preventing re-initialization
     /// and allowing dependent logics to call <c>InitializeAsync</c> on their dependencies without risking multiple initializations or deadlocks.
+    /// The Logic shall run after this initialization without furthher <see cref="EnableAsync"/> being called, i.e. the logic is expected to be enabled by default after initialization unless configuration prevents it.
     /// </summary>
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task EnableAsync(CancellationToken cancellationToken = default);

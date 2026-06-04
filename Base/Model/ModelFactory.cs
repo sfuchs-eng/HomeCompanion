@@ -38,6 +38,10 @@ public class ModelFactory : IModelFactory
             kv => kv.Key,
             kv => CreateBuilding(new BuildingCreationContext(model), kv.Key, kv.Value));
 
+        model.Specials = config.Specials.ToDictionary(
+            kv => kv.Key,
+            kv => CreateSpecial(new SpecialCreationContext(model, null), kv.Key, kv.Value));
+
         return model;
     }
 

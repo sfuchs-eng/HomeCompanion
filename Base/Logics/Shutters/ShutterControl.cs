@@ -279,6 +279,9 @@ public class ShutterControl(
                 ManualOpenGracePeriod = due.ManualOpenGracePeriod,
                 EnableShadowTranslationAfterManualOpen = due.EnableShadowTranslationAfterManualOpen,
                 TriggerLocalTime = due.TriggerLocalTime,
+                ResumeAutomationAfter = due.ResumeAutomationAfter,
+                ResumeAutomationAtLocalTime = due.ResumeAutomationAtLocalTime,
+                ResumeAutomationScene = due.ResumeAutomationScene,
             }, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -388,4 +391,7 @@ public sealed class RoomScheduleTransitionDueEvent : HomeCompanionEvent
     public TimeSpan ManualOpenGracePeriod { get; init; }
     public bool EnableShadowTranslationAfterManualOpen { get; init; }
     public DateTime TriggerLocalTime { get; init; }
+    public TimeSpan? ResumeAutomationAfter { get; init; }
+    public TimeSpan? ResumeAutomationAtLocalTime { get; init; }
+    public int? ResumeAutomationScene { get; init; }
 }

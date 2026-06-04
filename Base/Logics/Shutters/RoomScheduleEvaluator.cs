@@ -72,7 +72,10 @@ public sealed class InProcessCronRoomScheduleEvaluator(TimeZoneInfo? timeZone = 
                             CloseOnly: schedule.Value.CloseOnly,
                             ManualOpenGracePeriod: schedule.Value.ManualOpenGracePeriod,
                             EnableShadowTranslationAfterManualOpen: schedule.Value.EnableShadowTranslationAfterManualOpen,
-                            TriggerLocalTime: triggerLocal));
+                            TriggerLocalTime: triggerLocal,
+                            ResumeAutomationAfter: schedule.Value.ResumeAutomationAfter,
+                            ResumeAutomationAtLocalTime: schedule.Value.ResumeAutomationAtLocalTime,
+                            ResumeAutomationScene: schedule.Value.ResumeAutomationScene));
                     }
                 }
             }
@@ -159,7 +162,10 @@ public sealed class QuartzRoomScheduleEvaluator(TimeZoneInfo? timeZone = null) :
                             CloseOnly: schedule.Value.CloseOnly,
                             ManualOpenGracePeriod: schedule.Value.ManualOpenGracePeriod,
                             EnableShadowTranslationAfterManualOpen: schedule.Value.EnableShadowTranslationAfterManualOpen,
-                            TriggerLocalTime: triggerLocal));
+                            TriggerLocalTime: triggerLocal,
+                            ResumeAutomationAfter: schedule.Value.ResumeAutomationAfter,
+                            ResumeAutomationAtLocalTime: schedule.Value.ResumeAutomationAtLocalTime,
+                            ResumeAutomationScene: schedule.Value.ResumeAutomationScene));
                     }
                 }
             }
@@ -201,4 +207,7 @@ public sealed record RoomScheduleDueTransition(
     bool CloseOnly,
     TimeSpan ManualOpenGracePeriod,
     bool EnableShadowTranslationAfterManualOpen,
-    DateTime TriggerLocalTime);
+    DateTime TriggerLocalTime,
+    TimeSpan? ResumeAutomationAfter,
+    TimeSpan? ResumeAutomationAtLocalTime,
+    int? ResumeAutomationScene);

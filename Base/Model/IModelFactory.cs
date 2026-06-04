@@ -10,7 +10,7 @@ public readonly record struct RoomCreationContext(Model Model, Building Building
 
 public readonly record struct ShutterCreationContext(Model Model, Building Building, Floor Floor, Room Room);
 
-public readonly record struct SpecialCreationContext(Model Model, Building Building);
+public readonly record struct SpecialCreationContext(Model Model, Building? Building);
 
 public interface IModelFactory
 {

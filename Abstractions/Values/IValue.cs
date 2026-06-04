@@ -34,6 +34,9 @@ public interface IValue
 {
     public Type ValueType { get; }
     public ValueStatus Status { get; }
+
+    public bool IsActive => (Status & (ValueStatus.Live | ValueStatus.Used)) != 0;
+
     public string? Name { get; }
     public string? Label { get; }
 
@@ -104,6 +107,13 @@ public interface IValue<T> : IValue
 
     /// <summary>Writes a value, triggering update propagation (e.g. to a connected bus).</summary>
     void Write(T value, object? initiator = null);
+
+    /// <summary>
+    /// Writes only in case the internal value / last written value is different from the provided value. This can be used to avoid unnecessary writes and update propagation, e.g. to a bus, when the value is already in the desired state.
+    /// </summary>
+    /// <param name="value">The value to write.</param>
+    /// <param name="initiator">The initiator of the write operation.</param>
+    void WriteLocked(T value, object? initiator = null);
 
     /// <summary>
     /// Initializes the value with the specified value and stage, returning true if the value was successfully initialized.

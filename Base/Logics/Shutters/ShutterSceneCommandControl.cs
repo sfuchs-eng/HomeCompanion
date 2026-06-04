@@ -47,6 +47,7 @@ public sealed class ShutterSceneCommandControl(
     private readonly Dictionary<(string RoomKey, int Scene), CfgShadowingSceneController> _sceneControllers = [];
     private readonly Dictionary<string, FacadeExposureBinding> _facadeExposureByTarget = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<IValue> _subscribedSceneValues = [];
+    private readonly Dictionary<string, CancellationTokenSource> _scheduledResumeByRoom = new(StringComparer.OrdinalIgnoreCase);
 
     private ShutterManualOverrideStateSet _manualOverrideState = new();
 
@@ -71,6 +72,8 @@ public sealed class ShutterSceneCommandControl(
 
     public override Task DisableAsync(CancellationToken cancellationToken = default)
     {
+        CancelAllScheduledResumes();
+
         lock (_syncLock)
         {
             foreach (var sceneValue in _subscribedSceneValues)
@@ -109,6 +112,7 @@ public sealed class ShutterSceneCommandControl(
                     var manualOverrideDuration = roomConfig.ManualOverrideDuration ?? globalConfig.DefaultManualOverrideDuration;
                     var persistManualOverride = roomConfig.PersistManualOverride ?? globalConfig.PersistManualOverrides;
                     var resumeAutomationScenes = ResolveResumeAutomationScenes(globalConfig);
+                    var defaultResumeAutomationScene = ResolveDefaultResumeAutomationScene(globalConfig, resumeAutomationScenes);
 
                     var roomRuntime = new RoomRuntime(
                         roomKey,
@@ -116,6 +120,7 @@ public sealed class ShutterSceneCommandControl(
                         manualOverrideDuration,
                         persistManualOverride,
                         resumeAutomationScenes,
+                        defaultResumeAutomationScene,
                         shadowing,
                         roomConfig.FacadeSunCutoverAngleOverride,
                         [.. roomConfig.FacadeSunCutoverAngleDynamicRules],
@@ -258,6 +263,8 @@ public sealed class ShutterSceneCommandControl(
     {
         try
         {
+            CancelScheduledResume(room.RoomKey);
+
             if (room.ResumeAutomationScenes.Contains(scene))
             {
                 await ClearManualOverrideAsync(room.RoomKey).ConfigureAwait(false);
@@ -298,10 +305,226 @@ public sealed class ShutterSceneCommandControl(
         if (HasActiveManualOverride(room.RoomKey, now))
             return ValueTask.CompletedTask;
 
+        if (!TryWriteNumeric(room.SceneValue, due.Scene))
+        {
+            _logger.LogWarning(
+                "Room {RoomKey}: schedule {ScheduleKey} could not write scene {Scene} to room scene value '{SceneName}'.",
+                room.RoomKey,
+                due.ScheduleKey,
+                due.Scene,
+                room.SceneValue.Name);
+            return ValueTask.CompletedTask;
+        }
+
+        _ = ActivateManualOverrideAsync(room.RoomKey, room.ManualOverrideDuration);
+
         if (TryResolveSceneController(room.RoomKey, due.Scene, out var controller))
-            ExecuteSceneControllerCommands(controller, room, due.Scene, "automation-schedule", applySunExposureGate: true);
+            ExecuteSceneControllerCommands(controller, room, due.Scene, "automation-schedule", applySunExposureGate: false);
+
+        ScheduleResumeAutomation(room, due);
 
         return ValueTask.CompletedTask;
+    }
+
+    private void ScheduleResumeAutomation(RoomRuntime room, RoomScheduleTransitionDueEvent due)
+    {
+        var plan = ResolveResumePlan(room, due);
+        if (plan is null)
+            return;
+
+        var cancellation = RegisterScheduledResume(room.RoomKey);
+        _ = RunScheduledResumeAsync(room.RoomKey, plan.Value, cancellation.Token);
+    }
+
+    private ResumePlan? ResolveResumePlan(RoomRuntime room, RoomScheduleTransitionDueEvent due)
+    {
+        var resumeScene = ResolveResumeScene(room, due.ResumeAutomationScene);
+
+        if (due.ResumeAutomationAfter.HasValue && due.ResumeAutomationAfter.Value > TimeSpan.Zero)
+            return new ResumePlan(resumeScene, due.ResumeAutomationAfter.Value, "delay");
+
+        if (TryResolveResumeAtLocalDelay(due, out var localDelay))
+            return new ResumePlan(resumeScene, localDelay, "local-time");
+
+        return null;
+    }
+
+    private static bool TryResolveResumeAtLocalDelay(RoomScheduleTransitionDueEvent due, out TimeSpan delay)
+    {
+        delay = TimeSpan.Zero;
+
+        if (!due.ResumeAutomationAtLocalTime.HasValue)
+            return false;
+
+        var timeOfDay = due.ResumeAutomationAtLocalTime.Value;
+        if (timeOfDay < TimeSpan.Zero || timeOfDay >= TimeSpan.FromDays(1))
+            return false;
+
+        var targetLocal = due.TriggerLocalTime.Date + timeOfDay;
+        if (targetLocal <= due.TriggerLocalTime)
+            targetLocal = targetLocal.AddDays(1);
+
+        delay = targetLocal - due.TriggerLocalTime;
+        return delay > TimeSpan.Zero;
+    }
+
+    private static int ResolveResumeScene(RoomRuntime room, int? overrideScene)
+    {
+        if (overrideScene.HasValue && overrideScene.Value >= 0)
+            return overrideScene.Value;
+
+        return room.DefaultResumeAutomationScene;
+    }
+
+    private CancellationTokenSource RegisterScheduledResume(string roomKey)
+    {
+        CancellationTokenSource? toCancel = null;
+        var replacement = new CancellationTokenSource();
+
+        lock (_syncLock)
+        {
+            if (_scheduledResumeByRoom.TryGetValue(roomKey, out var existing))
+                toCancel = existing;
+
+            _scheduledResumeByRoom[roomKey] = replacement;
+        }
+
+        if (toCancel is not null)
+        {
+            toCancel.Cancel();
+            toCancel.Dispose();
+        }
+
+        return replacement;
+    }
+
+    private void CancelScheduledResume(string roomKey)
+    {
+        CancellationTokenSource? toCancel = null;
+        lock (_syncLock)
+        {
+            if (_scheduledResumeByRoom.TryGetValue(roomKey, out var existing))
+            {
+                toCancel = existing;
+                _scheduledResumeByRoom.Remove(roomKey);
+            }
+        }
+
+        if (toCancel is null)
+            return;
+
+        toCancel.Cancel();
+        toCancel.Dispose();
+    }
+
+    private void CancelAllScheduledResumes()
+    {
+        List<CancellationTokenSource> all;
+        lock (_syncLock)
+        {
+            all = [.. _scheduledResumeByRoom.Values];
+            _scheduledResumeByRoom.Clear();
+        }
+
+        foreach (var cancellation in all)
+        {
+            cancellation.Cancel();
+            cancellation.Dispose();
+        }
+    }
+
+    private async Task RunScheduledResumeAsync(string roomKey, ResumePlan plan, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(plan.Delay, cancellationToken).ConfigureAwait(false);
+
+            if (!TryGetRoom(roomKey, out var room))
+                return;
+
+            if (!IsRoomSunExposed(room))
+            {
+                _logger.LogInformation(
+                    "Room {RoomKey}: skipped auto-resume scene {Scene} ({Reason}) because sun exposure is inactive.",
+                    roomKey,
+                    plan.ResumeScene,
+                    plan.Reason);
+                return;
+            }
+
+            if (!TryWriteNumeric(room.SceneValue, plan.ResumeScene))
+            {
+                _logger.LogWarning(
+                    "Room {RoomKey}: failed to write auto-resume scene {Scene} ({Reason}) to '{SceneName}'.",
+                    roomKey,
+                    plan.ResumeScene,
+                    plan.Reason,
+                    room.SceneValue.Name);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on scene changes or shutdown.
+        }
+        finally
+        {
+            lock (_syncLock)
+            {
+                if (_scheduledResumeByRoom.TryGetValue(roomKey, out var current) && current.Token == cancellationToken)
+                    _scheduledResumeByRoom.Remove(roomKey);
+            }
+        }
+    }
+
+    private bool IsRoomSunExposed(RoomRuntime room)
+    {
+        if (!TryGetNumericValue(room.Shadowing.SunPositionAzimuth, out var sunAzimuthDeg) ||
+            !TryGetNumericValue(room.Shadowing.SunPositionElevation, out var sunElevationDeg))
+        {
+            return false;
+        }
+
+        if (sunElevationDeg < room.MinSunElevationToConsider)
+            return false;
+
+        var bindings = GetRoomFacadeBindings(room.RoomKey);
+        if (bindings.Count == 0)
+            return true;
+
+        var cutover = ResolveEffectiveCutoverAngle(room);
+        var maxIncidence = 90.0 - ClampCutoverAngle(cutover);
+
+        foreach (var binding in bindings)
+        {
+            if (IsBlockedByShadowingZones(binding.ShadowingZones, sunAzimuthDeg, sunElevationDeg))
+                continue;
+
+            var incidence = ComputeIncidenceAngleDeg(binding.FacadeOrientationDeg, sunAzimuthDeg, sunElevationDeg);
+            if (incidence <= maxIncidence)
+                return true;
+        }
+
+        return false;
+    }
+
+    private IReadOnlyList<FacadeExposureBinding> GetRoomFacadeBindings(string roomKey)
+    {
+        var prefix = roomKey + "|";
+        var result = new List<FacadeExposureBinding>();
+
+        lock (_syncLock)
+        {
+            foreach (var kv in _facadeExposureByTarget)
+            {
+                if (!kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!result.Contains(kv.Value))
+                    result.Add(kv.Value);
+            }
+        }
+
+        return result;
     }
 
     private bool TryResolveSceneController(string roomKey, int scene, out CfgShadowingSceneController controller)
@@ -616,6 +839,23 @@ public sealed class ShutterSceneCommandControl(
             : valid;
     }
 
+    private static int ResolveDefaultResumeAutomationScene(CfgShadowingSpecial config, HashSet<int> resolvedScenes)
+    {
+        if (config.ResumeAutomationScenes.Count > 0)
+        {
+            foreach (var scene in config.ResumeAutomationScenes)
+            {
+                if (scene >= 0 && resolvedScenes.Contains(scene))
+                    return scene;
+            }
+        }
+
+        if (resolvedScenes.Contains(52))
+            return 52;
+
+        return resolvedScenes.Min();
+    }
+
     private bool HasActiveManualOverride(string roomKey, DateTimeOffset now)
     {
         lock (_syncLock)
@@ -728,6 +968,7 @@ public sealed class ShutterSceneCommandControl(
         TimeSpan ManualOverrideDuration,
         bool PersistManualOverride,
         HashSet<int> ResumeAutomationScenes,
+        int DefaultResumeAutomationScene,
         ShadowingSpecial Shadowing,
         double? RoomCutoverAngleOverride,
         List<CfgDynamicCutoverAngleRule> RoomDynamicCutoverRules,
@@ -738,6 +979,8 @@ public sealed class ShutterSceneCommandControl(
     private sealed record FacadeExposureBinding(
         SphericVector FacadeOrientationDeg,
         Dictionary<string, CfgShadowingZone> ShadowingZones);
+
+    private readonly record struct ResumePlan(int ResumeScene, TimeSpan Delay, string Reason);
 
     private sealed class RoomScheduleTransitionDueEventHandler(ShutterSceneCommandControl owner)
         : EventHandlerBase<RoomScheduleTransitionDueEvent>

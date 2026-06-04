@@ -171,4 +171,22 @@ public class CfgRoomScheduleTransition
     /// Enables translation from manual-open to automatic shadow after the grace period.
     /// </summary>
     public bool EnableShadowTranslationAfterManualOpen { get; set; } = true;
+
+    /// <summary>
+    /// Optional relative delay after the transition trigger when the room scene is moved back
+    /// to an automation scene.
+    /// </summary>
+    public TimeSpan? ResumeAutomationAfter { get; set; }
+
+    /// <summary>
+    /// Optional daily local time-of-day when the room scene is moved back to an automation scene.
+    /// If the configured time is before the transition trigger time, the next day is used.
+    /// </summary>
+    public TimeSpan? ResumeAutomationAtLocalTime { get; set; }
+
+    /// <summary>
+    /// Optional target scene used for auto-resume. When omitted, the room uses its first configured
+    /// resume-automation scene.
+    /// </summary>
+    public int? ResumeAutomationScene { get; set; }
 }

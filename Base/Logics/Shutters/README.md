@@ -140,6 +140,9 @@ Key fields:
 - `UvProtectionShadowSlat`
 - `ObjectiveSelectorInputs`
 - `ScheduleTransitions`
+- `ScheduleTransitions[*].ResumeAutomationAfter` (optional relative delay)
+- `ScheduleTransitions[*].ResumeAutomationAtLocalTime` (optional local time-of-day)
+- `ScheduleTransitions[*].ResumeAutomationScene` (optional resume target scene override)
 
 ### Example (JSON)
 
@@ -202,6 +205,8 @@ Key fields:
                     "CronExpression": "30 19 * * *",
                     "Scene": 3,
                     "CloseOnly": true,
+                    "ResumeAutomationAtLocalTime": "08:30:00",
+                    "ResumeAutomationScene": 52,
                     "ManualOpenGracePeriod": "00:45:00",
                     "EnableShadowTranslationAfterManualOpen": true
                   }
@@ -216,6 +221,74 @@ Key fields:
 }
 ```
 
+### Scheduled Scene Commands Example
+
+The schedule pipeline is scene-based:
+
+1. a room `ScheduleTransitions` entry raises a due event with a scene number,
+2. `ShutterSceneCommandControl` applies the due scene to the room scene value,
+3. if configured, a matching room-scoped `SpecialScenes` controller executes its command set,
+4. optional `ResumeAutomationAfter` or `ResumeAutomationAtLocalTime` moves the room scene back to automation later.
+
+Example:
+
+```json
+{
+  "Model": {
+    "Buildings": {
+      "Main": {
+        "Specials": {
+          "Shadowing": {
+            "Kind": "ShadowingSpecial",
+            "ResumeAutomationScenes": [50, 52],
+            "SpecialScenes": {
+              "EgLivingEveningShade": {
+                "RoomReference": "Main/EG/StubeEssenKueche",
+                "Number": 20,
+                "Commands": {
+                  "SetLeftPosition": {
+                    "TargetValueReference": "SWE111LamellenEssenVorneLinksPosition",
+                    "Value": 100
+                  },
+                  "SetLeftSlat": {
+                    "TargetValueReference": "SWE111LamellenEssenVorneLinksWinkel",
+                    "Value": 25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Floors": {
+          "EG": {
+            "Rooms": {
+              "StubeEssenKueche": {
+                "ShutterSceneReference": "SzeneStorenEGVorne",
+                "ScheduleTransitions": {
+                  "EveningShade": {
+                    "CronExpression": "0 30 16 * * *",
+                    "Scene": 20,
+                    "CloseOnly": true,
+                    "ResumeAutomationAtLocalTime": "08:30:00",
+                    "ResumeAutomationScene": 52
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Operational note:
+
+- scheduled transitions are only applied while the room is currently in one of `ResumeAutomationScenes` (for example `52`),
+- scheduled manual scenes (`1/2/3` or custom scenes such as `20`) keep manual override active until an explicit resume scene is written,
+- when `ResumeAutomationAfter` or `ResumeAutomationAtLocalTime` is configured, auto-resume writes are attempted only while sun exposure is active; overnight/no-sun periods keep the manual scene active.
+
 Notes:
 
 - Side-by-side schedule evaluators are available and selected by `ScheduleEngine`.
@@ -226,7 +299,8 @@ Notes:
   - `1`, `2`, `3`: manual override active (actor-level actions).
   - configured `ResumeAutomationScenes` (default `50`, `52`): clear manual override and resume automation.
   - other scenes: manual override scenes only when a matching room-scoped `SpecialScenes` controller exists.
-- Schedule-driven automation commands are executed only while room scene is in `ResumeAutomationScenes` and no manual override is active.
+- Schedule transitions can optionally define timed auto-resume (`ResumeAutomationAfter` / `ResumeAutomationAtLocalTime` + optional `ResumeAutomationScene`).
+- If no auto-resume is configured, manual scheduled scenes remain active until a user/global/scheduled resume scene is written.
 - During schedule-driven automation, room shutter targets are filtered by facade sun exposure using:
   - facade orientation,
   - live sun azimuth/elevation values,
