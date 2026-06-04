@@ -61,7 +61,7 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
 
         fixture.RoomScene.Write((byte)2, this);
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -74,7 +74,7 @@ public class ShutterSceneCommandControlTests
         Assert.That(fixture.TargetPosition.Value, Is.EqualTo(0));
 
         fixture.RoomScene.Write((byte)52, this);
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -96,7 +96,7 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "Shadowing",
@@ -124,7 +124,7 @@ public class ShutterSceneCommandControlTests
         // No sun exposure (below minimum elevation) must keep manual scene active.
         fixture.SunElevation.Write(0f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -182,7 +182,7 @@ public class ShutterSceneCommandControlTests
         fixture.SunAzimuth.Write(189f, this);
         fixture.SunElevation.Write(20f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "Shadowing",
@@ -220,7 +220,7 @@ public class ShutterSceneCommandControlTests
         fixture.SunAzimuth.Write(189f, this);
         fixture.SunElevation.Write(20f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "Shadowing",
@@ -247,7 +247,7 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "MixedTargets",
@@ -311,6 +311,7 @@ public class ShutterSceneCommandControlTests
 
     private sealed class TestFixtureRuntime
     {
+        public required ShutterControl OverrideOwner { get; init; }
         public required ShutterSceneCommandControl Logic { get; init; }
         public required ValueBase<byte> RoomScene { get; init; }
         public required ValueBase<byte> TargetPosition { get; init; }
@@ -448,11 +449,21 @@ public class ShutterSceneCommandControlTests
             var publisher = new StubPublisher();
             var subscriber = new StubSubscriber();
             var stateStore = new StubStateStore(preloadedState);
+            var modelProvider = new StubModelProvider(model);
 
-            var logic = new ShutterSceneCommandControl(
-                new StubModelProvider(model),
+            var overrideOwner = new ShutterControl(
+                modelProvider,
                 valueProvider,
                 stateStore,
+                TimeProvider.System,
+                NullLogger<ShutterControl>.Instance,
+                publisher,
+                subscriber);
+
+            var logic = new ShutterSceneCommandControl(
+                overrideOwner,
+                modelProvider,
+                valueProvider,
                 TimeProvider.System,
                 NullLogger<ShutterSceneCommandControl>.Instance,
                 publisher,
@@ -460,6 +471,7 @@ public class ShutterSceneCommandControlTests
 
             return new TestFixtureRuntime
             {
+                OverrideOwner = overrideOwner,
                 Logic = logic,
                 RoomScene = roomScene,
                 TargetPosition = targetPosition,

@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Events;
 using HomeCompanion.Persistence;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 
 namespace HomeCompanion.Values;
@@ -126,4 +127,76 @@ public interface IValue<T> : IValue
     /// <param name="stage">The initialization stage.</param>
     /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
     bool InitializeValue(T value, AppInitializationStage stage);
+}
+
+public static class IValueExtensions
+{
+    public static bool TryWriteNumeric(this IValue targetValue, double value, object? initiator = null, ILogger? logger = null)
+    {
+        try
+        {
+            switch (targetValue)
+            {
+                case IValue<byte> v:
+                    v.Write((byte)ClampToRange(value, byte.MinValue, byte.MaxValue), initiator);
+                    return true;
+                case IValue<sbyte> v:
+                    v.Write((sbyte)ClampToRange(value, sbyte.MinValue, sbyte.MaxValue), initiator);
+                    return true;
+                case IValue<short> v:
+                    v.Write((short)ClampToRange(value, short.MinValue, short.MaxValue), initiator);
+                    return true;
+                case IValue<ushort> v:
+                    v.Write((ushort)ClampToRange(value, ushort.MinValue, ushort.MaxValue), initiator);
+                    return true;
+                case IValue<int> v:
+                    v.Write(ClampToRange(value, int.MinValue, int.MaxValue), initiator);
+                    return true;
+                case IValue<uint> v:
+                    v.Write(ClampToUInt(value), initiator);
+                    return true;
+                case IValue<long> v:
+                    v.Write((long)Math.Round(value, MidpointRounding.AwayFromZero), initiator);
+                    return true;
+                case IValue<ulong> v:
+                    v.Write((ulong)Math.Max(0, Math.Round(value, MidpointRounding.AwayFromZero)), initiator);
+                    return true;
+                case IValue<float> v:
+                    v.Write((float)value, initiator);
+                    return true;
+                case IValue<double> v:
+                    v.Write(value, initiator);
+                    return true;
+                case IValue<decimal> v:
+                    v.Write((decimal)value, initiator);
+                    return true;
+                case IValue<bool> v:
+                    v.Write(Math.Abs(value) >= 0.5, initiator);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed writing numeric command to target value {TargetName}.", targetValue.Name);
+            return false;
+        }
+    }
+
+    private static int ClampToRange(double value, int min, int max)
+    {
+        var rounded = (int)Math.Round(value, MidpointRounding.AwayFromZero);
+        return Math.Clamp(rounded, min, max);
+    }
+
+    private static uint ClampToUInt(double value)
+    {
+        var rounded = Math.Round(value, MidpointRounding.AwayFromZero);
+        if (rounded <= 0)
+            return 0;
+        if (rounded >= uint.MaxValue)
+            return uint.MaxValue;
+        return (uint)rounded;
+    }
 }

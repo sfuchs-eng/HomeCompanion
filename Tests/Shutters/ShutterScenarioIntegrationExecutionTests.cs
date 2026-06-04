@@ -18,7 +18,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -44,7 +44,7 @@ public class ShutterScenarioIntegrationExecutionTests
 
         fixture.SunElevation.Write(0f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -70,7 +70,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "MorningResume",
@@ -98,7 +98,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.SunAzimuth.Write(90f, this);
         fixture.SunElevation.Write(25f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "MorningShade",
@@ -123,7 +123,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightClose",
@@ -138,7 +138,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.WaitUntilAsync(() => fixture.RoomScene.Value == 2);
 
         // Next schedule due must not apply while room is still in manual scene.
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "NightCloseSecondPass",
@@ -160,7 +160,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.RoomScene.Write((byte)52, this);
         fixture.SecondRoomScene!.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "ChildNightClose",
@@ -171,7 +171,7 @@ public class ShutterScenarioIntegrationExecutionTests
             Timestamp = DateTimeOffset.UtcNow,
         });
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.SecondRoomKey!,
             ScheduleKey = "LivingNightClose",
@@ -195,7 +195,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "CloudTestStart",
@@ -224,7 +224,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.RoomScene.Write((byte)52, this);
 
         // Policy closes first.
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "PolicyClose",
@@ -241,7 +241,7 @@ public class ShutterScenarioIntegrationExecutionTests
         // Repeated automation cycles must not override manual state.
         for (var i = 0; i < 3; i++)
         {
-            await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+            await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
             {
                 RoomKey = fixture.RoomKey,
                 ScheduleKey = $"PolicyClose-{i}",
@@ -258,7 +258,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.RoomScene.Write((byte)52, this);
         await fixture.WaitUntilAsync(() => fixture.RoomScene.Value == 52);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "PolicyClose-AfterResume",
@@ -286,7 +286,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.OutdoorTemperature.Write(35f, this);
         fixture.SunElevation.Write(30f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "AwayClose",
@@ -302,7 +302,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.RoomScene.Write((byte)52, this);
         await fixture.WaitUntilAsync(() => fixture.RoomScene.Value == 52);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "AwayClose-AfterResume",
@@ -322,7 +322,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.RoomScene.Write((byte)52, this);
 
         // Overnight security-like schedule close.
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "SecurityClose",
@@ -337,7 +337,7 @@ public class ShutterScenarioIntegrationExecutionTests
         await fixture.WaitUntilAsync(() => fixture.RoomScene.Value == 52);
 
         // Subsequent schedule actions can apply again after resume.
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "SecurityCloseAgain",
@@ -360,7 +360,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.SunAzimuth.Write(90f, this);
         fixture.SunElevation.Write(1f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "WinterClose",
@@ -380,7 +380,7 @@ public class ShutterScenarioIntegrationExecutionTests
         fixture.SunAzimuth.Write(90f, this);
         fixture.SunElevation.Write(35f, this);
 
-        await fixture.Subscriber.PublishAsync(new RoomScheduleTransitionDueEvent
+        await fixture.Subscriber.PublishAsync(new RoomSceneWriteRequestedEvent
         {
             RoomKey = fixture.RoomKey,
             ScheduleKey = "SummerClose",
@@ -395,6 +395,7 @@ public class ShutterScenarioIntegrationExecutionTests
 
     private sealed class ScenarioFixtureRuntime
     {
+        public required ShutterControl OverrideOwner { get; init; }
         public required ShutterSceneCommandControl Logic { get; init; }
         public required ValueBase<byte> RoomScene { get; init; }
         public required ValueBase<byte> TargetEast { get; init; }
@@ -584,29 +585,32 @@ public class ShutterScenarioIntegrationExecutionTests
             if (withSecondRoom && secondRoomTarget is not null)
                 byReference["SecondRoomTarget"] = secondRoomTarget;
 
-            var logic = new ShutterSceneCommandControl(
-                new StubModelProvider(model),
-                new StubValueReferenceProvider(byReference),
-                new StubStateStore(),
-                TimeProvider.System,
-                NullLogger<ShutterSceneCommandControl>.Instance,
-                new StubPublisher(),
-                new StubSubscriber());
-
             var stateStore = new StubStateStore();
             var subscriber = new StubSubscriber();
-
-            logic = new ShutterSceneCommandControl(
-                new StubModelProvider(model),
-                new StubValueReferenceProvider(byReference),
+            var publisher = new StubPublisher();
+            var modelProvider = new StubModelProvider(model);
+            var valueProvider = new StubValueReferenceProvider(byReference);
+            var overrideOwner = new ShutterControl(
+                modelProvider,
+                valueProvider,
                 stateStore,
                 TimeProvider.System,
+                NullLogger<ShutterControl>.Instance,
+                publisher,
+                subscriber);
+
+            var logic = new ShutterSceneCommandControl(
+                overrideOwner,
+                modelProvider,
+                valueProvider,
+                TimeProvider.System,
                 NullLogger<ShutterSceneCommandControl>.Instance,
-                new StubPublisher(),
+                publisher,
                 subscriber);
 
             return new ScenarioFixtureRuntime
             {
+                OverrideOwner = overrideOwner,
                 Logic = logic,
                 RoomScene = roomScene,
                 SecondRoomScene = secondRoomScene,

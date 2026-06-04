@@ -41,7 +41,7 @@ This logic replaces legacy monolithic behavior with policy building blocks desig
   - evaluates cron schedules in-process via a swappable scheduler abstraction,
   - loads persisted manual override state,
   - prunes expired entries.
-- Schedule due transitions are published as `RoomScheduleTransitionDueEvent` on the event bus.
+- Schedule-driven room scene writes are published as `RoomSceneWriteRequestedEvent` on the event bus.
 
 ## Architecture Overview
 
