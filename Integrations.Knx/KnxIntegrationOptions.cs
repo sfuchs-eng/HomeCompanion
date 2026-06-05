@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using HomeCompanion.Abstractions.Serialization;
+
 namespace HomeCompanion.Integrations.Knx;
 
 /// <summary>
@@ -27,4 +30,33 @@ public sealed class KnxIntegrationOptions
     /// initial value population.
     /// </summary>
     public bool ReadGroupAddressesOnStartup { get; set; } = true;
+
+    public CommunicationPermissions CommunicationPermissions { get; set; } = CommunicationPermissions.Full;
+}
+
+[JsonConverter(typeof(CommaSeparatedFlagsEnumJsonConverter<CommunicationPermissions>))]
+[Flags]
+public enum CommunicationPermissions
+{
+    /// <summary>
+    /// HomeCompanion is allowed to read and write KNX group addresses.
+    /// </summary>
+    RxGroupAddressReadAnswers = 1 << 0,
+
+    /// <summary>
+    /// HomeCompanion is only allowed to read KNX group addresses, not write.
+    /// </summary>
+    RxGroupAddressReads = 1 << 1,
+
+    RxGroupAdddressWrites = 1 << 2,
+
+    TxGroupAddressReadAnswers = 1 << 3,
+
+    TxGroupAddressWrites = 1 << 4,
+
+    TxGroupAddressReads = 1 << 5,
+
+    None = 0,
+    Full = RxGroupAddressReadAnswers | RxGroupAddressReads | RxGroupAdddressWrites | TxGroupAddressReadAnswers | TxGroupAddressWrites | TxGroupAddressReads,
+    RxOnly = RxGroupAddressReadAnswers | RxGroupAdddressWrites,
 }

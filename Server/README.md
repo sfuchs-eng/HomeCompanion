@@ -39,8 +39,7 @@ Example:
 {
 	"Quartz": {
 		"quartz.scheduler.instanceName": "HomeCompanionScheduler",
-		"quartz.scheduler.instanceId": "AUTO",
-		"quartz.jobStore.tablePrefix": "QRTZ_"
+		"quartz.scheduler.instanceId": "AUTO"
 	},
 	"HomeCompanion": {
 		"QuartzFileStore": {

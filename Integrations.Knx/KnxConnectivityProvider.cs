@@ -197,6 +197,12 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private async Task SendInitialReadRequestsAndMonitorAsync(CancellationToken cancellationToken)
     {
+        if ( !_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReadAnswers | CommunicationPermissions.TxGroupAddressReads) )
+        {
+            _logger.LogInformation("Skipping initial read requests for KNX values because communication permissions do not allow receiving read answers or read requests.");
+            _isInitializationFinished = true;
+            return;
+        }
         if ( !_integrationOptions.ReadGroupAddressesOnStartup || _valueMap.Count == 0)
         {
             _logger.LogInformation("Skipping initial read requests for KNX values because ReadGroupAddressesOnStartup is disabled or no values were discovered.");
@@ -298,6 +304,9 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private void ProcessInitialReadResponse(object? sender, KnxMessageReceivedEventArgs e)
     {
+        if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReadAnswers))
+            return; // if the communication permissions don't allow receiving read answers, ignore all responses
+            
         // Whatever sends backa value suitable for initializing we consider accordingly. Means Write and ReadAnswer telegrams, but not Read requests.
         switch (e.KnxMessageContext.GroupEventArgs?.EventType)
         {
@@ -341,6 +350,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         switch (args.EventType)
         {
             case GroupEventType.ValueWrite:
+                if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAdddressWrites))
+                    break;
                 if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
                     break; // if the mapping doesn't allow receiving, ignore the write
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
@@ -356,6 +367,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 break;
 
             case GroupEventType.ValueRead:
+                if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReads))
+                    break;
                 if (!(target?.Mapping.Communication.HasFlag(BusCommunication.AnswerReadRequests) ?? false))
                     break; // if the mapping doesn't allow answering read requests, ignore the read
                 // Send answers in a background tastk in fire-and-forget manner with a timeout to avoid blocking the KNX message processing thread in case of issues with the bus or the value initialization, as we don't want to risk missing further incoming telegrams which could also be relevant for initialization (e.g. if the initial read request triggered a response with an unexpected DPT that causes decoding to fail and thus value initialization to be skipped, but the value is still registered and can be updated by subsequent telegrams)
@@ -392,6 +405,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 break;
 
             case GroupEventType.ValueResponse:
+                if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReadAnswers))
+                    break;
                 if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
                     break; // if the mapping doesn't allow receiving, ignore the response
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
@@ -420,6 +435,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private async Task HandleValueWriteRequestAsync(ValueWriteRequest request, CancellationToken cancellationToken)
     {
+        if ( !_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.TxGroupAddressWrites) )
+            return; // if the communication permissions don't allow writing, ignore all write requests
         if (!request.Source.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var mapping))
             return; // not a KNX-backed value
 
