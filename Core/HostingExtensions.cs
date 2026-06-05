@@ -2,6 +2,7 @@ using HomeCompanion.Values;
 using HomeCompanion.Extensions;
 using HomeCompanion.Logics;
 using HomeCompanion.Persistence;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.EnvironmentVariables;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,7 +96,8 @@ public static class HostingExtensions
     /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
     public static IHostApplicationBuilder AddHomeCompanionConfiguration(this IHostApplicationBuilder builder)
     {
-        var extraPaths = ResolveHomeCompanionJsonConfigurationPaths();
+        var configuredConfigDirectories = ResolveConfiguredConfigDirectories(builder.Configuration, builder.Environment.ContentRootPath);
+        var extraPaths = ResolveHomeCompanionJsonConfigurationPaths(configuredConfigDirectories: configuredConfigDirectories);
         var extraPathSet = new HashSet<string>(extraPaths, StringComparer.OrdinalIgnoreCase);
 
         var sources = builder.Configuration.Sources;
@@ -134,12 +136,51 @@ public static class HostingExtensions
         return builder;
     }
 
+    internal static IReadOnlyList<string> ResolveConfiguredConfigDirectories(IConfiguration configuration, string contentRootPath)
+    {
+        var directories = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddDirectory(string? directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(directoryPath))
+                return;
+
+            var normalized = NormalizePathWithBase(directoryPath, contentRootPath);
+            if (seen.Add(normalized))
+                directories.Add(normalized);
+        }
+
+        // Convention-based local development directory (works with HomeCompanion.Local/Server content root).
+        //AddDirectory(Path.Combine(contentRootPath, "..", "Config")); // use appsettings for this instead --- IGNORE ---
+
+        var configuredSingleDirectory = configuration[$"{AppName}:{nameof(CoreOptions.ConfigDirectory)}"];
+        AddDirectory(configuredSingleDirectory);
+
+        var configuredDirectoryArray = configuration.GetSection($"{AppName}:{nameof(CoreOptions.ConfigDirectories)}").Get<string[]>();
+        if (configuredDirectoryArray is not null)
+        {
+            foreach (var directory in configuredDirectoryArray)
+                AddDirectory(directory);
+        }
+
+        var configuredDirectoryList = configuration[$"{AppName}:{nameof(CoreOptions.ConfigDirectories)}"];
+        if (!string.IsNullOrWhiteSpace(configuredDirectoryList))
+        {
+            foreach (var directory in configuredDirectoryList.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                AddDirectory(directory);
+        }
+
+        return directories;
+    }
+
     internal static IReadOnlyList<string> ResolveHomeCompanionJsonConfigurationPaths(
         Func<string, bool>? directoryExists = null,
         Func<string, IEnumerable<string>>? enumerateFiles = null,
         Func<string?>? xdgConfigHomeAccessor = null,
         Func<string>? appDataPathAccessor = null,
-        Func<string?>? homePathAccessor = null)
+        Func<string?>? homePathAccessor = null,
+        IReadOnlyList<string>? configuredConfigDirectories = null)
     {
         directoryExists ??= Directory.Exists;
         enumerateFiles ??= path => Directory.EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly);
@@ -175,6 +216,11 @@ public static class HostingExtensions
             Path.Combine(userConfigRoot, "homecompanion"),
             Path.Combine(homeDotConfig, "homecompanion"),
         };
+
+        if (configuredConfigDirectories is not null)
+        {
+            directories.AddRange(configuredConfigDirectories);
+        }
 
         foreach (var directoryPath in directories)
         {
@@ -235,6 +281,16 @@ public static class HostingExtensions
             return Path.GetFullPath(path);
 
         return path;
+    }
+
+    internal static string NormalizePathWithBase(string path, string basePath)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return path;
+
+        return Path.IsPathRooted(path)
+            ? NormalizePath(path)
+            : NormalizePath(Path.Combine(basePath, path));
     }
 
     private static JsonConfigurationSource BuildJsonSource(string path)

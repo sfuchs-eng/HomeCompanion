@@ -322,14 +322,34 @@ HomeCompanion reads configuration from the normal ASP.NET Core sources and addit
 - `~/.config/HomeCompanion.json` (or `$XDG_CONFIG_HOME/HomeCompanion.json`) for per-user overrides on Linux
 - all top-level `*.json` files in `/etc/homecompanion` (alphabetical order)
 - all top-level `*.json` files in `$XDG_CONFIG_HOME/homecompanion` and `~/.config/homecompanion` (alphabetical order)
+- all top-level `*.json` files in local `../Config` relative to the host content root (for `HomeCompanion.Local/Server`, this is `HomeCompanion.Local/Config`)
+- all top-level `*.json` files in directories configured via `HomeCompanion:ConfigDirectory` and `HomeCompanion:ConfigDirectories`
 
 Those files are loaded after `appsettings.json` and `appsettings.{Environment}.json`, but before environment variables. In practice this means:
 
 - repository defaults live in the local host project's `appsettings.json` (`Server/HomeCompanion.Local.Server.csproj`)
 - machine-specific settings belong in `/etc/HomeCompanion.json`
 - user-specific or development overrides belong in `~/.config/HomeCompanion.json`
+- workspace-local development defaults can go to `HomeCompanion.Local/Config/*.json`
 - modular split configuration can be placed in `/etc/homecompanion/*.json` and `~/.config/homecompanion/*.json`
 - environment variables still have the highest precedence
+
+To switch between environments/apps without changing code, set one or more extra config directories:
+
+```json
+{
+  "HomeCompanion": {
+    "ConfigDirectory": "/opt/myapp/config",
+    "ConfigDirectories": [
+      "../Config",
+      "/etc/homecompanion",
+      "/etc/myapp"
+    ]
+  }
+}
+```
+
+Relative paths in `ConfigDirectory` and `ConfigDirectories` are resolved against the host content root.
 
 When multiple files in a config directory define the same key, alphabetical ordering is used and the lexicographically later filename wins.
 

@@ -8,6 +8,20 @@ namespace HomeCompanion.Core;
 public class CoreOptions
 {
     /// <summary>
+    /// Optional single directory containing additional HomeCompanion JSON configuration files.
+    /// All top-level <c>*.json</c> files are loaded in alphabetical order.
+    /// Relative paths are resolved against the host content root.
+    /// </summary>
+    public string? ConfigDirectory { get; set; }
+
+    /// <summary>
+    /// Optional list of additional directories containing HomeCompanion JSON configuration files.
+    /// All top-level <c>*.json</c> files are loaded in alphabetical order for each directory.
+    /// Relative paths are resolved against the host content root.
+    /// </summary>
+    public List<string> ConfigDirectories { get; set; } = [];
+
+    /// <summary>
     /// Maximum time to wait for all <see cref="HomeCompanion.IConnectivityProvider"/> instances
     /// to report both <c>IsConnected</c> and <c>IsInitializationFinished</c> before logic initialization
     /// proceeds anyway.

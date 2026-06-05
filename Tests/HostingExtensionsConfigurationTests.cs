@@ -1,4 +1,5 @@
 using HomeCompanion.Core;
+using Microsoft.Extensions.Configuration;
 
 namespace HomeCompanion.Tests;
 
@@ -110,6 +111,54 @@ public class HostingExtensionsConfigurationTests
 
         Assert.That(result.Where(path => path.EndsWith("HomeCompanion.json", StringComparison.OrdinalIgnoreCase)).Count(), Is.EqualTo(3));
         Assert.That(result.Count(path => string.Equals(Path.GetDirectoryName(path), xdgDirectory, StringComparison.OrdinalIgnoreCase)), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void ResolveHomeCompanionJsonConfigurationPaths_IncludesConfiguredConfigDirectories()
+    {
+        var configuredDirectory = HostingExtensions.NormalizePath("/workspace/Config");
+        var knownDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            configuredDirectory,
+        };
+
+        var result = HostingExtensions.ResolveHomeCompanionJsonConfigurationPaths(
+            directoryExists: path => knownDirs.Contains(HostingExtensions.NormalizePath(path)),
+            enumerateFiles: path =>
+            [
+                Path.Combine(HostingExtensions.NormalizePath(path), "20-model.json"),
+                Path.Combine(HostingExtensions.NormalizePath(path), "10-values.json"),
+                Path.Combine(HostingExtensions.NormalizePath(path), "notes.txt"),
+            ],
+            xdgConfigHomeAccessor: () => "/tmp/xdg",
+            appDataPathAccessor: () => "/tmp/appdata",
+            homePathAccessor: () => "/tmp/home",
+            configuredConfigDirectories: [configuredDirectory]);
+
+        Assert.That(result, Does.Contain(HostingExtensions.NormalizePath(Path.Combine(configuredDirectory, "10-values.json"))));
+        Assert.That(result, Does.Contain(HostingExtensions.NormalizePath(Path.Combine(configuredDirectory, "20-model.json"))));
+    }
+
+    [Test]
+    public void ResolveConfiguredConfigDirectories_LoadsConventionAndConfiguredEntries_Deduplicated()
+    {
+        var configurationData = new Dictionary<string, string?>
+        {
+            ["HomeCompanion:ConfigDirectory"] = "/opt/homecompanion/config",
+            ["HomeCompanion:ConfigDirectories:0"] = "../Config",
+            ["HomeCompanion:ConfigDirectories:1"] = "/etc/homecompanion",
+        };
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configurationData)
+            .Build();
+
+        var result = HostingExtensions.ResolveConfiguredConfigDirectories(configuration, "/workspace/Server");
+
+        Assert.That(result, Does.Contain(HostingExtensions.NormalizePath("/workspace/Config")));
+        Assert.That(result, Does.Contain(HostingExtensions.NormalizePath("/opt/homecompanion/config")));
+        Assert.That(result, Does.Contain(HostingExtensions.NormalizePath("/etc/homecompanion")));
+        Assert.That(result.Count(path => string.Equals(path, HostingExtensions.NormalizePath("/workspace/Config"), StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
     }
 
     private static string CreateTempDirectory()
