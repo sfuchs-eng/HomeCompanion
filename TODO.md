@@ -1,8 +1,6 @@
 # HomeCompanion TODO
 
----
-
-Completed items are tracked in `TODO_completed.md`.
+Scratchpad, don't take this all for granted.
 
 ## Present work focus
 
@@ -17,7 +15,7 @@ Completed items are tracked in `TODO_completed.md`.
 
 ### Furthermore
 
-- [ ] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions).
+- [ ] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions). Likely takes a bus mapping specific value sanitizer approach.
 - [ ] IValuesContainer with OpenHabItems that are not mapped to any KNX group address. Add code-gen to SRF.Network.Cli as for KNX, same command `kc -hc` all in one go.
 - [ ] Have an IValuesContainer for dynamic, internal values. This allows Logics to create/manage their own values without needing to define them in the ETS export or OpenHab item list, which is more flexible and decoupled from the bus-specific configuration. This can be a simple implementation of IValuesContainer that allows adding arbitrary `IValue<T>` properties at runtime, and can be injected into Logics for their internal state management.
 - [ ] Refactor the KNX connectivity provider to support multiple KNX connections in parallel, each with its own configuration and set of group addresses. This involves changing the internal value mapping to consider the connection/bus context, and updating the configuration and initialization logic to handle multiple connections. This allows for more complex setups with multiple KNX systems or segments.

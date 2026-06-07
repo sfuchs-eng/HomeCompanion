@@ -7,6 +7,8 @@ public class CfgMotorizedWindowSpecial : CfgSpecial
     public bool HasShutter => !string.IsNullOrEmpty(ShutterPositionReference) && !string.IsNullOrEmpty(ShutterCloseCommandReference) && !string.IsNullOrEmpty(ShutterOpenCommandReference) && !string.IsNullOrEmpty(ShutterCommandAcknowledgmentReference);
     public bool HasWindow => !string.IsNullOrEmpty(WindowPositionReference) && !string.IsNullOrEmpty(WindowCloseCommandReference) && !string.IsNullOrEmpty(WindowOpenCommandReference) && !string.IsNullOrEmpty(WindowCommandAcknowledgmentReference);
 
+    public bool Enable { get; set; } = true;
+
     /// <summary>
     /// For other entities which want to control the window position, e.g. for automatic ventilation.
     /// The referenced value should be a KnxValueBool which is true when the window is closed and false when open.

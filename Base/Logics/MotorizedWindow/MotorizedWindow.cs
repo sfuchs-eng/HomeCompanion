@@ -4,14 +4,21 @@ namespace HomeCompanion.Base.Logics.MotorizedWindow;
 
 internal class MotorizedWindow
 {
-    public ThreeWireControl WindowControl { get; set; }
-    public ThreeWireControl ShutterControl { get; set; }
+    public ThreeWireControl? WindowControl { get; set; }
+    public ThreeWireControl? ShutterControl { get; set; }
 
     ILogger<MotorizedWindow> Logger { get; }
 
     public MotorizedWindow(MotorizedWindowSpecial model, ILoggerFactory loggerFactory)
     {
         Logger = loggerFactory.CreateLogger<MotorizedWindow>();
+
+        if ( !model.Config.Enable )
+        {
+            Logger.LogInformation("Motorized window logic is disabled via configuration, skipping initialization.");
+            return;
+        }
+
         WindowControl = new ThreeWireControl(
             new ThreeWireControlContext()
             {
@@ -46,6 +53,10 @@ internal class MotorizedWindow
 
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
+        if ( WindowControl == null || ShutterControl == null )
+        {
+            return;
+        }
         await WindowControl.StartAsync(cancellationToken);
         await ShutterControl.StartAsync(cancellationToken);
     }

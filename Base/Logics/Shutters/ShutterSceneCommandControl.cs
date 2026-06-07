@@ -172,7 +172,7 @@ public sealed class ShutterSceneCommandControl(
                 _logger.LogInformation("Room {RoomKey}: scene {Scene} -> resume automation.", room.RoomKey, scene);
                 return;
             }
-
+            
             if (ManualActorScenes.Contains(scene))
             {
                 await _shutterControl.ActivateManualOverrideAsync(room.RoomKey, room.ManualOverrideDuration).ConfigureAwait(false);
@@ -358,10 +358,15 @@ public sealed class ShutterSceneCommandControl(
         return (uint)rounded;
     }
 
-    private static HashSet<int> ResolveResumeAutomationScenes(CfgShadowingSpecial config)
+    private HashSet<int> ResolveResumeAutomationScenes(CfgShadowingSpecial config)
     {
         if (config.ResumeAutomationScenes.Count == 0)
+        {
+            _logger.LogWarning(
+                "No resume automation scenes configured in shadowing special. Defaulting to scenes {DefaultScenes}.",
+                string.Join(", ", DefaultResumeAutomationScenes));
             return [.. DefaultResumeAutomationScenes];
+        }
 
         var valid = config.ResumeAutomationScenes
             .Where(scene => scene >= 0)
@@ -382,9 +387,6 @@ public sealed class ShutterSceneCommandControl(
                     return scene;
             }
         }
-
-        if (resolvedScenes.Contains(52))
-            return 52;
 
         return resolvedScenes.Min();
     }
