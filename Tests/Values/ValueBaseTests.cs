@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Globalization;
 
-namespace HomeCompanion.Tests;
+namespace HomeCompanion.Tests.Values;
 
 [TestFixture]
 public class ValueBaseTests

@@ -395,7 +395,6 @@ public class ShutterScenarioIntegrationExecutionTests
 
     private sealed class ScenarioFixtureRuntime
     {
-        public required ShutterControl OverrideOwner { get; init; }
         public required ShutterSceneCommandControl Logic { get; init; }
         public required ValueBase<byte> RoomScene { get; init; }
         public required ValueBase<byte> TargetEast { get; init; }
@@ -585,32 +584,29 @@ public class ShutterScenarioIntegrationExecutionTests
             if (withSecondRoom && secondRoomTarget is not null)
                 byReference["SecondRoomTarget"] = secondRoomTarget;
 
-            var stateStore = new StubStateStore();
-            var subscriber = new StubSubscriber();
-            var publisher = new StubPublisher();
-            var modelProvider = new StubModelProvider(model);
-            var valueProvider = new StubValueReferenceProvider(byReference);
-            var overrideOwner = new ShutterControl(
-                modelProvider,
-                valueProvider,
-                stateStore,
-                TimeProvider.System,
-                NullLogger<ShutterControl>.Instance,
-                publisher,
-                subscriber);
-
             var logic = new ShutterSceneCommandControl(
-                overrideOwner,
-                modelProvider,
-                valueProvider,
+                new StubModelProvider(model),
+                new StubValueReferenceProvider(byReference),
+                new StubStateStore(),
                 TimeProvider.System,
                 NullLogger<ShutterSceneCommandControl>.Instance,
-                publisher,
+                new StubPublisher(),
+                new StubSubscriber());
+
+            var stateStore = new StubStateStore();
+            var subscriber = new StubSubscriber();
+
+            logic = new ShutterSceneCommandControl(
+                new StubModelProvider(model),
+                new StubValueReferenceProvider(byReference),
+                stateStore,
+                TimeProvider.System,
+                NullLogger<ShutterSceneCommandControl>.Instance,
+                new StubPublisher(),
                 subscriber);
 
             return new ScenarioFixtureRuntime
             {
-                OverrideOwner = overrideOwner,
                 Logic = logic,
                 RoomScene = roomScene,
                 SecondRoomScene = secondRoomScene,

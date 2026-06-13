@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Model;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 
 namespace HomeCompanion.Base.Logics.Shutters;
@@ -18,7 +19,8 @@ public static class ShutterPolicyResolver
     public static RoomObjectiveProfile ResolveRoomObjective(
         ShadowingSpecial globalShadowing,
         Room room,
-        IValueReferenceProvider? valueReferenceProvider = null)
+        IValueReferenceProvider? valueReferenceProvider = null,
+        ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(globalShadowing);
         ArgumentNullException.ThrowIfNull(room);
@@ -39,7 +41,7 @@ public static class ShutterPolicyResolver
                 if (!valueReferenceProvider.TryResolve(rule.ValueReference, out var inputValueValue) || inputValueValue is null)
                     continue;
 
-                if (!TryGetNumericValue(inputValueValue, out var inputValue))
+                if (!inputValueValue.TryGetValue<double>(out var inputValue, logger))
                     continue;
 
                 return inputValue >= rule.Threshold
@@ -54,12 +56,12 @@ public static class ShutterPolicyResolver
     /// <summary>
     /// Resolves effective thermal-control mode from runtime values, falling back to static config.
     /// </summary>
-    public static ThermalControlMode ResolveThermalControlMode(ShadowingSpecial globalShadowing)
+    public static ThermalControlMode ResolveThermalControlMode(ShadowingSpecial globalShadowing, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(globalShadowing);
 
         if (globalShadowing.ThermalControlMode is IValue thermalModeValue &&
-            TryGetNumericValue(thermalModeValue, out var rawMode))
+            thermalModeValue.TryGetValue<double>(out var rawMode, logger))
         {
             var mode = (int)Math.Round(rawMode, MidpointRounding.AwayFromZero);
 
@@ -96,22 +98,4 @@ public static class ShutterPolicyResolver
             ThermalControlMode.CoolingPriority => RoomObjectiveProfile.ThermalPriority,
             _ => RoomObjectiveProfile.BalancedDefault,
         };
-
-    private static bool TryGetNumericValue(IValue value, out double numericValue)
-    {
-        numericValue = 0;
-
-        if (value.OValue is null)
-            return false;
-
-        try
-        {
-            numericValue = Convert.ToDouble(value.OValue, CultureInfo.InvariantCulture);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

@@ -311,7 +311,6 @@ public class ShutterSceneCommandControlTests
 
     private sealed class TestFixtureRuntime
     {
-        public required ShutterControl OverrideOwner { get; init; }
         public required ShutterSceneCommandControl Logic { get; init; }
         public required ValueBase<byte> RoomScene { get; init; }
         public required ValueBase<byte> TargetPosition { get; init; }
@@ -449,21 +448,11 @@ public class ShutterSceneCommandControlTests
             var publisher = new StubPublisher();
             var subscriber = new StubSubscriber();
             var stateStore = new StubStateStore(preloadedState);
-            var modelProvider = new StubModelProvider(model);
-
-            var overrideOwner = new ShutterControl(
-                modelProvider,
-                valueProvider,
-                stateStore,
-                TimeProvider.System,
-                NullLogger<ShutterControl>.Instance,
-                publisher,
-                subscriber);
 
             var logic = new ShutterSceneCommandControl(
-                overrideOwner,
-                modelProvider,
+                new StubModelProvider(model),
                 valueProvider,
+                stateStore,
                 TimeProvider.System,
                 NullLogger<ShutterSceneCommandControl>.Instance,
                 publisher,
@@ -471,7 +460,6 @@ public class ShutterSceneCommandControlTests
 
             return new TestFixtureRuntime
             {
-                OverrideOwner = overrideOwner,
                 Logic = logic,
                 RoomScene = roomScene,
                 TargetPosition = targetPosition,

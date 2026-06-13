@@ -139,7 +139,8 @@ public class ShutterControl(
                         var objective = ShutterPolicyResolver.ResolveRoomObjective(
                             globalShadowing,
                             room,
-                            _valueReferenceProvider);
+                            _valueReferenceProvider,
+                            _logger);
                         var automationLevel = roomConfig.AutomationLevelOverride ?? globalShadowConfig.DefaultAutomationLevel;
                         var persistManualOverride = roomConfig.PersistManualOverride ?? globalShadowConfig.PersistManualOverrides;
                         var manualOverrideDuration = roomConfig.ManualOverrideDuration ?? globalShadowConfig.DefaultManualOverrideDuration;
@@ -701,8 +702,8 @@ public class ShutterControl(
         if (room.Shutters.Count == 0)
             return false;
 
-        if (!TryGetNumericValue(room.Shadowing.SunPositionAzimuth, out var sunAzimuthDeg) ||
-            !TryGetNumericValue(room.Shadowing.SunPositionElevation, out var sunElevationDeg))
+        if (!room.Shadowing.SunPositionAzimuth.TryGetValue<double>(out var sunAzimuthDeg, _logger) ||
+            !room.Shadowing.SunPositionElevation.TryGetValue<double>(out var sunElevationDeg, _logger))
         {
             return false;
         }
@@ -958,8 +959,8 @@ public class ShutterControl(
 
     private bool IsShutterSunExposureBlocked(RoomCommandRuntime room, ShutterCommandRuntime shutter)
     {
-        if (!TryGetNumericValue(room.Shadowing.SunPositionAzimuth, out var sunAzimuthDeg) ||
-            !TryGetNumericValue(room.Shadowing.SunPositionElevation, out var sunElevationDeg))
+        if ( !room.Shadowing.SunPositionAzimuth.TryGetValue<double>(out var sunAzimuthDeg, _logger) ||
+             !room.Shadowing.SunPositionElevation.TryGetValue<double>(out var sunElevationDeg, _logger) )
         {
             _logger.LogWarning(
                 "Room {RoomKey}: sun position values are missing or invalid; skipping automation command for shutter '{ShutterName}'.",
@@ -1000,8 +1001,8 @@ public class ShutterControl(
         if (rules.Count == 0)
             return baseline;
 
-        var thermalMode = ShutterPolicyResolver.ResolveThermalControlMode(room.Shadowing);
-        var hasOutdoorTemperature = TryGetNumericValue(room.Shadowing.OutdoorTemperature, out var outdoorTemperature);
+        var thermalMode = ShutterPolicyResolver.ResolveThermalControlMode(room.Shadowing, _logger);
+        var hasOutdoorTemperature = room.Shadowing.OutdoorTemperature.TryGetValue<double>(out var outdoorTemperature, _logger);
 
         foreach (var rule in rules)
         {
@@ -1122,8 +1123,15 @@ public class ShutterControl(
     private static double ClampCutoverAngle(double cutoverDeg)
         => Math.Clamp(cutoverDeg, 0.0, 90.0);
 
+    [Obsolete("Use IValue.TryGetNumericValue extension method instead.", error: true)]
     private static bool TryGetNumericValue(IValue? value, out double numeric)
     {
+        if (value is IValue<double> dblValue)
+        {
+            numeric = dblValue.Value;
+            return true;
+        }
+
         numeric = 0;
 
         if (value?.OValue is null)
@@ -1197,7 +1205,7 @@ internal sealed record ShutterCommandRuntime(
 public class ShutterManualOverrideStateSet
 {
     /// <summary>
-    /// Room-scoped overrides keyed as <c>Building/Floor/Room</c>.
+    /// Room-scoped overrides keyed as <c>Building/Floor/Room</c> as created by <see cref="ShutterControl.CreateRoomKey"/>.
     /// </summary>
     public Dictionary<string, ShutterManualOverrideEntry> RoomOverrides { get; set; } = [];
 }

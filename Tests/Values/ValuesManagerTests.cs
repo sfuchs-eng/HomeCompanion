@@ -6,7 +6,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace HomeCompanion.Tests;
+namespace HomeCompanion.Tests.Values;
 
 [TestFixture]
 public class ValuesManagerTests
