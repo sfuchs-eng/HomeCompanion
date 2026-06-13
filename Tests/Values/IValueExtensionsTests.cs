@@ -4,7 +4,7 @@ using Moq;
 namespace HomeCompanion.Tests.Values;
 
 [TestFixture]
-public class BaseIValueExtensionsTests
+public class IValueExtensionsTests
 {
     [TestCase(typeof(IValue<double>), 42.5, 42.5)]
     [TestCase(typeof(IValue<int>), 42, 42.0)]
