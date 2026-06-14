@@ -6,10 +6,12 @@ namespace HomeCompanion.Logics.Shutters;
 
 public class RoomRuntime(
     RoomKey roomKey,
+    IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
     ILogger<RoomRuntime> logger
 ) : RuntimeBase(logger)
 {
     public RoomKey RoomKey { get; } = roomKey;
+    private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
     private readonly ILogger<RoomRuntime> logger = logger;
 
     public override Task InitializeAsync(CancellationToken cancellationToken = default)

@@ -3,9 +3,9 @@ using HomeCompanion.Base.Utilities;
 
 namespace HomeCompanion.Logics.Shutters;
 
-public class BuildingKey : IEquatable<BuildingKey>, IThingKey
+public class BuildingKey : KeyBase
 {
-    public string Key => Building.Name;
+    public override string Key => Building.Name;
     public Building Building { get; }
 
     public BuildingKey(Building building)
@@ -18,11 +18,13 @@ public class BuildingKey : IEquatable<BuildingKey>, IThingKey
         return obj is BuildingKey other && Equals(other);
     }
 
-    public bool Equals(BuildingKey? other)
+    protected override bool EqualsByModelObjectReference(KeyBase? other)
     {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return this.Building.Equals(other.Building);
+        if (other is BuildingKey otherBuildingKey)
+        {
+            return this.Building.Equals(otherBuildingKey.Building);
+        }
+        return false;
     }
 
     public override int GetHashCode()
@@ -31,4 +33,15 @@ public class BuildingKey : IEquatable<BuildingKey>, IThingKey
     }
 
     public override string ToString() => Key;
+}
+
+public static class BuildingKeyExtensions
+{
+    public static IEnumerable<BuildingKey> EnumerateBuildings(this Model model)
+    {
+        foreach (var building in model.Buildings.Values)
+        {
+            yield return new BuildingKey(building);
+        }
+    }
 }

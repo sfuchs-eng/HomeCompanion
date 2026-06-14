@@ -3,24 +3,24 @@ using HomeCompanion.Base.Utilities;
 
 namespace HomeCompanion.Logics.Shutters;
 
-public class RoomKey(Building building, Floor floor, Room room) : IEquatable<RoomKey>, IThingKey
+public class RoomKey(BuildingKey buildingKey, Floor floor, Room room) : KeyBase
 {
-    public string Key => $"{nameof(Room)}:{Building.Name}/{Floor.Name}/{Room.Name}";
-
-    public Building Building { get; } = building;
+    public override string Key => $"{nameof(Room)}:{Building.Name}/{Floor.Name}/{Room.Name}";
+    public BuildingKey BuildingKey { get; } = buildingKey;
+    public Building Building => BuildingKey.Building;
     public Floor Floor { get; } = floor;
     public Room Room { get; } = room;
 
-    public override bool Equals(object? obj)
-    {
-        return obj is RoomKey other && Equals(other);
-    }
+    private ShadowingSpecial? shadowingSpecial;
+    public ShadowingSpecial ShadowingSpecial => shadowingSpecial ??= Building.TryGetShadowingSpecial(out var ss) ? ss : throw new InvalidOperationException($"Cannot get shadowing special for room {Key} because the building {Building.Name} has no shadowing special configured, which is required for the shutter controller to function properly.");
 
-    public bool Equals(RoomKey? other)
+    protected override bool EqualsByModelObjectReference(KeyBase? other)
     {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return this.Building.Equals(other.Building) && this.Floor.Equals(other.Floor) && this.Room.Equals(other.Room);
+        if (other is RoomKey otherRoomKey)
+        {
+            return this.Building.Equals(otherRoomKey.Building) && this.Floor.Equals(otherRoomKey.Floor) && this.Room.Equals(otherRoomKey.Room);
+        }
+        return false;
     }
 
     public override int GetHashCode()
@@ -29,4 +29,22 @@ public class RoomKey(Building building, Floor floor, Room room) : IEquatable<Roo
     }
 
     public override string ToString() => Key;
+}
+
+public static class RoomKeyExtensions
+{
+    public static IEnumerable<RoomKey> EnumerateRooms(this Model model)
+    {
+        foreach (var building in model.Buildings.Values)
+        {
+            var buildingKey = new BuildingKey(building);
+            foreach (var floor in building.Floors.Values)
+            {
+                foreach (var room in floor.Rooms.Values)
+                {
+                    yield return new RoomKey(buildingKey, floor, room);
+                }
+            }
+        }
+    }
 }

@@ -1,25 +1,13 @@
 using HomeCompanion.Base.Model;
-using HomeCompanion.Base.Utilities;
 
 namespace HomeCompanion.Logics.Shutters;
 
-public class ShutterKey(RoomKey roomKey, CfgShutter shutter) : IEquatable<ShutterKey>, IThingKey
+public class ShutterKey(RoomKey roomKey, Shutter shutter) : KeyBase
 {
-    public string Key => $"{RoomKey.Key}/{Shutter.PositionValueReference ?? Shutter.OpenCloseReference ?? throw new InvalidOperationException($"A shutter in room {RoomKey.Key} has no position or open/close reference configured.")}";
+    public override string Key => $"{RoomKey.Key}/{ShutterConfig.PositionValueReference ?? ShutterConfig.OpenCloseReference ?? throw new InvalidOperationException($"A shutter in room {RoomKey.Key} has no position or open/close reference configured.")}";
     public RoomKey RoomKey { get; } = roomKey;
-    public CfgShutter Shutter { get; } = shutter;
-
-    public override bool Equals(object? obj)
-    {
-        return obj is ShutterKey other && Equals(other);
-    }
-
-    public bool Equals(ShutterKey? other)
-    {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return this.RoomKey.Equals(other.RoomKey) && this.Shutter.Equals(other.Shutter);
-    }
+    public Shutter Shutter { get; } = shutter;
+    public CfgShutter ShutterConfig => Shutter.Configuration;
 
     public override int GetHashCode()
     {
@@ -27,4 +15,35 @@ public class ShutterKey(RoomKey roomKey, CfgShutter shutter) : IEquatable<Shutte
     }
 
     public override string ToString() => Key;
+
+    protected override bool EqualsByModelObjectReference(KeyBase? other)
+    {
+        if (other is ShutterKey otherShutterKey)
+        {
+            return this.RoomKey.Equals(otherShutterKey.RoomKey) && ReferenceEquals(this.Shutter, otherShutterKey.Shutter);
+        }
+        return false;
+    }
+}
+
+public static class ShutterKeyExtensions
+{
+    public static IEnumerable<ShutterKey> EnumerateShutters(this Model model)
+    {
+        foreach (var building in model.Buildings.Values)
+        {
+            var buildingKey = new BuildingKey(building);
+            foreach (var floor in building.Floors.Values)
+            {
+                foreach (var room in floor.Rooms.Values)
+                {
+                    var roomKey = new RoomKey(buildingKey, floor, room);
+                    foreach (var shutter in room.Shutters.Values)
+                    {
+                        yield return new ShutterKey(roomKey, shutter);
+                    }
+                }
+            }
+        }
+    }
 }

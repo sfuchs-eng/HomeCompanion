@@ -53,6 +53,12 @@ public class RoomShutterSceneController(
             roomRuntimes[kvp.Key] = kvp.Value;
     }
 
+    /// <summary>
+    /// TODO: move the runtime creation & provisioning into a dedicated provider/factory class, and inject the runtimes into the controller, so that the controller is not responsible for creating the runtimes and can be more easily tested in isolation.
+    /// <see cref="RoomShutterSceneController"/> and <see cref="ShutterController"/> both need to use the same runtimes, so it would be good to have a shared provider/factory for them that ensures that they use the same runtime instances, and that the runtimes are properly started and stopped when the model changes.
+    /// </summary>
+    /// <param name="model"></param>
+    /// <returns></returns>
     private Dictionary<RoomKey, RoomRuntime> CreateRoomRuntimes(Model model)
     {
         var runtimes = new Dictionary<RoomKey, RoomRuntime>();

@@ -5,10 +5,12 @@ namespace HomeCompanion.Logics.Shutters;
 
 public class BuildingRuntime(
     BuildingKey buildingKey,
+    IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
     ILogger<BuildingRuntime> logger
 ) : RuntimeBase(logger)
 {
-    private readonly BuildingKey buildingKey = buildingKey;
+    public BuildingKey BuildingKey { get; } = buildingKey;
+    private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
     private readonly ILogger<BuildingRuntime> logger = logger;
 
     public override Task InitializeAsync(CancellationToken cancellationToken = default)

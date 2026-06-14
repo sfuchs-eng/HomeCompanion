@@ -1,6 +1,6 @@
 namespace HomeCompanion.Base.Utilities;
 
-public interface IThingKey
+public interface IThingKey : IEquatable<IThingKey>
 {
     string Key { get; }
 }
