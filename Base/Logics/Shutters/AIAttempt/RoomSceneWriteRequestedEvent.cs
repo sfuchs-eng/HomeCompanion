@@ -1,4 +1,4 @@
-namespace HomeCompanion.Base.Logics.Shutters;
+namespace HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 /// <summary>
 /// Published when a logic requests writing a room scene value.

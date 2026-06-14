@@ -16,8 +16,8 @@ public class CfgShutter : CfgEntity
 
     /// <summary>
     /// Reference to the facade the shutter is part of for object linkage in the model
+    /// Each shutter must be assigned to a facade.
     /// </summary>
-    /// <value></value>
     public string? FacadeReference { get; set; }
 
     /// <summary>
@@ -39,6 +39,7 @@ public class CfgShutter : CfgEntity
 
     /// <summary>
     /// Optional reference to the value that carries the shutter position.
+    /// Must be an IValue with numeric type and percent unit, where 0% means fully open and 100% (value 100) means fully closed.
     /// </summary>
     /// <remarks>
     /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
@@ -48,6 +49,7 @@ public class CfgShutter : CfgEntity
     /// <summary>
     /// Optional reference to the value that carries the shutter lamella angle.
     /// Required for <see cref="ShutterType.VenetianBlind"/>, ignored for other shutter types.
+    /// Must be an IValue with numeric type and percent unit, where 0% means fully open/horizontal and 100% (value 100) means fully closed/vertical.
     /// </summary>
     /// <remarks>
     /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
@@ -56,7 +58,11 @@ public class CfgShutter : CfgEntity
 
     /// <summary>
     /// For Shutters of type <see cref="ShutterType.OpenClose"/>, a reference to the value that carries the open/close state.
+    /// Must be an IValue<bool> where false means open and true means closed.
     /// </summary>
+    /// <remarks>
+    /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
+    /// </remarks>
     public string? OpenCloseReference { get; set; }
 
     /// <summary>
@@ -66,10 +72,10 @@ public class CfgShutter : CfgEntity
     public int MaxClose { get; set; } = 100;
 
     /// <summary>
-    /// Default angle for shadowing in case of missing or zero angle value, e.g. for a venetian blind.
+    /// Default angle (in percent, 0 horizontal, 100 vertical) for shadowing in case of missing or zero angle value, e.g. for a venetian blind.
     /// [%]
     /// </summary>
-    public int DefaultShadowSlat { get; set; } = 45;
+    public int DefaultShadowSlat { get; set; } = (int)(45.0 / 90 * 100);
 
     /// <summary>
     /// Shutter-local sun-position zones that affect whether this shutter should be treated as naturally shadowed.
@@ -216,6 +222,11 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
     /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.AngleValueReference), RequireNumeric = true)]
     public IValue? AngleValue { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.OpenCloseReference))]
+    public IValue? OpenCloseValue { get; set; }
+
+    public Facade? Facade { get; set; }
 
     CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
 }

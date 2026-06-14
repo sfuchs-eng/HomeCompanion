@@ -40,5 +40,5 @@ public interface IModelFactory
 
     Shutter CreateShutter(ShutterCreationContext context, string name, CfgShutter config);
 
-    Special CreateSpecial(SpecialCreationContext context, string name, CfgSpecial config);
+    ISpecial CreateSpecial(SpecialCreationContext context, string name, CfgSpecial config);
 }

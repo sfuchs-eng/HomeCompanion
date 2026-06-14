@@ -52,7 +52,7 @@ public class CoreOptions
     /// <item><c>FullLogicTypeName.PropertyName</c></item>
     /// <item><c>LogicTypeName.PropertyName</c></item>
     /// </list>
-    /// Values are parsed using <see cref="IValueReferenceProvider"/> reference formats.
+    /// Values are parsed using <see cref="IValueProvider"/> reference formats.
     /// </remarks>
     public Dictionary<string, string> LogicValueBindings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

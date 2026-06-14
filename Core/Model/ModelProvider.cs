@@ -87,7 +87,8 @@ internal sealed class ModelProvider(
 
                         buildingCfg.Specials = MaterializeDictionary(
                             buildingSection.GetSection("Specials"),
-                            (kind, path) => _modelFactory.CreateSpecialConfig(kind, path));
+                            (kind, path) => _modelFactory.CreateSpecialConfig(kind, path) as CfgBuildingSpecial ?? throw new InvalidOperationException(
+                                $"Special '{path}' in building '{buildingSection.Path}' must be a '{typeof(CfgBuildingSpecial).FullName}' to be added to the building's specials collection."));
             });
 
         return cfg;

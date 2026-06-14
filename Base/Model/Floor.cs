@@ -14,7 +14,7 @@ public class CfgFloor : CfgEntity
 /// <summary>
 /// Runtime representation of a floor.
 /// </summary>
-public class Floor : ModelEntity
+public class Floor(string name, CfgFloor configuration) : ModelEntityWithConfig<CfgFloor>(name, configuration), IConfigBackedModelEntity
 {
     /// <summary>
     /// Rooms keyed by their configured name.

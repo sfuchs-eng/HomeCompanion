@@ -8,12 +8,12 @@ using System.Runtime.CompilerServices;
 namespace HomeCompanion.Core.Model;
 
 internal sealed class ModelValueBinder(
-    IValueReferenceProvider valueReferenceProvider,
+    IValueProvider valueReferenceProvider,
     ILogger<ModelValueBinder> logger)
 {
     private static readonly BindingFlags InstanceFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-    private readonly IValueReferenceProvider _valueReferenceProvider = valueReferenceProvider;
+    private readonly IValueProvider _valueReferenceProvider = valueReferenceProvider;
     private readonly ILogger<ModelValueBinder> _logger = logger;
 
     public void Bind(Base.Model.Model model)

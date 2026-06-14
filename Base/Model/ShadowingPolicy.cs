@@ -3,6 +3,7 @@ namespace HomeCompanion.Base.Model;
 /// <summary>
 /// Global shadowing automation level.
 /// </summary>
+[Obsolete("to be reconsidered")]
 public enum ShadowingAutomationLevel
 {
     /// <summary>
@@ -42,12 +43,12 @@ public enum RoomObjectiveProfile
     DaylightPriority,
 
     /// <summary>
-    /// Prefer thermal protection and cooling.
+    /// Prefer thermal protection and cooling over daylight.
     /// </summary>
     ThermalPriority,
 
     /// <summary>
-    /// Prefer preserving a minimal shadow position for UV protection.
+    /// Shadow whenever there's sunshine, regardless of thermal control mode.
     /// </summary>
     UvProtectionPriority,
 }
@@ -55,6 +56,7 @@ public enum RoomObjectiveProfile
 /// <summary>
 /// Scheduler engine used for room schedule evaluation.
 /// </summary>
+[Obsolete("to be reconsidered")]
 public enum ShadowingScheduleEngine
 {
     /// <summary>

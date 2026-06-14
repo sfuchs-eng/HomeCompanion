@@ -1,8 +1,8 @@
-using HomeCompanion.Base.Logics.Shutters;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Abstractions;
 using HomeCompanion.Events;
 using HomeCompanion.Values;
+using HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 namespace HomeCompanion.Tests.Shutters;
 
@@ -102,7 +102,7 @@ public class ShutterPolicyResolverTests
         Assert.That(allowed, Is.False);
     }
 
-    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueProvider
     {
         public IValue Resolve(string reference)
             => byReference[reference];

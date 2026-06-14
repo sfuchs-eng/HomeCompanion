@@ -68,7 +68,7 @@ public class ThreeWireControlTiming
 /// After closing the window, the shutter is brought into the position defined by <see cref="CfgMotorizedWindowSpecial.ShutterPositionReference"/>.
 /// </summary>
 public class MotorizedWindowSpecial(string name, CfgMotorizedWindowSpecial config)
-    : Special(name, config), IConfigBackedModelEntity
+    : Special<CfgMotorizedWindowSpecial>(name, config), IBuildingSpecial
 {
     public CfgMotorizedWindowSpecial Config { get; set; } = config;
 

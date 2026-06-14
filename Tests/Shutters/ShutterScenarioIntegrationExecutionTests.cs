@@ -1,4 +1,4 @@
-using HomeCompanion.Base.Logics.Shutters;
+using HomeCompanion.Base.Logics.Shutters.AIAttempt;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Events;
 using HomeCompanion.Persistence;
@@ -465,9 +465,16 @@ public class ShutterScenarioIntegrationExecutionTests
                     kv => new Shutter(kv.Key, kv.Value)),
             };
 
-            var floor = new Floor
+            var cfgFloor = new CfgFloor
             {
-                Name = "Ground",
+                Rooms =
+                {
+                    [room.Name] = roomConfig,
+                },
+
+            };
+            var floor = new Floor("Ground", cfgFloor)
+            {
                 Rooms = new Dictionary<string, Room>
                 {
                     [room.Name] = room,
@@ -543,7 +550,7 @@ public class ShutterScenarioIntegrationExecutionTests
                 };
             }
 
-            var building = new Building
+            var building = new Building("Main", new CfgBuilding())
             {
                 Name = "Main",
                 Facades = new Dictionary<string, Facade>
@@ -555,7 +562,7 @@ public class ShutterScenarioIntegrationExecutionTests
                 {
                     [floor.Name] = floor,
                 },
-                Specials = new Dictionary<string, Special>
+                Specials = new Dictionary<string, IBuildingSpecial>
                 {
                     ["Shadowing"] = new ShadowingSpecial("Shadowing", shadowCfg)
                     {
@@ -643,7 +650,7 @@ public class ShutterScenarioIntegrationExecutionTests
         public bool IsInitialized => true;
     }
 
-    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueProvider
     {
         public IValue Resolve(string reference) => byReference[reference];
 

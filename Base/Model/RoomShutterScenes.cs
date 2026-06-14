@@ -1,0 +1,170 @@
+namespace HomeCompanion.Base.Model;
+
+/// <summary>
+/// The room shutter scene numbers steer how the shutters in a room should react to different triggers and requests, e.g. manual scene recalls, automation triggers or safety conditions.
+/// They also coordinate the interaction between manual and automatic control or other systems, e.g. by defining scenes which should not be interfered with by automation or which should not be reset after a certain time.
+/// Rooms may use scene numbers beyond the defined ones within the KNX DPT 17.001 or 18.001 range. Such are to be treated as temporary manual overrides subject to configuration settings.
+/// </summary>
+/// <remarks>
+/// - Hard*: refers to scene numbers which would typically be controlled directly by a KNX scene controller. HomeCompanion shall not interfere.
+/// - Request*: refers to scene numbers which are intended as requests from the user to HomeCompanion. HomeCompanion should react to these requests by moving the shutters accordingly, but may ignore them if constraints or safety conditions apply.
+/// - Reserved*: refers to scene numbers used by another system, e.g. a KNX scene controller, for automation. HomeCompanion must not react at all to these scenes and neither reset them nor interfere with them in any way.
+/// - Auto*: refers to scene numbers used by HomeCompanion for automation. HomeCompanion should use these scenes for corresponding automation actions according configuration, constraints and other inputs.
+/// - Clean*: refers to scene numbers used by HomeCompanion for cleaning modes. HomeCompanion should use these scenes for corresponding cleaning actions according configuration, constraints and other inputs, and ignore all shadowing triggers and constraints while these scenes are active.
+/// - Deactivated: refers to a scene number which shall not cause any shutter command. HomeCompanion should treat this scene like a permanent manual override.
+/// </remarks>
+public enum RoomShutterScenes : byte
+{
+    /// <summary>
+    /// Unused scene number, can be used to reflect undefined / unavailable / unknown last scene recall/store.
+    /// </summary>
+    Undefined = 0,
+
+    /// <summary>
+    /// Fully open position, typically 0% closed.
+    /// KNX actuated, HomeCompanion should not interfere with this scene.
+    /// </summary>
+    HardOpen = 1,
+
+    /// <summary>
+    /// Scene number for a predefined shadow position, e.g. 30% closed, all shutters connected to this scene.
+    /// KNX actuated, HomeCompanion should not interfere with this scene.
+    /// </summary>
+    HardShadow = 2,
+
+    /// <summary>
+    /// Scene number for fully closed shutters.
+    /// KNX actuated, HomeCompanion should not interfere with this scene.
+    /// </summary>
+    HardClosed = 3,
+
+    /// <summary>
+    /// Person asks for open shutters in a room.
+    /// HomeCompanion should react to this request by opening the shutters, but may ignore it if constraints or safety conditions apply.
+    /// </summary>
+    RequestOpen = 21,
+
+    /// <summary>
+    /// Person asks for shadow position in a room.
+    /// HomeCompanion should react to this request by moving the shutters to the shadow position, but may ignore it if constraints or safety conditions apply.
+    /// </summary>
+    RequestShadow = 22,
+
+    /// <summary>
+    /// Person asks for closed shutters in a room.
+    /// HomeCompanion should react to this request by closing the shutters, but may ignore it if constraints or safety conditions apply.
+    /// </summary>
+    RequestClosed = 23,
+
+    /// <summary>
+    /// Automation like <see cref="AutoNoReopen"/> but controlled by another system, e.g. a KNX scene controller, rather than HomeCompanion.
+    /// HomeCompanion must not react act all to this scene and neither reset it nor interfere with it in any way.
+    /// </summary>
+    Reserved50 = 50,
+
+    /// <summary>
+    /// Automation like <see cref="AutoReopen"/> but controlled by another system, e.g. a KNX scene controller, rather than HomeCompanion.
+    /// HomeCompanion must not react act all to this scene and neither reset it nor interfere with it in any way.
+    /// </summary>
+    Reserved52 = 52,
+
+    /// <summary>
+    /// Scene number for the first automation mode in which shutters may be put to shadow position but aren't opened any more, e.g. 54 for "Auto" in the KNX DPT 17.001.
+    /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
+    /// </summary>
+    AutoNoReopen = 54,
+
+    /// <summary>
+    /// Scene number for the second automation mode in which shuttters would be reopened as soon as the shadowing trigger condition is over, e.g. 56 for "Auto reopen" in the KNX DPT 17.001.
+    /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
+    /// </summary>
+    AutoReopen = 55,
+
+    /// <summary>
+    /// Like <see cref="AutoReopen"/> but with maximum light conditions, tolerating higher sun exposure and room temperature prior shadowing.
+    /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
+    /// </summary>
+    AutoMaxLight = 56,
+
+    /// <summary>
+    /// Scene number for cleaning mode.
+    /// For venetian blinds this would move the slats to a position allowing easy cleaning, e.g. 100% closed with 100% tilt angle reflecting a horizontal position.
+    /// Special in this mode:
+    /// - shutters actuated only once, afterwards the user may set position and angle directly (e.g. via manual control or direct write to position/angle group addresses) without interference by HomeCompanion
+    /// - valid for an entire day, i.e. HomeCompanion should not move the shutters out of this position once set, even if there is strong sun irradiation or high outdoor temperature.
+    /// - ignore all shadowing triggers and constraints, i.e. allow the user to clean the shutters even if there is strong sun irradiation or high outdoor temperature.
+    /// - position constraints are ignored in this mode, i.e. the shutter may be moved to this position even if it would normally be constrained by position constraints.
+    /// </summary>
+    CleanShutter = 60,
+
+    /// <summary>
+    /// Scene number for drying the shutters after washing them.
+    /// Move to fully closed and an almost vertical but not fully closed tilt angle, e.g. 100% closed with 80% tilt angle for venetian blinds to maximize dripping and airflow for drying.
+    /// Special in this mode:
+    /// - shutters actuated only once, afterwards the user may set position and angle directly (e.g. via manual control or direct write to position/angle group addresses) without interference by HomeCompanion
+    /// - valid for an entire day, i.e. HomeCompanion should not move the shutters out of this position once set, even if there is strong sun irradiation or high outdoor temperature.
+    /// - ignore all shadowing triggers and constraints, i.e. allow the shutters to dry even if there is strong sun irradiation or high outdoor temperature.
+    /// - position constraints are ignored in this mode, i.e. the shutter may be moved to this position even if it would normally be constrained by position constraints.
+    /// </summary>
+    DryShutter = 61,
+
+    /// <summary>
+    /// Scene number for cleaning the window behind the shutter.
+    /// Move to fully open position, e.g. 0% closed for roller blinds or 0% closed with 0% tilt angle for venetian blinds to allow easy access to the window for cleaning.
+    /// Special in this mode:
+    /// - shutters actuated only once, afterwards the user may set position and angle directly (e.g. via manual control or direct write to position/angle group addresses) without interference by HomeCompanion
+    /// - valid for an entire day, i.e. HomeCompanion should not move the shutters out of this position once set, even if there is strong sun irradiation or high outdoor temperature.
+    /// - ignore all shadowing triggers and constraints, i.e. allow the user to clean the window even if there is strong sun irradiation or high outdoor temperature.
+    /// - position constraints are ignored in this mode, i.e. the shutter may be moved to this position even if it would normally be constrained by position constraints.
+    /// </summary>
+    CleanWindow = 62,
+
+    /// <summary>
+    /// Scene number that shall not cause any shutter command. It's a valid scene though.
+    /// HomeCompanion should treat this scene like a temporary manual override, resetting it back to automation after a configurable period if such is configured, or ignoring it until the next manual open if not.
+    /// </summary>
+    Deactivated = 63,
+}
+
+public static class RoomShutterSceneExtensions
+{
+    public static bool IsAutomationScene(this RoomShutterScenes scene)
+    {
+        return scene == RoomShutterScenes.AutoNoReopen || scene == RoomShutterScenes.AutoReopen || scene == RoomShutterScenes.AutoMaxLight;
+    }
+
+    public static bool IsRequestScene(this RoomShutterScenes scene)
+    {
+        return scene == RoomShutterScenes.RequestOpen || scene == RoomShutterScenes.RequestShadow || scene == RoomShutterScenes.RequestClosed;
+    }
+
+    public static bool IsHardScene(this RoomShutterScenes scene)
+    {
+        return scene == RoomShutterScenes.HardOpen || scene == RoomShutterScenes.HardShadow || scene == RoomShutterScenes.HardClosed;
+    }
+
+    public static bool IsCleaningScene(this RoomShutterScenes scene)
+    {
+        return scene == RoomShutterScenes.CleanShutter || scene == RoomShutterScenes.DryShutter || scene == RoomShutterScenes.CleanWindow;
+    }
+
+    public static bool IsDeactivated(this RoomShutterScenes scene)
+    {
+        return scene == RoomShutterScenes.Deactivated;
+    }
+
+    public static bool IsValid(this RoomShutterScenes scene)
+    {
+        return scene >= RoomShutterScenes.Undefined;
+    }
+
+    public static bool IsDoNotInterfere(this RoomShutterScenes scene)
+    {
+        return scene.IsHardScene() || scene == RoomShutterScenes.Reserved50 || scene == RoomShutterScenes.Reserved52;
+    }
+
+    public static bool IsDoNotReset(this RoomShutterScenes scene)
+    {
+        return scene.IsDoNotInterfere() || scene.IsCleaningScene();
+    }
+}

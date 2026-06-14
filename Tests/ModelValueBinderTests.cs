@@ -133,18 +133,30 @@ public class ModelValueBinderTests
             },
         };
 
-        var floor = new Floor
+        var cfgFloor = new CfgFloor
         {
-            Name = "Ground",
+            Rooms = new Dictionary<string, CfgRoom>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Living"] = new CfgRoom(),
+            },
+        };
+        var floor = new Floor("Ground", cfgFloor)
+        {
             Rooms = new Dictionary<string, Room>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Living"] = room,
             },
         };
 
-        var building = new Building
+        var cfgBuilding = new CfgBuilding
         {
-            Name = "Main",
+            Floors = new Dictionary<string, CfgFloor>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Ground"] = cfgFloor,
+            },
+        };
+        var building = new Building("Main", cfgBuilding)
+        {
             Floors = new Dictionary<string, Floor>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Ground"] = floor,
@@ -163,10 +175,10 @@ public class ModelValueBinderTests
     private static Model BuildModelWithSpecial(CfgSpecialWithConvention cfg, out SpecialWithConvention special)
     {
         special = new SpecialWithConvention("Special", cfg);
-        var building = new Building
+        var cfgBuilding = new CfgBuilding();
+        var building = new Building("Main", cfgBuilding)
         {
-            Name = "Main",
-            Specials = new Dictionary<string, Special>(StringComparer.OrdinalIgnoreCase)
+            Specials = new Dictionary<string, IBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Special"] = special,
             },
@@ -184,10 +196,10 @@ public class ModelValueBinderTests
     private static Model BuildModelWithShadowingSpecial(CfgShadowingSpecial cfg, out ShadowingSpecial special)
     {
         special = new ShadowingSpecial("Shadowing", cfg);
-        var building = new Building
+        var cfgBuilding = new CfgBuilding();
+        var building = new Building("Main", cfgBuilding)
         {
-            Name = "Main",
-            Specials = new Dictionary<string, Special>(StringComparer.OrdinalIgnoreCase)
+            Specials = new Dictionary<string, IBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Shadowing"] = special,
             },
@@ -202,7 +214,7 @@ public class ModelValueBinderTests
         };
     }
 
-    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueProvider
     {
         private readonly Dictionary<string, IValue> _byReference = byReference;
 
@@ -240,7 +252,7 @@ public class ModelValueBinderTests
         public string? AlternateProbeReference { get; set; }
     }
 
-    private sealed class SpecialWithConvention : Special
+    private sealed class SpecialWithConvention : Special<CfgSpecialWithConvention>, IBuildingSpecial
     {
         public SpecialWithConvention(string name, CfgSpecialWithConvention config)
             : base(name, config)

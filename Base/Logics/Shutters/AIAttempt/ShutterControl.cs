@@ -1,11 +1,10 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Persistence;
-using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 
-namespace HomeCompanion.Base.Logics.Shutters;
+namespace HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 /// <summary>
 /// Coordinates shadowing policy evaluation and shutter control decisions.
@@ -18,7 +17,7 @@ namespace HomeCompanion.Base.Logics.Shutters;
 /// </remarks>
 public class ShutterControl(
     IModelProvider modelProvider,
-    IValueReferenceProvider valueReferenceProvider,
+    IValueProvider valueReferenceProvider,
     IStateStore stateStore,
     TimeProvider timeProvider,
     ILogger<ShutterControl> logger,
@@ -29,7 +28,7 @@ public class ShutterControl(
     private const string StateSetName = "ShutterControlManualOverrides";
 
     private readonly IModelProvider _modelProvider = modelProvider;
-    private readonly IValueReferenceProvider _valueReferenceProvider = valueReferenceProvider;
+    private readonly IValueProvider _valueReferenceProvider = valueReferenceProvider;
     private readonly IStateStore _stateStore = stateStore;
     private readonly TimeProvider _timeProvider = timeProvider;
     private readonly ILogger<ShutterControl> _logger = logger;

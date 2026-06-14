@@ -41,7 +41,7 @@ public static class HostingExtensions
         builder.Services.AddEventBus();
         builder.Services.TryAddSingleton<ValuesManager>();
         builder.Services.TryAddSingleton<IValuesManager>(sp => sp.GetRequiredService<ValuesManager>());
-        builder.Services.TryAddSingleton<IValueReferenceProvider, ValueReferenceProvider>();
+        builder.Services.TryAddSingleton<IValueProvider, ValueReferenceProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
         builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();

@@ -21,19 +21,8 @@ public class CfgFacade : CfgEntity
 /// <summary>
 /// Runtime representation of a facade.
 /// </summary>
-public class Facade : ModelEntity, IConfigBackedModelEntity
+public class Facade(string name, CfgFacade configuration) : ModelEntityWithConfig<CfgFacade>(name, configuration), IConfigBackedModelEntity
 {
-    public Facade(string name, CfgFacade configuration)
-    {
-        Name = name;
-        Configuration = configuration;
-    }
-
-    /// <summary>
-    /// Source configuration used to create this runtime model instance.
-    /// </summary>
-    public CfgFacade Configuration { get; }
-
     /// <summary>
     /// Facade orientation in radians.
     /// </summary>

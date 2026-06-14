@@ -2,7 +2,7 @@ using HomeCompanion.Base.Model;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 
-namespace HomeCompanion.Base.Logics.Shutters;
+namespace HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 /// <summary>
 /// Stateless policy helper for room objective resolution and UV/manual precedence decisions.
@@ -19,7 +19,7 @@ public static class ShutterPolicyResolver
     public static RoomObjectiveProfile ResolveRoomObjective(
         ShadowingSpecial globalShadowing,
         Room room,
-        IValueReferenceProvider? valueReferenceProvider = null,
+        IValueProvider? valueReferenceProvider = null,
         ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(globalShadowing);

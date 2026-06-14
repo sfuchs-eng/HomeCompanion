@@ -10,7 +10,7 @@ namespace HomeCompanion.Values;
 internal sealed class ValueReferenceProvider(
     IEnumerable<IValuesContainer> containers,
     ILogger<ValueReferenceProvider> logger)
-    : IValueReferenceProvider
+    : IValueProvider
 {
     private readonly IEnumerable<IValuesContainer> _containers = containers;
     private readonly ILogger<ValueReferenceProvider> _logger = logger;

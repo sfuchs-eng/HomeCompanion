@@ -7,11 +7,11 @@ using System.Reflection;
 namespace HomeCompanion.Core.Logics;
 
 internal sealed class LogicValueBinder(
-    IValueReferenceProvider valueReferenceProvider,
+    IValueProvider valueReferenceProvider,
     IOptions<CoreOptions> options,
     ILogger<LogicValueBinder> logger)
 {
-    private readonly IValueReferenceProvider _valueReferenceProvider = valueReferenceProvider;
+    private readonly IValueProvider _valueReferenceProvider = valueReferenceProvider;
     private readonly CoreOptions _options = options.Value;
     private readonly ILogger<LogicValueBinder> _logger = logger;
 

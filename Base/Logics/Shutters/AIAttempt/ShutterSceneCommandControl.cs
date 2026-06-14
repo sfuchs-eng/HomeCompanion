@@ -6,7 +6,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 
-namespace HomeCompanion.Base.Logics.Shutters;
+namespace HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 /// <summary>
 /// Executes room-scoped shutter scene commands and manages manual-override state based on room scene writes.
@@ -23,7 +23,7 @@ namespace HomeCompanion.Base.Logics.Shutters;
 /// </remarks>
 public sealed class ShutterSceneCommandControl(
     IModelProvider modelProvider,
-    IValueReferenceProvider valueReferenceProvider,
+    IValueProvider valueReferenceProvider,
     IStateStore stateStore,
     TimeProvider timeProvider,
     ILogger<ShutterSceneCommandControl> logger,
@@ -36,7 +36,7 @@ public sealed class ShutterSceneCommandControl(
     private static readonly HashSet<int> DefaultResumeAutomationScenes = [50, 51, 52];
 
     private readonly IModelProvider _modelProvider = modelProvider;
-    private readonly IValueReferenceProvider _valueReferenceProvider = valueReferenceProvider;
+    private readonly IValueProvider _valueReferenceProvider = valueReferenceProvider;
     private readonly IStateStore _stateStore = stateStore;
     private readonly TimeProvider _timeProvider = timeProvider;
     private readonly ILogger<ShutterSceneCommandControl> _logger = logger;
@@ -142,7 +142,7 @@ public sealed class ShutterSceneCommandControl(
         return base.DisableAsync(cancellationToken);
     }
 
-    private void MaterializeRuntime(HomeCompanion.Base.Model.Model model)
+    private void MaterializeRuntime(Model.Model model)
     {
         var nextRoomByScene = new Dictionary<IValue, RoomRuntime>();
         var nextRoomByKey = new Dictionary<string, RoomRuntime>(StringComparer.OrdinalIgnoreCase);

@@ -1,4 +1,4 @@
-using HomeCompanion.Base.Logics.Shutters;
+using HomeCompanion.Base.Logics.Shutters.AIAttempt;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Events;
 using HomeCompanion.Persistence;
@@ -372,9 +372,15 @@ public class ShutterSceneCommandControlTests
                 },
             };
 
-            var floor = new Floor
+            var cfgFloor = new CfgFloor
             {
-                Name = "Ground",
+                Rooms =
+                {
+                    [room.Name] = roomConfig,
+                },
+            };
+            var floor = new Floor("Ground", cfgFloor)
+            {
                 Rooms = new Dictionary<string, Room>
                 {
                     [room.Name] = room,
@@ -402,9 +408,15 @@ public class ShutterSceneCommandControlTests
                 },
             };
 
-            var building = new Building
+            var cfgBuilding = new CfgBuilding
             {
-                Name = "Main",
+                Floors = new Dictionary<string, CfgFloor>
+                {
+                    [floor.Name] = cfgFloor,
+                },
+            };
+            var building = new Building("Main", cfgBuilding)
+            {
                 Facades = new Dictionary<string, Facade>
                 {
                     ["SE"] = new("SE", new CfgFacade { Azimuth = 129, Elevation = 0 }),
@@ -414,7 +426,7 @@ public class ShutterSceneCommandControlTests
                 {
                     [floor.Name] = floor,
                 },
-                Specials = new Dictionary<string, Special>
+                Specials = new Dictionary<string, IBuildingSpecial>
                 {
                     ["Shadowing"] = new ShadowingSpecial("Shadowing", shadowCfg)
                     {
@@ -496,7 +508,7 @@ public class ShutterSceneCommandControlTests
         public bool IsInitialized => true;
     }
 
-    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueReferenceProvider
+    private sealed class StubValueReferenceProvider(Dictionary<string, IValue> byReference) : IValueProvider
     {
         public void Add(string reference, IValue value) => byReference[reference] = value;
 

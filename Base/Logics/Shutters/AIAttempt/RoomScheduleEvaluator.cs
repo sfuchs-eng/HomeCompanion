@@ -4,14 +4,14 @@ using Quartz;
 using CronosExpression = Cronos.CronExpression;
 using QuartzExpression = Quartz.CronExpression;
 
-namespace HomeCompanion.Base.Logics.Shutters;
+namespace HomeCompanion.Base.Logics.Shutters.AIAttempt;
 
 /// <summary>
 /// Evaluates room schedule transitions and returns due schedule events.
 /// </summary>
 public interface IRoomScheduleEvaluator
 {
-    IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(HomeCompanion.Base.Model.Model model, DateTimeOffset now);
+    IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(Model.Model model, DateTimeOffset now);
 }
 
 /// <summary>
@@ -28,7 +28,7 @@ public sealed class InProcessCronRoomScheduleEvaluator(TimeZoneInfo? timeZone = 
     private DateTime _lastEvaluationUtc;
     private bool _isPrimed;
 
-    public IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(HomeCompanion.Base.Model.Model model, DateTimeOffset now)
+    public IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(Model.Model model, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(model);
 
@@ -121,7 +121,7 @@ public sealed class QuartzRoomScheduleEvaluator(TimeZoneInfo? timeZone = null) :
     private DateTimeOffset _lastEvaluation;
     private bool _isPrimed;
 
-    public IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(HomeCompanion.Base.Model.Model model, DateTimeOffset now)
+    public IReadOnlyList<RoomScheduleDueTransition> EvaluateDueTransitions(Model.Model model, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(model);
 

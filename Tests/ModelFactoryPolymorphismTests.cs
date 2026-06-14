@@ -67,8 +67,10 @@ public class ModelFactoryPolymorphismTests
     public void CreateRoom_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
         var model = new Model();
-        var building = new Building { Name = "Main" };
-        var floor = new Floor { Name = "Ground" };
+        var cfgBuilding = new CfgCustomBuilding();
+        var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
+        var cfgFloor = new CfgCustomFloor();
+        var floor = Sut.CreateFloor(new FloorCreationContext(model, building), "Ground", cfgFloor);
 
         var room = Sut.CreateRoom(
             new RoomCreationContext(model, building, floor),
@@ -82,7 +84,8 @@ public class ModelFactoryPolymorphismTests
     public void CreateFacade_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
         var model = new Model();
-        var building = new Building { Name = "Main" };
+        var cfgBuilding = new CfgCustomBuilding();
+        var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
 
         var facade = Sut.CreateFacade(
             new FacadeCreationContext(model, building),
@@ -96,28 +99,54 @@ public class ModelFactoryPolymorphismTests
     public void CreateShutter_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
         var model = new Model();
-        var building = new Building { Name = "Main" };
-        var floor = new Floor { Name = "Ground" };
-        var room = new Room("Living", new CfgRoom());
+        var cfgBuilding = new CfgCustomBuilding()
+        {
+            Facades = new Dictionary<string, CfgFacade>
+            {
+                ["SW"] = new CfgCustomFacade(),
 
-        var shutter = Sut.CreateShutter(
-            new ShutterCreationContext(model, building, floor, room),
-            "West",
-            new CfgCustomShutter());
+            },
+            Floors = new Dictionary<string, CfgFloor>
+            {
+                ["Ground"] = new CfgCustomFloor()
+                {
+                    Rooms = new Dictionary<string, CfgRoom>
+                    {
+                        ["Living"] = new CfgCustomRoom()
+                        {
+                            Shutters = new Dictionary<string, CfgShutter>
+                            {
+                                ["SWShutter1"] = new CfgCustomShutter() { FacadeReference = "SW" },
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        Assert.That(cfgBuilding.Floors["Ground"].Rooms["Living"].Shutters["SWShutter1"], Is.TypeOf<CfgCustomShutter>());
+        var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
+        var floor = building.Floors["Ground"];
+        var room = floor.Rooms["Living"];
+        var shutter = room.Shutters["SWShutter1"];
+        var facade = building.Facades["SW"];
 
-        Assert.That(shutter, Is.TypeOf<CustomShutter>());
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(facade.Name, Is.EqualTo("SW"));
+            Assert.That(shutter.Configuration.FacadeReference, Is.EqualTo("SW"));
+            Assert.That(shutter, Is.TypeOf<CustomShutter>());
+        }
+
     }
 
     [Test]
     public void CreateSpecial_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
-        var model = new Model();
-        var building = new Building { Name = "Main" };
+        var cfgBuilding = new CfgCustomBuilding() { Specials = new Dictionary<string, CfgBuildingSpecial> { ["Demo"] = new CfgCustomSpecial() } };
+        var model = Sut.CreateModel(new CfgModel { Buildings = new Dictionary<string, CfgBuilding> { ["Main"] = cfgBuilding } });
+        var building = model.Buildings["Main"];
 
-        var special = Sut.CreateSpecial(
-            new SpecialCreationContext(model, building),
-            "Demo",
-            new CfgCustomSpecial());
+        var special = building.Specials["Demo"];
 
         Assert.That(special, Is.TypeOf<CustomSpecial>());
     }
@@ -125,13 +154,11 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateSpecial_WithShadowingSpecialConfig_ResolvesShadowingSpecialRuntimeType()
     {
-        var model = new Model();
-        var building = new Building { Name = "Main" };
+        var cfgBuilding = new CfgCustomBuilding() { Specials = new Dictionary<string, CfgBuildingSpecial> { ["Shadowing"] = new CfgShadowingSpecial() } };
+        var model = Sut.CreateModel(new CfgModel { Buildings = new Dictionary<string, CfgBuilding> { ["Main"] = cfgBuilding } });
+        var building = model.Buildings["Main"];
 
-        var special = Sut.CreateSpecial(
-            new SpecialCreationContext(model, building),
-            "Shadowing",
-            new CfgShadowingSpecial());
+        var special = building.Specials["Shadowing"];
 
         Assert.That(special, Is.TypeOf<ShadowingSpecial>());
     }
@@ -158,8 +185,10 @@ public class ModelFactoryPolymorphismTests
     public void CreateRoom_WhenDerivedRuntimeConstructorDoesNotMatch_Throws()
     {
         var model = new Model();
-        var building = new Building { Name = "Main" };
-        var floor = new Floor { Name = "Ground" };
+        var cfgBuilding = new CfgCustomBuilding();
+        var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
+        var cfgFloor = new CfgCustomFloor();
+        var floor = Sut.CreateFloor(new FloorCreationContext(model, building), "Ground", cfgFloor);
 
         Assert.That(
             () => Sut.CreateRoom(new RoomCreationContext(model, building, floor), "Living", new CfgBadCtorRoom()),
@@ -170,8 +199,10 @@ public class ModelFactoryPolymorphismTests
     public void CreateRoom_WhenRuntimeTypeMissing_Throws()
     {
         var model = new Model();
-        var building = new Building { Name = "Main" };
-        var floor = new Floor { Name = "Ground" };
+        var cfgBuilding = new CfgCustomBuilding();
+        var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
+        var cfgFloor = new CfgCustomFloor();
+        var floor = Sut.CreateFloor(new FloorCreationContext(model, building), "Ground", cfgFloor);
 
         Assert.That(
             () => Sut.CreateRoom(new RoomCreationContext(model, building, floor), "Living", new CfgMissingRuntimeRoom()),
@@ -192,8 +223,8 @@ public class ModelFactoryPolymorphismTests
     private sealed class CfgCustomShutter : CfgShutter;
     private sealed class CustomShutter(string name, CfgCustomShutter config) : Shutter(name, config);
 
-    private sealed class CfgCustomSpecial : CfgSpecial;
-    private sealed class CustomSpecial(string name, CfgCustomSpecial config) : Special(name, config);
+    private sealed class CfgCustomSpecial : CfgBuildingSpecial;
+    private sealed class CustomSpecial(string name, CfgCustomSpecial config) : Special<CfgCustomSpecial>(name, config), IBuildingSpecial;
 
     private sealed class CfgNoDefaultConstructorRoom : CfgRoom
     {

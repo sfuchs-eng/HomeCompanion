@@ -7,7 +7,7 @@ namespace HomeCompanion.Values;
 /// Implementations should support startup-centric lookups with optional caching and a refresh path
 /// for dynamic containers that add values at runtime.
 /// </remarks>
-public interface IValueReferenceProvider
+public interface IValueProvider
 {
     /// <summary>
     /// Resolves the specified value reference and throws when it cannot be resolved uniquely.

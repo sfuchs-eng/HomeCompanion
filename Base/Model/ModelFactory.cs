@@ -47,10 +47,7 @@ public class ModelFactory : IModelFactory
 
     public virtual Building CreateBuilding(BuildingCreationContext context, string name, CfgBuilding config)
     {
-        var building = new Building
-        {
-            Name = name,
-        };
+        var building = new Building(name, config);
 
         building.Facades = config.Facades.ToDictionary(
             kv => kv.Key,
@@ -62,7 +59,10 @@ public class ModelFactory : IModelFactory
 
         building.Specials = config.Specials.ToDictionary(
             kv => kv.Key,
-            kv => CreateSpecial(new SpecialCreationContext(context.Model, building), kv.Key, kv.Value));
+            kv => CreateSpecial(new SpecialCreationContext(context.Model, building), kv.Key, kv.Value) as IBuildingSpecial ?? throw new InvalidOperationException(
+                $"Special '{kv.Key}' in building '{name}' must implement '{typeof(IBuildingSpecial).FullName}' to be added to the building's specials collection."));
+
+        BindFacades(building);
 
         return building;
     }
@@ -73,12 +73,53 @@ public class ModelFactory : IModelFactory
         return CreateEntityFromConfig(name, config, () => new Facade(name, config), typeof(Facade));
     }
 
+    /// <summary>
+    /// Link <see cref="Shutter.Facade"/> to their respective facades.
+    /// Normally this would be done in the shutter creation, but since the facade reference is only a string in the config, we need to defer it until all facades are created. This also allows for more flexible configuration ordering.
+    /// </summary>
+    /// <param name="model"></param>
+    public virtual void BindFacades(Model model)
+    {
+        foreach (var building in model.Buildings.Values)
+        {
+            BindFacades(building);
+        }
+    }
+
+    /// <summary>
+    /// Link <see cref="Shutter.Facade"/> to their respective facades for a specific building.
+    /// </summary>
+    /// <param name="building"></param>
+    public virtual void BindFacades(Building building)
+    {
+        foreach (var floor in building.Floors.Values)
+        {
+            foreach (var room in floor.Rooms.Values)
+            {
+                foreach (var shutter in room.Shutters.Values)
+                {
+                    // Lookup facade reference from shutter config and link to facade instance. This is required for the shutter to determine its orientation and for scene controls to find other shutters on the same facade.
+                    if (string.IsNullOrWhiteSpace(shutter.Configuration.FacadeReference))
+                    {
+                        throw new InvalidOperationException(
+                            $"Shutter '{shutter.Name}' in room '{room.Name}' on floor '{floor.Name}' in building '{building.Name}' has no facade reference configured.");
+                    }
+
+                    if (!building.Facades.TryGetValue(shutter.Configuration.FacadeReference, out var facade))
+                    {
+                        throw new InvalidOperationException(
+                            $"Shutter '{shutter.Name}' in room '{room.Name}' on floor '{floor.Name}' in building '{building.Name}' references unknown facade '{shutter.Configuration.FacadeReference}'.");
+                    }
+
+                    shutter.Facade = facade;
+                }
+            }
+        }
+    }
+
     public virtual Floor CreateFloor(FloorCreationContext context, string name, CfgFloor config)
     {
-        var floor = new Floor
-        {
-            Name = name,
-        };
+        var floor = new Floor(name, config);
 
         floor.Rooms = config.Rooms.ToDictionary(
             kv => kv.Key,
@@ -104,10 +145,37 @@ public class ModelFactory : IModelFactory
         return CreateEntityFromConfig(name, config, () => new Shutter(name, config), typeof(Shutter));
     }
 
-    public virtual Special CreateSpecial(SpecialCreationContext context, string name, CfgSpecial config)
+    public virtual ISpecial CreateSpecial(SpecialCreationContext context, string name, CfgSpecial config)
     {
-        _ = context;
-        return CreateEntityFromConfig(name, config, () => new Special(name, config), typeof(Special));
+        // Use the type indication from the config to determine the runtime type to instantiate.
+        // Check whether the type is derived from ISpecial and has a constructor (string name, CfgSpecial config).
+        if ( string.IsNullOrWhiteSpace(config.Kind) )
+        {
+            throw new ArgumentException(
+                $"Special '{name}' in building '{context.Building?.Name}' has no kind specified. " +
+                $"The 'Kind' property is required to determine the runtime type to instantiate for this special.");
+        }
+
+        var specialType = FindDerivedTypeByKind(typeof(ISpecial), config.Kind, configPrefix: "Cfg")
+                ?? throw new InvalidOperationException(
+                    $"Unsupported kind '{config.Kind}' at configuration path '{name}'. " +
+                    $"Expected a loaded type derived from '{typeof(ISpecial).Name}' with a matching name.");
+
+        if (specialType.GetConstructor([typeof(string), config.GetType()]) is null)
+        {
+            throw new InvalidOperationException(
+                $"Type '{specialType.FullName}' for kind '{config.Kind}' at configuration path '{name}' must provide a public constructor '(string name, {config.GetType().Name} config)'.");
+        }
+
+        var inst = Activator.CreateInstance(specialType, [name, config]);
+
+        if (inst is not ISpecial special)
+        {
+            throw new InvalidOperationException(
+                $"Type '{specialType.FullName}' for kind '{config.Kind}' at configuration path '{name}' must implement '{typeof(ISpecial).FullName}'.");
+        }
+
+        return special;
     }
 
     protected virtual TConfig CreateConfigByKind<TConfig>(
@@ -117,16 +185,12 @@ public class ModelFactory : IModelFactory
         Type defaultConfigType)
         where TConfig : CfgEntity
     {
-        if (string.IsNullOrWhiteSpace(kind) || kind.Equals(CfgEntity.KindDefault, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(kind))
             return defaultFactory();
 
-        var configType = FindDerivedTypeByKind(defaultConfigType, kind, configPrefix: "Cfg");
-        if (configType is null)
-        {
-            throw new InvalidOperationException(
+        var configType = FindDerivedTypeByKind(defaultConfigType, kind, configPrefix: "Cfg") ?? throw new InvalidOperationException(
                 $"Unsupported kind '{kind}' at configuration path '{configurationPath}'. " +
                 $"Expected a loaded type derived from '{defaultConfigType.Name}' with a matching name.");
-        }
 
         if (configType.GetConstructor(Type.EmptyTypes) is null)
         {
