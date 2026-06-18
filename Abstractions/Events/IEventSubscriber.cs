@@ -4,7 +4,7 @@ namespace HomeCompanion.Events;
 /// Registers <see cref="IEventHandler{T}"/> instances with the event bus.
 /// </summary>
 /// <remarks>
-/// Separated from <see cref="IEventPublisher"/> (Interface Segregation): logics subscribe, bus infrastructure publishes.
+/// Separated from <see cref="IEventPublisher"/> (Interface Segregation): logics subscribe, bus infrastructure publishes. Logics and other components may also publish events.
 /// Handlers registered for a base event type also receive all derived event types.
 /// </remarks>
 public interface IEventSubscriber

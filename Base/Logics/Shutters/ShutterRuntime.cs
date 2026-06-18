@@ -89,6 +89,29 @@ public class ShutterRuntime(
             logger.LogWarning("Failed to write target {ShutterTarget} to shutter {ShutterKey} of type {ShutterType}.", shutterTarget, ShutterKey, shutter.Configuration.Type);
         }
     }
+
+    internal static Dictionary<ShutterKey, ShutterRuntime> Create(RuntimeCreationContext<ShutterKey, ShutterRuntime> runtimeCreationContext)
+    {
+        var model = runtimeCreationContext.Model;
+        var existingRuntimes = runtimeCreationContext.ExistingRuntimes;
+        var queueFeeder = runtimeCreationContext.ComputationTriggerQueueFeeder;
+        var loggerFactory = runtimeCreationContext.LoggerFactory;
+
+        var newRuntimes = new Dictionary<ShutterKey, ShutterRuntime>();
+
+        foreach (var shutterKey in model.EnumerateShutters())
+        {
+            if (existingRuntimes != null && existingRuntimes.ContainsKey(shutterKey))
+            {
+                continue;
+            }
+
+            var runtime = new ShutterRuntime(shutterKey, queueFeeder, loggerFactory.CreateLogger<ShutterRuntime>());
+            newRuntimes[shutterKey] = runtime;
+        }
+
+        return newRuntimes;
+    }
 }
 
 public class ShutterExternalOverrideEventArgs(ShutterKey shutterKey, ValueWrittenEventArgs valueWrittenEventArgs) : EventArgs

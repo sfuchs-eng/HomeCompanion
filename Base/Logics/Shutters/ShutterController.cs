@@ -29,7 +29,7 @@ public partial class ShutterController : LogicBase
     private readonly Dictionary<RoomKey, RoomRuntime> roomRuntimes = [];
 
     /// <summary>
-    /// <see cref="IValue"/> or event bus received triggers are first enqueued into the <b>shutter automation trigger collector</b>.
+    /// <see cref="RuntimesController"/> sends triggers to the event bus from which we received them and enqueue them into the <b>shutter automation trigger collector</b>.
     /// The collector assesses each trigger for its urgency and the time it has been waiting since it was triggered, and decides whether to immediately enqueue it for processing in the <b>state computation loop</b> or to defer it for a short time to allow for more triggers to arrive and be processed together, e.g. to avoid excessive shutter movements in case of rapidly changing input conditions; the collector also batches triggers that are due for processing together into one trigger with a collection of all individual triggers, which is then enqueued into the <b>state computation loop</b>.
     /// </summary>
     private readonly BackgroundRunner<ShutterAutomationComputationTriggerContext> shutterAutomationTriggerCollector;
@@ -69,13 +69,6 @@ public partial class ShutterController : LogicBase
 
     protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
     {
-        var model = modelProvider.GetModel();
-        CheckConfiguration(model);
-
-        // hook up to value changed / written events
-        // must be done while queue runners are not active yet as for a while there will be a partial setup which wouldn't survive multi-threading.
-        await MaterializeRuntime(model);
-
         // starting the background runners is done at the end of initialization to ensure that the full setup is in place before any triggers are processed, as the runners will start processing triggers as soon as they are started, and we want to avoid processing triggers before the setup is complete to prevent errors and ensure that all triggers are processed correctly.
         shutterAutomationTriggerCollector.Start(cancellationToken);
 
@@ -85,10 +78,31 @@ public partial class ShutterController : LogicBase
         // run the shutter target processing loop on a linked cancellation token that is cancelled when the logic is stopped;
         shutterTargetProcessingLoop.Start(cancellationToken);
 
+        // subscribe to the event bus to receive triggers for shutter automation computation, e.g. when a value changes that affects the desired shutter state, or when a manual override is performed on a shutter, so that the automation logic can adjust its behavior accordingly.
+        eventSubscriber.Subscribe<ShutterAutomationComputationTriggerEvent>(new ComputationTriggerEventHandler(shutterAutomationTriggerCollector, loggerFactory.CreateLogger<ComputationTriggerEventHandler>()));
+
         // register with shutter runtimes to handle external overrides, e.g. when a shutter is manually operated via a wall switch or remote control, to ensure that the automation logic is aware of the manual operation and can adjust its behavior accordingly, e.g. by temporarily pausing automation for the affected shutter
         foreach (var shutterRuntime in shutterRuntimes.Values)
         {
             shutterRuntime.ShutterExternalOverride += HandleShutterExternalOverride;
+        }
+    }
+
+    private class ComputationTriggerEventHandler : IEventHandler<ShutterAutomationComputationTriggerEvent>
+    {
+        private readonly BackgroundRunner<ShutterAutomationComputationTriggerContext> shutterAutomationTriggerCollector;
+        private readonly ILogger<ComputationTriggerEventHandler> logger;
+
+        public ComputationTriggerEventHandler(BackgroundRunner<ShutterAutomationComputationTriggerContext> shutterAutomationTriggerCollector, ILogger<ComputationTriggerEventHandler> logger)
+        {
+            this.shutterAutomationTriggerCollector = shutterAutomationTriggerCollector;
+            this.logger = logger;
+        }
+
+        public async ValueTask HandleAsync(ShutterAutomationComputationTriggerEvent @event, CancellationToken cancellationToken = default)
+        {
+            // enqueue the trigger for processing in the shutter automation trigger collector, which will assess its urgency and decide whether to immediately process it or to defer it for a short time to allow for more triggers to arrive and be processed together
+            await shutterAutomationTriggerCollector.EnqueueAsync(@event.Context, cancellationToken);
         }
     }
 
@@ -237,188 +251,6 @@ public partial class ShutterController : LogicBase
             {
                 logger.LogWarning(ex, "Error processing shutter target for shutter {ShutterKey}. Exception details: {ExceptionMessage}", ex is ShutterTargetProcessingException stpe ? stpe.ShutterKey : "<unknown>", ex.Message);
             }
-        }
-    }
-
-    /// <summary>
-    /// Create shutter runtimes from the model configuration, and reuse existing runtimes where possible to avoid unnecessary restarts and loss of state in the runtimes; new runtimes are created for new shutters, and runtimes that are no longer needed are stopped and removed.
-     /// The method returns the new set of runtimes that should be active based on the current model configuration, but does not start or stop any runtimes itself, this is done in <see cref="MaterializeRuntime"/> to ensure that all necessary checks and preparations are done before starting the runtimes.
-     /// The method is called on initialization and whenever the model configuration changes, e.g. when a new shutter is added, removed or reconfigured in the model, to ensure that the runtime state is always in sync with the model configuration.
-    /// </summary>
-    /// <param name="model"></param>
-    /// <returns></returns>
-    private async Task MaterializeRuntime(Model model, CancellationToken token = default)
-    {
-        // ** buildings **
-        var newBuildingRuntimes = CreateBuildingRuntimes(model);
-
-        // Stop runtimes that are not needed anymore
-        foreach (var oldRuntime in buildingRuntimes.Values)
-        {
-            if (!newBuildingRuntimes.ContainsKey(oldRuntime.BuildingKey))
-                await oldRuntime.StopAsync(token);
-        }
-
-        // Start new runtimes
-        foreach (var newRuntime in newBuildingRuntimes.Values)
-        {
-            if (!buildingRuntimes.ContainsKey(newRuntime.BuildingKey))
-                await newRuntime.StartAsync(token);
-        }
-
-        buildingRuntimes.Clear();
-        foreach (var kvp in newBuildingRuntimes)
-            buildingRuntimes[kvp.Key] = kvp.Value;
-
-
-        // ** rooms **
-        var newRoomRuntimes = CreateRoomRuntimes(model);
-
-        // Stop runtimes that are not needed anymore
-        foreach (var oldRuntime in roomRuntimes.Values)
-        {
-            if (!newRoomRuntimes.ContainsKey(oldRuntime.RoomKey))
-                await oldRuntime.StopAsync(token);
-        }
-
-        // Start new runtimes
-        foreach (var newRuntime in newRoomRuntimes.Values)
-        {
-            if (!roomRuntimes.ContainsKey(newRuntime.RoomKey))
-                await newRuntime.StartAsync(token);
-        }
-
-        roomRuntimes.Clear();
-        foreach (var kvp in newRoomRuntimes)
-            roomRuntimes[kvp.Key] = kvp.Value;
-
-
-        // ** shutters **
-        var newRuntimes = CreateShutterRuntimes(model);
-
-        // Stop runtimes that are not needed anymore
-        foreach (var oldRuntime in shutterRuntimes.Values)
-        {
-            if (!newRuntimes.ContainsKey(oldRuntime.ShutterKey))
-                await oldRuntime.StopAsync(token);
-        }
-
-        // Start new runtimes
-        foreach (var newRuntime in newRuntimes.Values)
-        {
-            if (!shutterRuntimes.ContainsKey(newRuntime.ShutterKey))
-                await newRuntime.StartAsync(token);
-        }
-
-        shutterRuntimes.Clear();
-        foreach (var kvp in newRuntimes)
-            shutterRuntimes[kvp.Key] = kvp.Value;
-    }
-
-    private Dictionary<BuildingKey, BuildingRuntime> CreateBuildingRuntimes(Model model)
-    {
-        var runtimes = new Dictionary<BuildingKey, BuildingRuntime>();
-        foreach (var building in model.Buildings.Values)
-        {
-            var buildingKey = new BuildingKey(building);
-            if (buildingRuntimes.TryGetValue(buildingKey, out var existingRuntime))
-            {
-                runtimes[buildingKey] = existingRuntime;
-                continue;
-            }
-
-            var runtime = new BuildingRuntime(buildingKey, shutterAutomationTriggerCollector, loggerFactory.CreateLogger<BuildingRuntime>());
-            runtimes[buildingKey] = runtime;
-        }
-        return runtimes;
-    }
-
-    private Dictionary<RoomKey, RoomRuntime> CreateRoomRuntimes(Model model)
-    {
-        var runtimes = new Dictionary<RoomKey, RoomRuntime>();
-        foreach (var roomKey in model.EnumerateRooms())
-        {
-            if (roomRuntimes.TryGetValue(roomKey, out var existingRuntime))
-            {
-                runtimes[roomKey] = existingRuntime;
-                continue;
-            }
-
-            var runtime = new RoomRuntime(roomKey, shutterAutomationTriggerCollector, loggerFactory.CreateLogger<RoomRuntime>());
-            runtimes[roomKey] = runtime;
-        }
-        return runtimes;
-    }
-
-    private Dictionary<ShutterKey, ShutterRuntime> CreateShutterRuntimes(Model model)
-    {
-        var runtimes = new Dictionary<ShutterKey, ShutterRuntime>();
-        foreach (var shutterKey in model.EnumerateShutters())
-        {
-            if (shutterRuntimes.TryGetValue(shutterKey, out var existingRuntime))
-            {
-                runtimes[shutterKey] = existingRuntime;
-                continue;
-            }
-
-            var runtime = new ShutterRuntime(shutterKey, shutterAutomationTriggerCollector, loggerFactory.CreateLogger<ShutterRuntime>());
-            runtimes[shutterKey] = runtime;
-        }
-        return runtimes;
-    }
-
-    /// <summary>
-    /// Check the aspects in the model that would result in errors or warning when <see cref="MaterializeRuntime"/> is executed, and log them as warnings or errors.
-    /// This allows to detect and fix model issues before they manifest as incorrect or missing shutter commands or failed scene changes at runtime.
-    /// The checks include:
-    /// - Are there any buildings without a shadowing special configured, which is required for the shutter controller to function properly?
-    /// - Do all shutters have the necessary IValue references bound for the corresponding type? E.g. position/angle for venetian blinds, position for roller shutters, open/close for simple ones?
-    /// - Do all shutters have a facade bound?
-    /// - Do all shutters belong to a room with a shutter scene configured? If there are such without, is there a global shutter scene bound as fall back?
-    /// </summary>
-    private void CheckConfiguration(Model model)
-    {
-        var allShutters = model.EnumerateShutters().ToArray();
-
-        //=====
-        // shadowing special?
-        var buildingsNotHavingExactlyOneShadowingSpecial = model.Buildings.Values
-            .Where(b => !b.TryGetShadowingSpecial(out var _));
-        if (buildingsNotHavingExactlyOneShadowingSpecial.Any())
-        {
-            logger.LogWarning("The following buildings do not have a shadowing special configured, which is required for the shutter controller to function properly. Please check the model configuration for these buildings: {Buildings}", string.Join(", ", buildingsNotHavingExactlyOneShadowingSpecial.Select(b => b.Name)));
-        }
-
-        //=====
-        // Do all shutters have the necessary IValue references bound for the corresponding type? E.g. position/angle for venetian blinds, position for roller shutters, open/close for simple ones?
-        var shuttersWithMissingReferences = allShutters
-            .Where(sk => (sk.ShutterConfig.Type == ShutterType.VenetianBlind && (string.IsNullOrEmpty(sk.ShutterConfig.PositionValueReference) || string.IsNullOrEmpty(sk.ShutterConfig.AngleValueReference) || sk.Shutter.PositionValue == null || sk.Shutter.AngleValue == null))
-                || (sk.ShutterConfig.Type == ShutterType.Positional && (string.IsNullOrEmpty(sk.ShutterConfig.PositionValueReference) || sk.Shutter.PositionValue == null))
-                || (sk.ShutterConfig.Type == ShutterType.OpenClose && (string.IsNullOrEmpty(sk.ShutterConfig.OpenCloseReference) || sk.Shutter.OpenCloseValue == null)));
-
-        foreach (var shutter in shuttersWithMissingReferences)
-        {
-            logger.LogError("Shutter {ShutterKey} is missing necessary IValue references for its type {ShutterType}. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutter.Key, shutter.ShutterConfig.Type, shutter.ShutterConfig);
-        }
-
-        //=====
-        // Do all shutters have a facade bound?
-        var shuttersWithMissingFacade = allShutters
-            .Where(sk => sk.Shutter.Facade == null);
-        foreach (var shutter in shuttersWithMissingFacade)
-        {
-            logger.LogError("Shutter {ShutterKey} has no facade bound. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutter.Key, shutter.ShutterConfig);
-        }
-
-        //=====
-        // Do all shutters belong to a room with a shutter scene configured? If there are such without, is there a global shutter scene bound as fall back?
-        var roomsWithShuttersWithoutScene = allShutters
-            .Where(sk => sk.RoomKey.Room.ShutterScene == null && sk.RoomKey.Building.TryGetShadowingSpecial(out var shadowingSpecial) && shadowingSpecial.GlobalShutterScene == null)
-            .Select(sk => sk.RoomKey)
-            .Distinct();
-        foreach (var roomKey in roomsWithShuttersWithoutScene)
-        {
-            logger.LogWarning("Room {RoomKey} has shutters but no shutter scene configured, and there is no global shutter scene configured in the building's shadowing special as fallback. Please check the configuration for this room and building. Room configuration: {RoomConfig}", roomKey, roomKey.Room);
         }
     }
 }
