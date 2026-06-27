@@ -21,6 +21,11 @@ public class LogicBaseTests
 
         public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
             => Handlers.Add(handler);
+
+        public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+        {
+            Handlers.Add(handler);
+        }
     }
 
     /// <summary>

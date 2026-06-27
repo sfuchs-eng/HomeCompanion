@@ -56,7 +56,7 @@ public partial class ShutterController
         switch ( triggerContext.Scope )
         {
             case ShutterAutomationComputationScope.ShutterSpecific:
-                return triggerContext.ThingKeys;
+                return triggerContext.ThingKeys.Where(k => k is ShutterKey).Cast<ShutterKey>();
             case ShutterAutomationComputationScope.Global:
             case ShutterAutomationComputationScope.Undefined:
             default:

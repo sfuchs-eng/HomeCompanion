@@ -86,7 +86,7 @@ public class ShutterPolicyResolverTests
             ThermalControl = ThermalControlMode.Passive,
         })
         {
-            ThermalControlMode = new StubNumericValue((double)ThermalControlMode.CoolingPriority),
+            ThermalControlMode = new StubByteValue((byte)ThermalControlMode.CoolingPriority),
         };
 
         var mode = ShutterPolicyResolver.ResolveThermalControlMode(global);
@@ -160,6 +160,64 @@ public class ShutterPolicyResolverTests
 
             mapping = default;
             return false;
+        }
+    }
+
+    private sealed class StubByteValue(byte myByteValue) : IValue<byte>
+    {
+        public Type ValueType => typeof(byte);
+        public ValueStatus Status => ValueStatus.Initialized;
+        public string? Name => "StubByte";
+        public string? Label => "StubByte";
+        public object? OValue => Value;
+#pragma warning disable CS0067
+        public event EventHandler<ValueWrittenEventArgs>? Written;
+        public event EventHandler<ValueChangedEventArgs>? Changed;
+#pragma warning restore CS0067
+        public Dictionary<object, IValueBusEndpointMapping> BusMappings { get; init; } = [];
+
+        public byte Value { get; private set; } = myByteValue;
+
+        public void AddBusEndpoint(object busIdentifier, IValueBusEndpointMapping mapping) => BusMappings[busIdentifier] = mapping;
+        public string? Format(System.Globalization.CultureInfo? culture = null) => Value.ToString(culture);
+        public void Initialize(IEventPublisher publisher, IValuesManager manager)
+        {
+            _ = publisher;
+            _ = manager;
+        }
+
+        public bool InitializeValue(object value, AppInitializationStage stage)
+        {
+            _ = value;
+            _ = stage;
+            return false;
+        }
+
+        public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
+        {
+            if (BusMappings.TryGetValue(busIdentifier, out var untyped) && untyped is TBusMapping typed)
+            {
+                mapping = typed;
+                return true;
+            }
+
+            mapping = default;
+            return false;
+        }
+
+        public void Write(byte value, object? initiator = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteLocked(byte value, object? initiator = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool InitializeValue(byte value, AppInitializationStage stage)
+        {
+            throw new NotImplementedException();
         }
     }
 }

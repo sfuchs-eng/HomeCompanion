@@ -403,7 +403,7 @@ public class ShutterScenarioIntegrationExecutionTests
         public required ValueBase<float> SunAzimuth { get; init; }
         public required ValueBase<float> SunElevation { get; init; }
         public required ValueBase<float> OutdoorTemperature { get; init; }
-        public required ValueBase<float> ThermalMode { get; init; }
+        public required ValueBase<byte> ThermalMode { get; init; }
         public required StubStateStore StateStore { get; init; }
         public required StubSubscriber Subscriber { get; init; }
         public required string RoomKey { get; init; }
@@ -433,13 +433,13 @@ public class ShutterScenarioIntegrationExecutionTests
             var sunAzimuth = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunAzimuth" };
             var sunElevation = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunElevation" };
             var outdoorTemperature = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "OutdoorTemperature" };
-            var thermalMode = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "ThermalMode" };
+            var thermalMode = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "ThermalMode" };
 
             var seedSource = new object();
             sunAzimuth.Write(129f, seedSource);
             sunElevation.Write(25f, seedSource);
             outdoorTemperature.Write(24f, seedSource);
-            thermalMode.Write(1f, seedSource);
+            thermalMode.Write((byte)1, seedSource);
 
             var roomConfig = new CfgRoom();
             roomConfig.Shutters["EastShutter"] = new CfgShutter
@@ -574,7 +574,15 @@ public class ShutterScenarioIntegrationExecutionTests
                 },
             };
 
-            var model = new HomeCompanion.Base.Model.Model
+            var cfgModel = new CfgModel
+            {
+                Buildings = new Dictionary<string, CfgBuilding>
+                {
+                    [building.Name] = building.Configuration,
+                },
+            };
+
+            var model = new HomeCompanion.Base.Model.Model(cfgModel)
             {
                 Buildings = new Dictionary<string, Building>
                 {
@@ -727,6 +735,11 @@ public class ShutterScenarioIntegrationExecutionTests
 
             foreach (var handler in handlers.Cast<IEventHandler<T>>())
                 await handler.HandleAsync(@event);
+        }
+
+        public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -212,7 +212,7 @@ public class ShutterSceneCommandControlTests
         await fixture.Logic.InitializeAsync();
         fixture.RoomScene.Write((byte)52, this);
 
-        fixture.ThermalMode.Write(2f, this); // CoolingPriority in 0-based encoding
+        fixture.ThermalMode.Write((byte)2, this); // CoolingPriority in 0-based encoding
         fixture.OutdoorTemperature.Write(30f, this);
 
         // Scheduled transitions now apply room scene/manual semantics, so command execution is not
@@ -319,7 +319,7 @@ public class ShutterSceneCommandControlTests
         public required ValueBase<float> SunAzimuth { get; init; }
         public required ValueBase<float> SunElevation { get; init; }
         public required ValueBase<float> OutdoorTemperature { get; init; }
-        public required ValueBase<float> ThermalMode { get; init; }
+        public required ValueBase<byte> ThermalMode { get; init; }
         public required StubStateStore StateStore { get; init; }
         public required StubSubscriber Subscriber { get; init; }
         public required CfgRoom RoomConfig { get; init; }
@@ -340,13 +340,13 @@ public class ShutterSceneCommandControlTests
             var sunAzimuth = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunAzimuth" };
             var sunElevation = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "SunElevation" };
             var outdoorTemperature = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "OutdoorTemperature" };
-            var thermalMode = new ValueBase<float>(NullLogger<ValueBase<float>>.Instance) { Name = "ThermalMode" };
+            var thermalMode = new ValueBase<byte>(NullLogger<ValueBase<byte>>.Instance) { Name = "ThermalMode" };
 
             var seedSource = new object();
             sunAzimuth.Write(129f, seedSource);
             sunElevation.Write(25f, seedSource);
             outdoorTemperature.Write(24f, seedSource);
-            thermalMode.Write(1f, seedSource);
+            thermalMode.Write(1, seedSource);
 
             var roomConfig = new CfgRoom
             {
@@ -438,7 +438,15 @@ public class ShutterSceneCommandControlTests
                 },
             };
 
-            var model = new HomeCompanion.Base.Model.Model
+            var cfgModel = new CfgModel
+            {
+                Buildings = new Dictionary<string, CfgBuilding>
+                {
+                    [building.Name] = cfgBuilding,
+                },
+            };
+
+            var model = new Model(cfgModel)
             {
                 Buildings = new Dictionary<string, Building>
                 {
@@ -596,6 +604,11 @@ public class ShutterSceneCommandControlTests
 
             foreach (var handler in handlers.Cast<IEventHandler<T>>())
                 await handler.HandleAsync(@event);
+        }
+
+        public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+        {
+            throw new NotImplementedException();
         }
     }
 }

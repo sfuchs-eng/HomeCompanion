@@ -66,7 +66,26 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateRoom_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
-        var model = new Model();
+        var cfgModel = new CfgModel
+        {
+            Buildings = new Dictionary<string, CfgBuilding>
+            {
+                ["Main"] = new CfgCustomBuilding
+                {
+                    Floors = new Dictionary<string, CfgFloor>
+                    {
+                        ["Ground"] = new CfgCustomFloor
+                        {
+                            Rooms = new Dictionary<string, CfgRoom>
+                            {
+                                ["Living"] = new CfgCustomRoom(),
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        var model = new Model(cfgModel);
         var cfgBuilding = new CfgCustomBuilding();
         var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
         var cfgFloor = new CfgCustomFloor();
@@ -83,7 +102,14 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateFacade_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
-        var model = new Model();
+        var cfgModel = new CfgModel
+        {
+            Buildings = new Dictionary<string, CfgBuilding>
+            {
+                ["Main"] = new CfgCustomBuilding()
+            }
+        };
+        var model = new Model(cfgModel);
         var cfgBuilding = new CfgCustomBuilding();
         var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
 
@@ -98,7 +124,14 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateShutter_WithDerivedConfig_ResolvesDerivedRuntimeType()
     {
-        var model = new Model();
+        var cfgModel = new CfgModel
+        {
+            Buildings = new Dictionary<string, CfgBuilding>
+            {
+                ["Main"] = new CfgCustomBuilding()
+            }
+        };
+        var model = new Model(cfgModel);
         var cfgBuilding = new CfgCustomBuilding()
         {
             Facades = new Dictionary<string, CfgFacade>
@@ -184,7 +217,14 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateRoom_WhenDerivedRuntimeConstructorDoesNotMatch_Throws()
     {
-        var model = new Model();
+        var cfgModel = new CfgModel
+        {
+            Buildings = new Dictionary<string, CfgBuilding>
+            {
+                ["Main"] = new CfgCustomBuilding()
+            }
+        };
+        var model = new Model(cfgModel);
         var cfgBuilding = new CfgCustomBuilding();
         var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
         var cfgFloor = new CfgCustomFloor();
@@ -198,7 +238,14 @@ public class ModelFactoryPolymorphismTests
     [Test]
     public void CreateRoom_WhenRuntimeTypeMissing_Throws()
     {
-        var model = new Model();
+        var cfgModel = new CfgModel
+        {
+            Buildings = new Dictionary<string, CfgBuilding>
+            {
+                ["Main"] = new CfgCustomBuilding()
+            }
+        };
+        var model = new Model(cfgModel);
         var cfgBuilding = new CfgCustomBuilding();
         var building = Sut.CreateBuilding(new BuildingCreationContext(model), "Main", cfgBuilding);
         var cfgFloor = new CfgCustomFloor();
