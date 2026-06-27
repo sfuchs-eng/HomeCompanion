@@ -11,6 +11,11 @@ public enum ShutterAutomationComputationScope
     ShutterSpecific = 1,
 
     /// <summary>
+    /// The shutter automation computation should be performed for all shutters in a specific room.
+    /// </summary>
+    RoomSpecific = 2,
+
+    /// <summary>
     /// The shutter automation computation should be performed for all shutters in the system.
     /// </summary>
     Global = 3,

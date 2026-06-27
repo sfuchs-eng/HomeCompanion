@@ -155,7 +155,7 @@ public partial class ShutterController : LogicBase
                 }
                 else
                 {
-                    var triggersGroupedByShutter = queuedTriggers.SelectMany(tc => tc.ShutterKeys.Select(sk => (TriggerContext: tc, ShutterKey: sk)))
+                    var triggersGroupedByShutter = queuedTriggers.SelectMany(tc => tc.ThingKeys.Select(sk => (TriggerContext: tc, ShutterKey: sk)))
                         .GroupBy(x => x.ShutterKey);
                     foreach (var shutterGroup in triggersGroupedByShutter)
                     {

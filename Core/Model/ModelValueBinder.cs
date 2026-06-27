@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 namespace HomeCompanion.Core.Model;
 
-internal sealed class ModelValueBinder(
+public sealed class ModelValueBinder(
     IValueProvider valueReferenceProvider,
     ILogger<ModelValueBinder> logger)
 {

@@ -238,7 +238,7 @@ public class ShutterSceneCommandControlTests
     {
         var fixture = TestFixtureRuntime.Create();
 
-        fixture.ShadowingConfig.SpecialScenes["Manual20"].Commands["InvalidTarget"] = new CfgShadowingSceneCommand
+        fixture.ShadowingConfig.SpecialScenesAIAttempt["Manual20"].Commands["InvalidTarget"] = new CfgShadowingSceneCommand
         {
             TargetValueReference = "DoesNotExist",
             Value = 12,
@@ -390,7 +390,7 @@ public class ShutterSceneCommandControlTests
             var shadowCfg = new CfgShadowingSpecial
             {
                 ResumeAutomationScenes = resumeAutomationScenes?.ToList() ?? [50, 52],
-                SpecialScenes =
+                SpecialScenesAIAttempt =
                 {
                     ["Manual20"] = new CfgShadowingSceneController
                     {

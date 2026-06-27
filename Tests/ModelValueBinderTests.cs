@@ -163,7 +163,7 @@ public class ModelValueBinderTests
             },
         };
 
-        return new Model
+        return new Model(new CfgModel())
         {
             Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
             {
@@ -184,7 +184,7 @@ public class ModelValueBinderTests
             },
         };
 
-        return new Model
+        return new Model(new CfgModel())
         {
             Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
             {
@@ -205,7 +205,7 @@ public class ModelValueBinderTests
             },
         };
 
-        return new Model
+        return new Model(new CfgModel())
         {
             Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
             {

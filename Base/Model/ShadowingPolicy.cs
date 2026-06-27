@@ -48,9 +48,17 @@ public enum RoomObjectiveProfile
     ThermalPriority,
 
     /// <summary>
-    /// Shadow whenever there's sunshine, regardless of thermal control mode.
+    /// Night closure: close shutters over night while people are sleeping. Do not operate shutters over night while people are sleeping to prevent noise and early light.
+    /// This should be a latching dynamic objective.
     /// </summary>
-    UvProtectionPriority,
+    NightClosure,
+
+    /// <summary>
+    /// Prevent noise, yet allow light. Default would be no automatic shutter operation, but allow manual override from closed to shadow position.
+    /// But do not allow opening shutters in this room if other rooms are still in night closure mode.
+    /// Typical use case: People in this room are up, may have requested opening shutters, not sleeping any more, yet in other rooms people are still sleeping. This should be a dynamic objective only.
+    /// </summary>
+    NoisePrevention,
 }
 
 /// <summary>
@@ -73,6 +81,7 @@ public enum ShadowingScheduleEngine
 /// <summary>
 /// Input-driven objective selector rule for future room-level objective adaptation.
 /// </summary>
+[Obsolete("to be reconsidered")]
 public class CfgObjectiveSelectorInput
 {
     /// <summary>
@@ -126,6 +135,7 @@ public class CfgDynamicCutoverAngleRule
 /// <summary>
 /// Cron-style schedule transition for room shutter scene changes.
 /// </summary>
+[Obsolete("to be reconsidered")]
 public class CfgRoomScheduleTransition
 {
     /// <summary>

@@ -116,4 +116,16 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
             type = type.BaseType;
         }
     }
+
+    public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+    {
+        var type = typeof(T);
+        if (!_handlers.TryGetValue(type, out var list))
+        {
+            list = [];
+            _handlers[type] = list;
+        }
+
+        list.Add((e, ct) => handler((T)e, ct));
+    }
 }

@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using HomeCompanion.Base.Model;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -43,7 +44,7 @@ public partial class ShutterController
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "Error processing shutter automation computation trigger for shutter {ShutterKey} (batch of {BatchSize}): {Message}",
-                        triggerContext.ShutterKeys.First().Key, triggerContext.ShutterKeys.Count(), ex.Message);
+                        triggerContext.ThingKeys.First().Key, triggerContext.ThingKeys.Count(), ex.Message);
                 }
             }
         }
@@ -55,7 +56,7 @@ public partial class ShutterController
         switch ( triggerContext.Scope )
         {
             case ShutterAutomationComputationScope.ShutterSpecific:
-                return triggerContext.ShutterKeys;
+                return triggerContext.ThingKeys;
             case ShutterAutomationComputationScope.Global:
             case ShutterAutomationComputationScope.Undefined:
             default:

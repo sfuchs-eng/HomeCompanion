@@ -2,6 +2,7 @@ namespace HomeCompanion.Events;
 
 /// <summary>
 /// Convenience base class for event handlers consuming events from the event bus via <see cref="IEventSubscriber"/>.
+/// Note that <see cref="EventHandlerDelegate{T}"/> can be used as an alternative to deriving from this class.
 /// </summary>
 /// <remarks>
 /// Derive from this class and implement <see cref="HandleAsync"/> to handle events of type <typeparamref name="T"/>.

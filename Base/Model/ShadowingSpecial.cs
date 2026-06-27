@@ -60,6 +60,7 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// <summary>
     /// Default automation level used when rooms do not define an override.
     /// </summary>
+    [Obsolete("solve via room scene semantics")]
     public ShadowingAutomationLevel DefaultAutomationLevel { get; set; } = ShadowingAutomationLevel.AutomaticWithTemporaryManualOverride;
 
     /// <summary>
@@ -81,6 +82,7 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// <summary>
     /// Schedule evaluation engine used for room cron transitions.
     /// </summary>
+    [Obsolete("solve differently")]
     public ShadowingScheduleEngine ScheduleEngine { get; set; } = ShadowingScheduleEngine.InProcess;
 
     /// <summary>
@@ -138,15 +140,51 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// </summary>
     public string? UvIntensityReference { get; set; }
 
+    public float UvIntensityThreshold { get; set; } = 300.0f;
+
+    public Dictionary<byte, CfgRoomSceneShutterPreset> SceneShutterPresets { get; set; } = new Dictionary<byte, CfgRoomSceneShutterPreset>
+    {
+        [(byte)RoomShutterScene.CleanShutter] = new CfgRoomSceneShutterPreset { Label = "Clean shutters", Position = 100.0, Slat = 0.0 },
+        [(byte)RoomShutterScene.CleanWindow] = new CfgRoomSceneShutterPreset { Label = "Clean window", Position = 0.0, Slat = 0.0 },
+        [(byte)RoomShutterScene.DryShutter] = new CfgRoomSceneShutterPreset { Label = "Closed with slats steep: drop water and allow airflow", Position = 100.0, Slat = 60.0 },
+    };
+
     /// <summary>
     /// Scene controllers keyed by scene key for explicit multi-command room or facade presets.
     /// </summary>
-    public Dictionary<string, CfgShadowingSceneController> SpecialScenes { get; set; } = [];
+    [Obsolete("to be replaced / redesigned")]
+    public Dictionary<string, CfgShadowingSceneController> SpecialScenesAIAttempt { get; set; } = [];
+}
+
+public class CfgRoomSceneShutterPreset
+{
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// Reference to a shutter position value.
+    /// </summary>
+    public double Position { get; set; }
+
+    /// <summary>
+    /// Reference to a shutter slat angle value.
+    /// </summary>
+    public double Slat { get; set; }
+
+    /// <summary>
+    /// <see cref="Open"/> and <see cref="Closed"/> properties translate the position and slat values into boolean states for convenient use with open/close capable shutters.
+    /// </summary>
+    public bool Open => Position < Double.Epsilon;
+
+    /// <summary>
+    /// <see cref="Open"/> and <see cref="Closed"/> properties translate the position and slat values into boolean states for convenient use with open/close capable shutters.
+    /// </summary>
+    public bool Closed => Position > 100.0 - Double.Epsilon && Slat > 100.0 - Double.Epsilon;
 }
 
 /// <summary>
 /// Scene controller configuration that maps one trigger scene value to command writes.
 /// </summary>
+[Obsolete("to be replaced / redesigned")]
 public class CfgShadowingSceneController
 {
     /// <summary>
@@ -175,6 +213,7 @@ public class CfgShadowingSceneController
 /// <summary>
 /// One scene-command write definition.
 /// </summary>
+[Obsolete("to be replaced / redesigned")]
 public class CfgShadowingSceneCommand
 {
     /// <summary>
@@ -193,41 +232,74 @@ public class CfgShadowingSceneCommand
 /// </summary>
 public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special<CfgShadowingSpecial>(name, config), IBuildingSpecial
 {
+    /// <summary>
+    /// <see cref="RoomShutterScene"/> values or others
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.GlobalShutterSceneReference))]
-    public IValue? GlobalShutterScene { get; set; }
+    public IValue<byte>? GlobalShutterScene { get; set; }
 
+    /// <summary>
+    /// Shadowing output: set to true when the building is in auto shadowing mode, false when manual override is active.
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.AutoShadowStatusReference))]
-    public IValue? AutoShadowStatus { get; set; }
+    public IValue<bool>? AutoShadowStatus { get; set; }
 
+    /// <summary>
+    /// Shadowing input: True when the building is in absence mode, false otherwise.
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.AbsenceReference))]
-    public IValue? Absence { get; set; }
+    public IValue<bool>? Absence { get; set; }
 
+    /// <summary>
+    /// Shadowing input: if true, despite <see cref="ThermalControlMode.CoolingPriority"/>, automatic shadowing must not be started (do not automatically transition into auto-shadowing room scenes).
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.DisableAutoShadowAssessmentReference))]
-    public IValue? DisableAutoShadowAssessment { get; set; }
-
+    public IValue<bool>? DisableAutoShadowAssessment { get; set; }
+    
+    /// <summary>
+    /// Shadowing input: Outdoor temperature in degrees Celsius.
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.OutdoorTemperatureReference), RequireNumeric = true)]
-    public IValue? OutdoorTemperature { get; set; }
+    public IValue<float>? OutdoorTemperature { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityEastReference), RequireNumeric = true)]
-    public IValue? SunIntensityEast { get; set; }
+    public IValue<float>? SunIntensityEast { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensitySouthReference), RequireNumeric = true)]
-    public IValue? SunIntensitySouth { get; set; }
+    public IValue<float>? SunIntensitySouth { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityWestReference), RequireNumeric = true)]
-    public IValue? SunIntensityWest { get; set; }
+    public IValue<float>? SunIntensityWest { get; set; }
 
+    /// <summary>
+    /// Shadowing input: Sun position azimuth in degrees.
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionAzimuthReference), RequireNumeric = true)]
-    public IValue? SunPositionAzimuth { get; set; }
+    public IValue<float>? SunPositionAzimuth { get; set; }
 
+    /// <summary>
+    /// Shadowing input: Sun position elevation in degrees.
+    /// </summary>
+    /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionElevationReference), RequireNumeric = true)]
-    public IValue? SunPositionElevation { get; set; }
+    public IValue<float>? SunPositionElevation { get; set; }
 
+    /// <summary>
+    /// See <see cref="HomeCompanion.Logics.ThermalControl.ThermalControlMode"/> for the meaning of this value and valid ranges.
+    /// Defines whether the building is in cooling-priority, heating-priority or balanced mode.
+    /// Affects whether there are automatic transitions into room shutter scenes for automatic shadowing and whether certain manual overrides might be prevented.
+    /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.ThermalControlModeReference), RequireNumeric = true)]
-    public IValue? ThermalControlMode { get; set; }
+    public IValue<byte>? ThermalControlMode { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.UvIntensityReference), RequireNumeric = true)]
-    public IValue? UvIntensity { get; set; }
+    public IValue<float>? UvIntensity { get; set; }
 }
 
 public static class ShadowingSpecialExtensions
@@ -255,5 +327,29 @@ public static class ShadowingSpecialExtensions
     {
         shadowingSpecial = building.Specials.Values.OfType<ShadowingSpecial>().SingleOrDefault()!;
         return shadowingSpecial != null;
+    }
+
+    public static ShadowingSpecial GetShadowingSpecial(this Building building)
+    {
+        if (!building.TryGetShadowingSpecial(out var special))
+            throw new InvalidOperationException($"Building '{building.Name}' does not contain a shadowing special.");
+        return special;
+    }
+
+    public static bool TryGetRoomSceneShutterPreset(this RoomKey roomKey, byte scene, out CfgRoomSceneShutterPreset? preset)
+    {
+        // get building level, override with room level if available
+        if (roomKey.Room.Configuration.SceneShutterPresets.TryGetValue(scene, out var roomPreset))
+        {
+            preset = roomPreset;
+            return true;
+        }
+        if (roomKey.Building.TryGetShadowingSpecial(out var shadowingSpecial) && shadowingSpecial.Configuration.SceneShutterPresets.TryGetValue(scene, out var buildingPreset))
+        {
+            preset = buildingPreset;
+            return true;
+        }
+        preset = null;
+        return false;
     }
 }

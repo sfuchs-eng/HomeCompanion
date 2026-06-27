@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using HomeCompanion.Logics.Shutters;
 
 namespace HomeCompanion.Base.Model;
 
@@ -33,7 +34,7 @@ public class ModelFactory : IModelFactory
 
     public virtual Model CreateModel(CfgModel config)
     {
-        var model = new Model();
+        var model = new Model(config);
         model.Buildings = config.Buildings.ToDictionary(
             kv => kv.Key,
             kv => CreateBuilding(new BuildingCreationContext(model), kv.Key, kv.Value));
@@ -88,6 +89,7 @@ public class ModelFactory : IModelFactory
 
     /// <summary>
     /// Link <see cref="Shutter.Facade"/> to their respective facades for a specific building.
+    /// For <see cref="IValue"/> properties binding, see <see cref="HomeCompanion.Core.ModelValueBinder"/> 
     /// </summary>
     /// <param name="building"></param>
     public virtual void BindFacades(Building building)
@@ -131,6 +133,12 @@ public class ModelFactory : IModelFactory
     public virtual Room CreateRoom(RoomCreationContext context, string name, CfgRoom config)
     {
         var room = CreateEntityFromConfig(name, config, () => new Room(name, config), typeof(Room));
+
+        foreach (var shutterConfig in config.Shutters)
+        {
+            var shutter = CreateShutter(new ShutterCreationContext(context.Model, context.Building, context.Floor, room), shutterConfig.Key, shutterConfig.Value);
+            room.Shutters[shutterConfig.Key] = shutter;
+        }
 
         room.Shutters = config.Shutters.ToDictionary(
             kv => kv.Key,

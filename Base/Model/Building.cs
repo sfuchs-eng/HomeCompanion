@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Values;
 
 namespace HomeCompanion.Base.Model;
@@ -40,9 +41,8 @@ public class CfgBuildingSpecial : CfgSpecial
 /// <summary>
 /// Runtime representation of a building.
 /// </summary>
-public class Building(string name, CfgBuilding config) : ModelEntityWithConfig<CfgBuilding>(name, config)
+public class Building : ModelEntityWithConfig<CfgBuilding>
 {
-
     /// <summary>
     /// Facades keyed by their configured name.
     /// </summary>
@@ -57,6 +57,33 @@ public class Building(string name, CfgBuilding config) : ModelEntityWithConfig<C
     /// Specials keyed by their configured name.
     /// </summary>
     public Dictionary<string, IBuildingSpecial> Specials { get; set; } = [];
+
+    public Building(string name, CfgBuilding config) : base(name, config)
+    {
+    }
+
+    public ShadowingSpecial GetShadowingSpecial()
+    {
+        if (TryGetShadowingSpecial(out var shadowingSpecial))
+        {
+            return shadowingSpecial;
+        }
+        throw new InvalidOperationException($"Building {Name} has no shadowing special configured, which is required for the shutter controller to function properly.");
+    }
+
+    public bool TryGetShadowingSpecial(out ShadowingSpecial shadowingSpecial)
+    {
+        foreach (var special in Specials.Values)
+        {
+            if (special is ShadowingSpecial ss)
+            {
+                shadowingSpecial = ss;
+                return true;
+            }
+        }
+        shadowingSpecial = null!;
+        return false;
+    }
 }
 
 public interface IBuildingSpecial : ISpecial

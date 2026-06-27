@@ -1,6 +1,6 @@
-using HomeCompanion.Base.Model;
+using HomeCompanion.Logics.Shutters;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Base.Model;
 
 public class ShutterKey(RoomKey roomKey, Shutter shutter) : KeyBase
 {

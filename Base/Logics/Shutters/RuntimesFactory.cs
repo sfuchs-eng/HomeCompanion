@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace HomeCompanion.Logics.Shutters;
 
 /// <summary>
-/// Creates runtimes for the <see cref="RoomShutterSceneController"/> and <see cref="ShutterController"/> logics which are provided to them by <see cref="RuntimesController"/>.
+/// Creates runtimes for the <see cref="RoomShutterSceneLogic"/> and <see cref="ShutterController"/> logics which are provided to them by <see cref="RuntimesController"/>.
 /// The factory methods create runtimes for all rooms/buildings in the model that have a corresponding configuration, unless an existing runtime is provided for a given key. In that case, the existing runtime is untouched and not returned amongst the new ones.
 /// </summary>
 public class RuntimesFactory(

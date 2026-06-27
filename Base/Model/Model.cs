@@ -3,8 +3,12 @@ namespace HomeCompanion.Base.Model;
 /// <summary>
 /// Runtime building model created from configuration.
 /// </summary>
-public class Model
+public class Model : ModelEntityWithConfig<CfgModel>
 {
+    public Model(CfgModel config) : base("root", config)
+    {
+    }
+
     /// <summary>
     /// Buildings keyed by their configured name.
     /// </summary>
@@ -21,7 +25,7 @@ public class Model
 /// <summary>
 /// Configuration root for the runtime building model.
 /// </summary>
-public class CfgModel
+public class CfgModel : CfgEntity
 {
     /// <summary>
     /// Configuration section name.

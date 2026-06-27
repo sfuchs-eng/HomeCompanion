@@ -522,7 +522,7 @@ public class ShutterScenarioIntegrationExecutionTests
             var shadowCfg = new CfgShadowingSpecial
             {
                 ResumeAutomationScenes = [50, 52],
-                SpecialScenes =
+                SpecialScenesAIAttempt =
                 {
                     ["Manual20"] = new CfgShadowingSceneController
                     {
@@ -535,7 +535,7 @@ public class ShutterScenarioIntegrationExecutionTests
 
             if (withSecondRoom)
             {
-                shadowCfg.SpecialScenes["Living2Manual20"] = new CfgShadowingSceneController
+                shadowCfg.SpecialScenesAIAttempt["Living2Manual20"] = new CfgShadowingSceneController
                 {
                     RoomReference = "Main/Ground/Living2",
                     Number = 20,

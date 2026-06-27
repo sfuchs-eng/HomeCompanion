@@ -236,7 +236,7 @@ public sealed class ShutterSceneCommandControl(
                 }
             }
 
-            foreach (var controller in globalConfig.SpecialScenes.Values)
+            foreach (var controller in globalConfig.SpecialScenesAIAttempt.Values)
             {
                 var roomKey = ResolveControllerRoomKey(controller, roomBySceneReference);
                 if (string.IsNullOrWhiteSpace(roomKey))

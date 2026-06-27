@@ -4,24 +4,20 @@ using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
 
-public class ShutterAutomationComputationTriggerEvent : HomeCompanionEvent
-{
-    public required ShutterAutomationComputationTriggerContext Context { get; init; }
-}
-
 /// <summary>
 /// Manages the lifecycles of runtimes for buildings, rooms, and shutters, and handles the distribution of shutter automation computation triggers.
-/// Triggers are sent to the event bus as <see cref="ShutterAutomationComputationTriggerEvent"/> events for consumption by the <see cref="ShutterController"/>, <see cref="RoomShutterSceneController"/>, and potentially other components.
+/// Triggers are sent to the event bus as <see cref="ShutterAutomationComputationTriggerEvent"/> events for consumption by the <see cref="ShutterController"/>, <see cref="RoomShutterSceneLogic"/>, and potentially other components.
+/// 
 /// </summary>
-public class RuntimesController : LogicBase
+public class RuntimesController : LogicBase, IRuntimesProvider
 {
-    private readonly IValueProvider valuesProvider;
-    private readonly IEventPublisher eventPublisher;
-    private readonly IEventSubscriber eventSubscriber;
-    private readonly TimeProvider timeProvider;
+//    private readonly IValueProvider valuesProvider;
+//    private readonly IEventPublisher eventPublisher;
+//    private readonly IEventSubscriber eventSubscriber;
+//    private readonly TimeProvider timeProvider;
     private readonly IModelProvider modelProvider;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder;
-    private readonly ILoggerFactory loggerFactory;
+//    private readonly ILoggerFactory loggerFactory;
     private readonly ILogger<RuntimesController> logger;
     private readonly RuntimesFactory runtimesFactory;
 
@@ -29,35 +25,38 @@ public class RuntimesController : LogicBase
     private readonly Dictionary<RoomKey, RoomRuntime> roomRuntimes = [];
     private readonly Dictionary<ShutterKey, ShutterRuntime> shutterRuntimes = [];
 
+    public IReadOnlyDictionary<BuildingKey, BuildingRuntime> BuildingRuntimes => buildingRuntimes;
+
+    public IReadOnlyDictionary<RoomKey, RoomRuntime> RoomRuntimes => roomRuntimes;
+
+    public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes => shutterRuntimes;
+
     public RuntimesController(
         IValueProvider valuesProvider,
         IEventPublisher eventPublisher,
         IEventSubscriber eventSubscriber,
         TimeProvider timeProvider,
         IModelProvider modelProvider,
-        ILoggerFactory loggerFactory,
-        ILogger<RuntimesController> logger
+        ILoggerFactory loggerFactory
 ) : base(eventPublisher, eventSubscriber)
     {
-        this.valuesProvider = valuesProvider;
-        this.eventPublisher = eventPublisher;
-        this.eventSubscriber = eventSubscriber;
-        this.timeProvider = timeProvider;
+  //      this.valuesProvider = valuesProvider;
+  //      this.eventPublisher = eventPublisher;
+  //      this.eventSubscriber = eventSubscriber;
+  //      this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
         computationTriggerQueueFeeder = new FeedTriggerQueueViaEventBus(eventPublisher);
-        this.loggerFactory = loggerFactory;
-        this.logger = logger;
+  //      this.loggerFactory = loggerFactory;
+        this.logger = loggerFactory.CreateLogger<RuntimesController>();
         runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
     }
 
-    private class FeedTriggerQueueViaEventBus : IQueueFeeder<ShutterAutomationComputationTriggerContext>
+    /// <summary>
+    /// Feeds shutter automation computation triggers into the event bus.
+    /// </summary>
+    private class FeedTriggerQueueViaEventBus(IEventPublisher eventPublisher) : IQueueFeeder<ShutterAutomationComputationTriggerContext>
     {
-        private readonly IEventPublisher eventPublisher;
-
-        public FeedTriggerQueueViaEventBus(IEventPublisher eventPublisher)
-        {
-            this.eventPublisher = eventPublisher;
-        }
+        private readonly IEventPublisher eventPublisher = eventPublisher;
 
         public async ValueTask EnqueueAsync(ShutterAutomationComputationTriggerContext item, CancellationToken cancellationToken = default)
         {

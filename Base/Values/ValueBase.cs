@@ -188,15 +188,16 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Used;
+        var timeStamp = _timeProvider.GetUtcNow();
 
-        Publish(new ValueWriteRequest<T> { Source = this, NewValue = value, Timestamp = _timeProvider.GetUtcNow() });
-        RaiseWritten(new ValueWrittenEventArgs(this, this, initiator));
-        Publish(new ValueWritten<T> { Source = this, Value = value, Initiator = initiator, Timestamp = _timeProvider.GetUtcNow() });
+        Publish(new ValueWriteRequest<T> { Source = this, NewValue = value, Timestamp = timeStamp });
+        RaiseWritten(new ValueWrittenEventArgs(this, this, timeStamp, initiator));
+        Publish(new ValueWritten<T> { Source = this, Value = value, Initiator = initiator, Timestamp = timeStamp });
 
         if (!EqualityComparer<T>.Default.Equals(old, value))
         {
-            RaiseChanged(new ValueChangedEventArgs(this, this, initiator));
-            Publish(new ValueChanged<T> { Source = this, Initiator = initiator, OldValue = old, NewValue = value, Timestamp = _timeProvider.GetUtcNow() });
+            RaiseChanged(new ValueChangedEventArgs(this, this, timeStamp, initiator));
+            Publish(new ValueChanged<T> { Source = this, Initiator = initiator, OldValue = old, NewValue = value, Timestamp = timeStamp });
         }
     }
 
@@ -229,11 +230,12 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = typed;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
+        var timeStamp = _timeProvider.GetUtcNow();
 
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
-            RaiseChanged(new ValueChangedEventArgs(this, this, null));
-            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Initiator = null, Timestamp = _timeProvider.GetUtcNow() });
+            RaiseChanged(new ValueChangedEventArgs(this, this, timeStamp, null));
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Initiator = null, Timestamp = timeStamp });
         }
     }
 
@@ -258,16 +260,17 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = typed;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
+        var timeStamp = _timeProvider.GetUtcNow();
 
         // Raise the same events as Write to ensure that entities subscribed to Written or Changed get notified
         // regardless of whether the update came from an internal Write call or an external bus event.
-        Publish(new ValueWritten<T> { Source = this, Value = typed, Initiator = null, Timestamp = _timeProvider.GetUtcNow() });
-        RaiseWritten(new ValueWrittenEventArgs(this, this, null));
+        Publish(new ValueWritten<T> { Source = this, Value = typed, Initiator = null, Timestamp = timeStamp });
+        RaiseWritten(new ValueWrittenEventArgs(this, this, timeStamp, null));
 
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
-            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Initiator = null, Timestamp = _timeProvider.GetUtcNow() });
-            RaiseChanged(new ValueChangedEventArgs(this, this, null));
+            Publish(new ValueChanged<T> { Source = this, OldValue = old, NewValue = typed, Initiator = null, Timestamp = timeStamp });
+            RaiseChanged(new ValueChangedEventArgs(this, this, timeStamp, null));
         }
     }
 

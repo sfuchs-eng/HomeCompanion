@@ -58,6 +58,28 @@ public static class IValueExtensions
         }
     }
 
+    public static TNumeric? GetNumericValue<TNumeric>(this IValue? value, ILogger? logger = null) where TNumeric : struct, IConvertible
+    {
+        if (value is IValue<TNumeric> typed)
+            return typed.Value;
+
+        if (value?.OValue is null)
+            return null;
+
+        try
+        {
+            var converted = Convert.ChangeType(value.OValue, typeof(TNumeric), CultureInfo.InvariantCulture);
+            if (converted is TNumeric typedConverted)
+                return typedConverted;
+        }
+        catch
+        {
+            logger?.LogWarning("Value's '{ValueName}' internal value ({InternalValue}) could not be converted to type {TargetType}.", value?.Name, value?.OValue, typeof(TNumeric).Name);
+        }
+
+        return null;
+    }
+
     private static int ClampToRange(double value, int min, int max)
     {
         var rounded = (int)Math.Round(value, MidpointRounding.AwayFromZero);
@@ -114,7 +136,7 @@ public static class IValueExtensions
         }
     }
 
-    public static bool TryGetValue<T>(this IValue? value, out T typedValue, ILogger? logger = null)
+    public static bool TryGetValue<T>(this IValue value, out T typedValue, ILogger? logger = null)
     {
         if (value is IValue<T> typed)
         {
@@ -128,7 +150,7 @@ public static class IValueExtensions
         return false;
     }
 
-    public static bool TryGetIntegralValue<T>(this IValue? value, out T integralValue, ILogger? logger = null) where T : struct, IConvertible
+    public static bool TryGetIntegralValue<T>(this IValue value, out T integralValue, ILogger? logger = null) where T : struct, IConvertible
     {
         if (value is IValue<T> typed)
         {
@@ -170,7 +192,7 @@ public static class IValueExtensions
             }
             catch
             {
-                logger?.LogWarning("Value {ValueName} could not be converted to type {TargetType}.", value?.Name, typeof(T).Name);
+                logger?.LogWarning("Value {ValueName} with internal value ({InternalValue}) could not be converted to type {TargetType}.", value?.Name, value?.OValue, typeof(T).Name);
             }
         }
         else

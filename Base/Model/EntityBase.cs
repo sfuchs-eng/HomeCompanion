@@ -1,3 +1,5 @@
+using HomeCompanion.Base.Utilities;
+
 namespace HomeCompanion.Base.Model;
 
 /// <summary>

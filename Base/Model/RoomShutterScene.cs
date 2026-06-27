@@ -13,7 +13,7 @@ namespace HomeCompanion.Base.Model;
 /// - Clean*: refers to scene numbers used by HomeCompanion for cleaning modes. HomeCompanion should use these scenes for corresponding cleaning actions according configuration, constraints and other inputs, and ignore all shadowing triggers and constraints while these scenes are active.
 /// - Deactivated: refers to a scene number which shall not cause any shutter command. HomeCompanion should treat this scene like a permanent manual override.
 /// </remarks>
-public enum RoomShutterScenes : byte
+public enum RoomShutterScene : byte
 {
     /// <summary>
     /// Unused scene number, can be used to reflect undefined / unavailable / unknown last scene recall/store.
@@ -87,6 +87,19 @@ public enum RoomShutterScenes : byte
     AutoMaxLight = 56,
 
     /// <summary>
+    /// Scene number for when people in the room are sleeping.
+    /// Keep shutters closed to prevent noise and early light, but allow manual override from closed to shadow position.
+    /// </summary>
+    Sleeping = 57,
+
+    /// <summary>
+    /// Scene number for when people in the room are awake but waiting for other rooms to be released from night closure.
+    /// If shutters are closed, move them to shadow position, but do not allow opening shutters in this room if other rooms are still in night closure mode.
+    /// Once all rooms are released from night closure, transition the room scene automatically to a suitable automatic scene (use the <see cref="RoomObjectiveProfile"/> based auto-scene determination).
+    /// </summary>
+    AwakeWaitingForNightClosureRelease = 58,
+
+    /// <summary>
     /// Scene number for cleaning mode.
     /// For venetian blinds this would move the slats to a position allowing easy cleaning, e.g. 100% closed with 100% tilt angle reflecting a horizontal position.
     /// Special in this mode:
@@ -128,42 +141,61 @@ public enum RoomShutterScenes : byte
 
 public static class RoomShutterSceneExtensions
 {
-    public static bool IsAutomationScene(this RoomShutterScenes scene)
+    public static bool TryWrite(this IValue value, RoomShutterScene scene, object? source = null)
     {
-        return scene == RoomShutterScenes.AutoNoReopen || scene == RoomShutterScenes.AutoReopen || scene == RoomShutterScenes.AutoMaxLight;
+        if (value is ValueBase<RoomShutterScene> roomShutterSceneValue)
+        {
+            roomShutterSceneValue.Write(scene, source);
+            return true;
+        }
+        if (value is ValueBase<byte> byteValue)
+        {
+            byteValue.Write((byte)scene, source);
+            return true;
+        }
+        if (value?.TryWriteNumeric((byte)scene, source) == true)
+        {
+            return true;
+        }
+        return false;
     }
 
-    public static bool IsRequestScene(this RoomShutterScenes scene)
+    public static bool IsAutomationScene(this RoomShutterScene scene)
     {
-        return scene == RoomShutterScenes.RequestOpen || scene == RoomShutterScenes.RequestShadow || scene == RoomShutterScenes.RequestClosed;
+        return scene == RoomShutterScene.AutoNoReopen || scene == RoomShutterScene.AutoReopen || scene == RoomShutterScene.AutoMaxLight;
     }
 
-    public static bool IsHardScene(this RoomShutterScenes scene)
+    public static bool IsRequestScene(this RoomShutterScene scene)
     {
-        return scene == RoomShutterScenes.HardOpen || scene == RoomShutterScenes.HardShadow || scene == RoomShutterScenes.HardClosed;
+        return scene == RoomShutterScene.RequestOpen || scene == RoomShutterScene.RequestShadow || scene == RoomShutterScene.RequestClosed;
     }
 
-    public static bool IsCleaningScene(this RoomShutterScenes scene)
+    public static bool IsHardScene(this RoomShutterScene scene)
     {
-        return scene == RoomShutterScenes.CleanShutter || scene == RoomShutterScenes.DryShutter || scene == RoomShutterScenes.CleanWindow;
+        return scene == RoomShutterScene.HardOpen || scene == RoomShutterScene.HardShadow || scene == RoomShutterScene.HardClosed;
     }
 
-    public static bool IsDeactivated(this RoomShutterScenes scene)
+    public static bool IsCleaningScene(this RoomShutterScene scene)
     {
-        return scene == RoomShutterScenes.Deactivated;
+        return scene == RoomShutterScene.CleanShutter || scene == RoomShutterScene.DryShutter || scene == RoomShutterScene.CleanWindow;
     }
 
-    public static bool IsValid(this RoomShutterScenes scene)
+    public static bool IsDeactivated(this RoomShutterScene scene)
     {
-        return scene >= RoomShutterScenes.Undefined;
+        return scene == RoomShutterScene.Deactivated;
     }
 
-    public static bool IsDoNotInterfere(this RoomShutterScenes scene)
+    public static bool IsValid(this RoomShutterScene scene)
     {
-        return scene.IsHardScene() || scene == RoomShutterScenes.Reserved50 || scene == RoomShutterScenes.Reserved52;
+        return scene >= RoomShutterScene.Undefined;
     }
 
-    public static bool IsDoNotReset(this RoomShutterScenes scene)
+    public static bool IsDoNotInterfere(this RoomShutterScene scene)
+    {
+        return scene.IsHardScene() || scene == RoomShutterScene.Reserved50 || scene == RoomShutterScene.Reserved52;
+    }
+
+    public static bool IsDoNotReset(this RoomShutterScene scene)
     {
         return scene.IsDoNotInterfere() || scene.IsCleaningScene();
     }

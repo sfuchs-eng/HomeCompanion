@@ -1,7 +1,7 @@
-using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Logics.Shutters;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Base.Model;
 
 public class RoomKey(BuildingKey buildingKey, Floor floor, Room room) : KeyBase
 {

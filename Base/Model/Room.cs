@@ -1,3 +1,5 @@
+using HomeCompanion.Logics.Shutters;
+
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
@@ -57,6 +59,7 @@ public class CfgRoom : CfgEntity
     /// <summary>
     /// Optional room-level automation level override.
     /// </summary>
+    [Obsolete("solve via room scnene semantics")]
     public ShadowingAutomationLevel? AutomationLevelOverride { get; set; }
 
     /// <summary>
@@ -72,7 +75,7 @@ public class CfgRoom : CfgEntity
     /// <summary>
     /// Minimum shadow position used for UV-protection objective.
     /// </summary>
-    public int UvProtectionShadowPosition { get; set; } = 20;
+    public int UvProtectionShadowPosition { get; set; } = 100;
 
     /// <summary>
     /// Optional slat angle used for UV-protection objective.
@@ -80,13 +83,25 @@ public class CfgRoom : CfgEntity
     public int UvProtectionShadowSlat { get; set; } = 45;
 
     /// <summary>
+    /// Optional reference to a boolean input value which enables or disables Anti-Glare objective, extending the shadowing even to irradiation angles beyond direct sunlight.
+    /// </summary>
+    public string? AntiGlareEnableReference { get; set; }
+
+    /// <summary>
+    /// Shutter positions and slat angles can be defined in the building special overall, but can be overridden at room level.
+    /// </summary>
+    public Dictionary<byte, CfgRoomSceneShutterPreset> SceneShutterPresets { get; set; } = [];
+
+    /// <summary>
     /// Optional objective-selector input rules for future IValue-driven objective adaptation.
     /// </summary>
+    [Obsolete("to be reconsidered")]
     public Dictionary<string, CfgObjectiveSelectorInput> ObjectiveSelectorInputs { get; set; } = [];
 
     /// <summary>
     /// Cron-style schedule transitions for room-scoped shutter scene changes.
     /// </summary>
+    [Obsolete("to be reconsidered")]
     public Dictionary<string, CfgRoomScheduleTransition> ScheduleTransitions { get; set; } = [];
 }
 
@@ -112,13 +127,19 @@ public class Room : ModelEntity, IConfigBackedModelEntity
     /// Bound room shutter scene value resolved from <see cref="CfgRoom.ShutterSceneReference"/>.
     /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgRoom.ShutterSceneReference))]
-    public IValue? ShutterScene { get; set; }
+    public IValue<byte>? ShutterScene { get; set; }
 
     /// <summary>
     /// Bound room temperature value resolved from <see cref="CfgRoom.TemperatureReference"/>.
     /// </summary>
-    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgRoom.TemperatureReference), RequireNumeric = true)]
-    public IValue? Temperature { get; set; }
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgRoom.TemperatureReference))]
+    public IValue<float>? Temperature { get; set; }
+
+    /// <summary>
+    /// Bound room anti-glare enable value resolved from <see cref="CfgRoom.AntiGlareEnableReference"/>.
+    /// </summary>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgRoom.AntiGlareEnableReference))]
+    public IValue<bool>? AntiGlareEnable { get; set; }
 
     /// <summary>
     /// Shutters keyed by their configured name.

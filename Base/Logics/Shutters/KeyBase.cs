@@ -34,4 +34,12 @@ public abstract class KeyBase() : IEquatable<KeyBase>, IThingKey
         if (other.GetType() != this.GetType()) return false;
         return EqualsByModelObjectReference(other as KeyBase);
     }
+
+    public int CompareTo(IThingKey? other)
+    {
+        if (other is null) return 1;
+        if (ReferenceEquals(this, other)) return 0;
+        if (other.GetType() != this.GetType()) throw new ArgumentException($"Cannot compare {this.GetType().Name} with {other.GetType().Name}");
+        return string.Compare(Key, other.Key, StringComparison.Ordinal);
+    }
 }

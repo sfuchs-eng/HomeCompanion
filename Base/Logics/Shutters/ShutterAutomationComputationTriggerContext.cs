@@ -1,8 +1,10 @@
+using HomeCompanion.Base.Utilities;
+
 namespace HomeCompanion.Logics.Shutters;
 
 public class ShutterAutomationComputationTriggerContext
 {
-    public IEnumerable<ShutterKey> ShutterKeys { get; }
+    public IEnumerable<IThingKey> ThingKeys { get; }
     public ShutterAutomationComputationScope Scope { get; }
     public ShutterAutomationComputationTriggerUrgency Urgency { get; }
     public IEnumerable<IValue>? TriggeringValue { get; }
@@ -10,14 +12,14 @@ public class ShutterAutomationComputationTriggerContext
     public DateTimeOffset Timestamp { get; }
 
     public ShutterAutomationComputationTriggerContext(
-        IEnumerable<ShutterKey> shutterKeys,
+        IEnumerable<IThingKey> thingKeys,
         ShutterAutomationComputationScope scope,
         IEnumerable<IValue>? triggeringValue,
         IEnumerable<ValueEventArgs>? valueEventArgs,
         DateTimeOffset timestamp,
         ShutterAutomationComputationTriggerUrgency urgency = ShutterAutomationComputationTriggerUrgency.Normal)
     {
-        ShutterKeys = shutterKeys;
+        ThingKeys = thingKeys;
         Scope = scope;
         Urgency = urgency;
         TriggeringValue = triggeringValue;
@@ -27,8 +29,8 @@ public class ShutterAutomationComputationTriggerContext
 
     public ShutterAutomationComputationTriggerContext(IEnumerable<ShutterAutomationComputationTriggerContext> triggerContexts)
     {
-        ShutterKeys = [.. triggerContexts.SelectMany(tc => tc.ShutterKeys)];
-        if (ShutterKeys.DistinctBy(sk => sk.Key).Count() != ShutterKeys.Count())
+        ThingKeys = [.. triggerContexts.SelectMany(tc => tc.ThingKeys)];
+        if (ThingKeys.DistinctBy(sk => sk.Key).Count() != ThingKeys.Count())
             throw new ArgumentException("Cannot merge trigger contexts with overlapping shutter keys.", nameof(triggerContexts));
         Scope = triggerContexts.Max(tc => tc.Scope);
         Urgency = triggerContexts.Max(tc => tc.Urgency);
