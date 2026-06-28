@@ -9,7 +9,7 @@ namespace HomeCompanion.Logics.Shutters;
 /// Triggers are sent to the event bus as <see cref="ShutterAutomationComputationTriggerEvent"/> events for consumption by the <see cref="ShutterController"/>, <see cref="RoomShutterSceneLogic"/>, and potentially other components.
 /// 
 /// </summary>
-public class RuntimesController : LogicBase, IRuntimesProvider
+public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
 {
 //    private readonly IValueProvider valuesProvider;
 //    private readonly IEventPublisher eventPublisher;
@@ -18,7 +18,7 @@ public class RuntimesController : LogicBase, IRuntimesProvider
     private readonly IModelProvider modelProvider;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder;
 //    private readonly ILoggerFactory loggerFactory;
-    private readonly ILogger<RuntimesController> logger;
+    private readonly ILogger<ShadowingRuntimesController> logger;
     private readonly RuntimesFactory runtimesFactory;
 
     private readonly Dictionary<BuildingKey, BuildingRuntime> buildingRuntimes = [];
@@ -31,7 +31,7 @@ public class RuntimesController : LogicBase, IRuntimesProvider
 
     public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes => shutterRuntimes;
 
-    public RuntimesController(
+    public ShadowingRuntimesController(
         IValueProvider valuesProvider,
         IEventPublisher eventPublisher,
         IEventSubscriber eventSubscriber,
@@ -47,7 +47,7 @@ public class RuntimesController : LogicBase, IRuntimesProvider
         this.modelProvider = modelProvider;
         computationTriggerQueueFeeder = new FeedTriggerQueueViaEventBus(eventPublisher);
   //      this.loggerFactory = loggerFactory;
-        this.logger = loggerFactory.CreateLogger<RuntimesController>();
+        this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
         runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
     }
 
@@ -119,7 +119,7 @@ public class RuntimesController : LogicBase, IRuntimesProvider
     public bool CheckConfiguration(Model model)
     {
         var success = true;
-        var allShutters = model.EnumerateShutters().ToArray();
+        var allShutters = model.EnumerateShutterContexts().ToArray();
 
         //=====
         // shadowing special?
@@ -133,14 +133,15 @@ public class RuntimesController : LogicBase, IRuntimesProvider
 
         //=====
         // Do all shutters have the necessary IValue references bound for the corresponding type? E.g. position/angle for venetian blinds, position for roller shutters, open/close for simple ones?
-        var shuttersWithMissingReferences = allShutters
-            .Where(sk => (sk.ShutterConfig.Type == ShutterType.VenetianBlind && (string.IsNullOrEmpty(sk.ShutterConfig.PositionValueReference) || string.IsNullOrEmpty(sk.ShutterConfig.AngleValueReference) || sk.Shutter.PositionValue == null || sk.Shutter.AngleValue == null))
-                || (sk.ShutterConfig.Type == ShutterType.Positional && (string.IsNullOrEmpty(sk.ShutterConfig.PositionValueReference) || sk.Shutter.PositionValue == null))
-                || (sk.ShutterConfig.Type == ShutterType.OpenClose && (string.IsNullOrEmpty(sk.ShutterConfig.OpenCloseReference) || sk.Shutter.OpenCloseValue == null)));
+        var shuttersWithMissingReferences = allShutters.Select(sk => sk.Shutter)
+            .Where(sc => (sc.Configuration.Type == ShutterType.VenetianBlind && (string.IsNullOrEmpty(sc.Configuration.PositionValueReference) || string.IsNullOrEmpty(sc.Configuration.AngleValueReference) || sc.PositionValue == null || sc.AngleValue == null))
+                || (sc.Configuration.Type == ShutterType.Positional && (string.IsNullOrEmpty(sc.Configuration.PositionValueReference) || sc.PositionValue == null))
+                || (sc.Configuration.Type == ShutterType.OpenClose && (string.IsNullOrEmpty(sc.Configuration.OpenCloseReference) || sc.OpenCloseValue == null)))
+            .ToHashSet();
 
-        foreach (var shutter in shuttersWithMissingReferences)
+        foreach (var shutterCtx in allShutters.Where(sk => shuttersWithMissingReferences.Contains(sk.Shutter)))
         {
-            logger.LogError("Shutter {ShutterKey} is missing necessary IValue references for its type {ShutterType}. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutter.Key, shutter.ShutterConfig.Type, shutter.ShutterConfig);
+            logger.LogError("Shutter {ShutterKey} is missing necessary IValue references for its type {ShutterType}. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutterCtx.Key, shutterCtx.Shutter.Configuration.Type, shutterCtx.Shutter.Configuration);
             success = false;
         }
 
@@ -148,21 +149,20 @@ public class RuntimesController : LogicBase, IRuntimesProvider
         // Do all shutters have a facade bound?
         var shuttersWithMissingFacade = allShutters
             .Where(sk => sk.Shutter.Facade == null);
-        foreach (var shutter in shuttersWithMissingFacade)
+        foreach (var shutterCtx in shuttersWithMissingFacade)
         {
-            logger.LogError("Shutter {ShutterKey} has no facade bound. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutter.Key, shutter.ShutterConfig);
+            logger.LogError("Shutter {ShutterKey} has no facade bound. Please check the configuration for this shutter. Shutter configuration: {ShutterConfig}", shutterCtx.Key, shutterCtx.Shutter.Configuration);
             success = false;
         }
 
         //=====
         // Do all shutters belong to a room with a shutter scene configured? If there are such without, is there a global shutter scene bound as fall back?
         var roomsWithShuttersWithoutScene = allShutters
-            .Where(sk => sk.RoomKey.Room.ShutterScene == null && sk.RoomKey.Building.TryGetShadowingSpecial(out var shadowingSpecial) && shadowingSpecial.GlobalShutterScene == null)
-            .Select(sk => sk.RoomKey)
+            .Where(sk => sk.Room.ShutterScene == null && sk.Building.TryGetShadowingSpecial(out var shadowingSpecial) && shadowingSpecial.GlobalShutterScene == null)
             .Distinct();
-        foreach (var roomKey in roomsWithShuttersWithoutScene)
+        foreach (var roomCtx in roomsWithShuttersWithoutScene)
         {
-            logger.LogWarning("Room {RoomKey} has shutters but no shutter scene configured, and there is no global shutter scene configured in the building's shadowing special as fallback. Please check the configuration for this room and building. Room configuration: {RoomConfig}", roomKey, roomKey.Room);
+            logger.LogWarning("Room {RoomKey} has shutters but no shutter scene configured, and there is no global shutter scene configured in the building's shadowing special as fallback. Please check the configuration for this room and building. Room configuration: {RoomConfig}", roomCtx.RoomKey, roomCtx.Room.Configuration);
             success = false;
         }
         return success;

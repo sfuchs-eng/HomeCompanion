@@ -206,7 +206,7 @@ public class RoomRuntime(
 
         var newRuntimes = new Dictionary<RoomKey, RoomRuntime>();
 
-        foreach (var roomKey in model.EnumerateRooms())
+        foreach (var roomKey in model.EnumerateRoomContexts())
         {
             if (roomRuntimes?.ContainsKey(roomKey) == true)
             {

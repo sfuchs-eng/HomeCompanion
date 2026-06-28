@@ -11,8 +11,16 @@
 
 - `CfgBuilding`, `CfgFloor`, `CfgRoom`, `CfgShutter` are building, floor, room and shutter level configuration for shutter control behavior.
 - `CfgShadowingSpecial` is a building level configuration for shutter control behavior in context of shadowing.
+- `Model` is built dynamically from the configuration classes and is used by the shutter control logic to determine the shutter control behavior.
+- `HomeCompanion.Core.Model.ModelValueBinder` is used to bind IValue references in to configuration to the actual values in the model.
 
-## Scene control
+## Architecture
 
-Room shutter scenes define how shutters should react to different triggers and requests.
-See `HomeCompanion.Base.Model.RoomShutterScenes` for details.
+The shutter control logic is implemented in `ShutterController` (ILogic) class, which is responsible for controlling the shutters based on the room shutter scene and other inputs.
+
+The room shutter scene is governed by `RoomShutterSceneLogic` (ILogic) class, which is responsible for determining the room shutter scene based on the room configuration and other inputs.
+
+Both ILogic classes base on the runtimes classes managed by `ShadowingRuntimesController` (IRuntimeController, ILogic) class, which is responsible for managing the runtime state of the shutters and other inputs.
+
+The runtime classes react to system events and publish `ShutterAutomationComputationTriggerEvent` events to trigger the shutter control logic to compute the new shutter positions.
+The events are published by `ShadowingRuntimesController` which implements time window gating, prioritization and aggregation of events. The events are consumed mostly by `ShutterController` and `RoomShutterSceneLogic`.

@@ -29,7 +29,7 @@ public partial class ShutterController : LogicBase
     private readonly Dictionary<RoomKey, RoomRuntime> roomRuntimes = [];
 
     /// <summary>
-    /// <see cref="RuntimesController"/> sends triggers to the event bus from which we received them and enqueue them into the <b>shutter automation trigger collector</b>.
+    /// <see cref="ShadowingRuntimesController"/> sends triggers to the event bus from which we received them and enqueue them into the <b>shutter automation trigger collector</b>.
     /// The collector assesses each trigger for its urgency and the time it has been waiting since it was triggered, and decides whether to immediately enqueue it for processing in the <b>state computation loop</b> or to defer it for a short time to allow for more triggers to arrive and be processed together, e.g. to avoid excessive shutter movements in case of rapidly changing input conditions; the collector also batches triggers that are due for processing together into one trigger with a collection of all individual triggers, which is then enqueued into the <b>state computation loop</b>.
     /// </summary>
     private readonly BackgroundRunner<ShutterAutomationComputationTriggerContext> shutterAutomationTriggerCollector;

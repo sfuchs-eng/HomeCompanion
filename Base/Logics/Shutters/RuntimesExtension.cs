@@ -16,6 +16,6 @@ public class RuntimesExtension : Extensions.IExtensionRegistration
     public void RegisterServices(IExtensionRegistrationContext context)
     {
         // RuntimesController is injected as an ILogic, but also implements IRuntimesProvider, so that other logics can access the runtimes.
-        context.Builder.Services.AddSingleton<IRuntimesProvider>(sp => sp.GetRequiredService<RuntimesController>());
+        context.Builder.Services.AddSingleton<IRuntimesProvider>(sp => sp.GetRequiredService<ShadowingRuntimesController>());
     }
 }

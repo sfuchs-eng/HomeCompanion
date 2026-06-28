@@ -15,7 +15,7 @@ public class ShutterAutomationTestFixture(
     TimeProvider timeProvider,
     IModelProvider modelProvider,
     IRuntimesProvider runtimesProvider,
-    RuntimesController runtimesController,
+    ShadowingRuntimesController runtimesController,
     ILoggerFactory loggerFactory,
     ILogger<ShutterAutomationTestFixture> logger
 )
@@ -26,7 +26,7 @@ public class ShutterAutomationTestFixture(
     public TimeProvider TimeProvider { get; private set; } = timeProvider;
     public IModelProvider ModelProvider { get; private set; } = modelProvider;
     public IRuntimesProvider RuntimesProvider { get; private set; } = runtimesProvider;
-    public RuntimesController RuntimesController { get; private set; } = runtimesController;
+    public ShadowingRuntimesController RuntimesController { get; private set; } = runtimesController;
     public ILoggerFactory LoggerFactory { get; private set; } = loggerFactory;
     public ILogger<ShutterAutomationTestFixture> Logger { get; private set; } = logger;
 
@@ -125,7 +125,7 @@ public class ShutterAutomationTestFixture(
         (shadowingSpecial.SunPositionElevation as ValueBase<float>)?.Write(26.3f);
         (shadowingSpecial.ThermalControlMode as ValueBase<byte>)?.Write((byte)ThermalControlMode.Passive);
 
-        var allShutters = model.EnumerateShutters().ToArray();
+        var allShutters = model.EnumerateShutterKeys().ToArray();
         foreach (var shutter in allShutters)
         {
             if (shutter.ShutterConfig.Type == ShutterType.VenetianBlind)
@@ -192,7 +192,7 @@ public class ShutterAutomationTestFixture(
         timeProvider ??= TimeProvider.System;
         var modelProvider = new StubModelProvider(model);
         var loggerFactory = NullLoggerFactory.Instance;
-        var runtimesController = new RuntimesController(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory);
+        var runtimesController = new ShadowingRuntimesController(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 

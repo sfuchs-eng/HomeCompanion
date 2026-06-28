@@ -20,7 +20,7 @@ public class RoomShutterSceneLogic(
     TimeProvider timeProvider,
     IModelProvider modelProvider,
     IRuntimesProvider runtimesProvider,
-    RuntimesController runtimesController,
+    ShadowingRuntimesController runtimesController,
     ILoggerFactory loggerFactory,
     ILogger<RoomShutterSceneLogic> logger
 ) : LogicBase(eventPublisher, eventSubscriber)
@@ -31,7 +31,7 @@ public class RoomShutterSceneLogic(
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly IModelProvider modelProvider = modelProvider;
     private readonly IRuntimesProvider runtimesProvider = runtimesProvider;
-    private readonly RuntimesController runtimesController = runtimesController;
+    private readonly ShadowingRuntimesController runtimesController = runtimesController;
     private readonly ILoggerFactory loggerFactory = loggerFactory;
     private readonly ILogger<RoomShutterSceneLogic> logger = logger;
 

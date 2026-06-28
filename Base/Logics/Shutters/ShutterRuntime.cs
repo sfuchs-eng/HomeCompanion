@@ -99,7 +99,7 @@ public class ShutterRuntime(
 
         var newRuntimes = new Dictionary<ShutterKey, ShutterRuntime>();
 
-        foreach (var shutterKey in model.EnumerateShutters())
+        foreach (var shutterKey in model.EnumerateShutterKeys())
         {
             if (existingRuntimes != null && existingRuntimes.ContainsKey(shutterKey))
             {
