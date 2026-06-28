@@ -205,9 +205,19 @@ public class ShutterAutomationTestFixture(
         timeProvider ??= TimeProvider.System;
         var modelProvider = new StubModelProvider(model);
         var loggerFactory = NullLoggerFactory.Instance;
-        var runtimesController = new ShadowingRuntimesController(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory);
+        // have an event queue that is a regular, thread safe list, wrapped in an IQueueFeeder implementation that feeds the events into the list. This allows to enqueue events from the test code and controlling the processing.
+        var eventQueue = new TestEventQueue<ShutterAutomationComputationTriggerContext>(
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = true
+        });
+        var runtimesController = new ShadowingRuntimesController(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, eventQueue, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
+
+        // runtime initialization
+        runtimesController.InitializeAsync().GetAwaiter().GetResult();
 
         return new ShutterAutomationTestFixture(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, logger);
     }

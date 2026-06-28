@@ -1,5 +1,6 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -31,6 +32,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
 
     public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes => shutterRuntimes;
 
+    [ActivatorUtilitiesConstructor]
     public ShadowingRuntimesController(
         IValueProvider valuesProvider,
         IEventPublisher eventPublisher,
@@ -40,13 +42,35 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
         ILoggerFactory loggerFactory
 ) : base(eventPublisher, eventSubscriber)
     {
-  //      this.valuesProvider = valuesProvider;
-  //      this.eventPublisher = eventPublisher;
-  //      this.eventSubscriber = eventSubscriber;
-  //      this.timeProvider = timeProvider;
+        //      this.valuesProvider = valuesProvider;
+        //      this.eventPublisher = eventPublisher;
+        //      this.eventSubscriber = eventSubscriber;
+        //      this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
         computationTriggerQueueFeeder = new FeedTriggerQueueViaEventBus(eventPublisher);
-  //      this.loggerFactory = loggerFactory;
+        //      this.loggerFactory = loggerFactory;
+        this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
+        runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
+    }
+
+    // constructor for testing, allowing to inject a custom queue feeder for the computation triggers
+    public ShadowingRuntimesController(
+        IValueProvider valuesProvider,
+        IEventPublisher eventPublisher,
+        IEventSubscriber eventSubscriber,
+        TimeProvider timeProvider,
+        IModelProvider modelProvider,
+        IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder,
+        ILoggerFactory loggerFactory
+) : base(eventPublisher, eventSubscriber)
+    {
+        //      this.valuesProvider = valuesProvider;
+        //      this.eventPublisher = eventPublisher;
+        //      this.eventSubscriber = eventSubscriber;
+        //      this.timeProvider = timeProvider;
+        this.modelProvider = modelProvider;
+        this.computationTriggerQueueFeeder = computationTriggerQueueFeeder;
+        //      this.loggerFactory = loggerFactory;
         this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
         runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
     }
@@ -58,9 +82,15 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
     {
         private readonly IEventPublisher eventPublisher = eventPublisher;
 
+        public void Enqueue(ShutterAutomationComputationTriggerContext trigger)
+        {
+            // Enqueue the trigger by publishing it as an event to the event bus.
+            eventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent { Context = trigger }).ConfigureAwait(false).GetAwaiter().GetResult();
+        }
+
         public async ValueTask EnqueueAsync(ShutterAutomationComputationTriggerContext item, CancellationToken cancellationToken = default)
         {
-            await eventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent { Context = item }, cancellationToken);
+            await eventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent { Context = item }, cancellationToken).ConfigureAwait(false);
         }
 
         async Task IQueueFeeder<ShutterAutomationComputationTriggerContext>.EnqueueAsync(ShutterAutomationComputationTriggerContext trigger, CancellationToken token)

@@ -43,4 +43,10 @@ public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Chann
     {
         await Channel.Writer.WriteAsync(trigger, token);
     }
+
+    public void Enqueue(TChannelItem trigger)
+    {
+        if ( !Channel.Writer.TryWrite(trigger) )
+            throw new InvalidOperationException("Failed to enqueue item, channel may be closed");
+    }
 }
