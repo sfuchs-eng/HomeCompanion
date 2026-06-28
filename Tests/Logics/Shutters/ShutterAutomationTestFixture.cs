@@ -125,19 +125,20 @@ public class ShutterAutomationTestFixture(
         (shadowingSpecial.SunPositionElevation as ValueBase<float>)?.Write(26.3f);
         (shadowingSpecial.ThermalControlMode as ValueBase<byte>)?.Write((byte)ThermalControlMode.Passive);
 
-        var allShutters = model.EnumerateShutterKeys().ToArray();
-        foreach (var shutter in allShutters)
+        var allShutters = model.EnumerateShutterContexts().ToArray();
+        foreach (var shutterContext in allShutters)
         {
-            if (shutter.ShutterConfig.Type == ShutterType.VenetianBlind)
+            var shutter = shutterContext.Shutter;
+            if (shutter.Configuration.Type == ShutterType.VenetianBlind)
             {
                 // fully open and horizontal
-                (shutter.Shutter.PositionValue as ValueBase<float>)?.Write(0.0f);
-                (shutter.Shutter.AngleValue as ValueBase<float>)?.Write(0.0f);
+                (shutter.PositionValue as ValueBase<float>)?.Write(0.0f);
+                (shutter.AngleValue as ValueBase<float>)?.Write(0.0f);
             }
-            else if (shutter.ShutterConfig.Type == ShutterType.OpenClose)
+            else if (shutter.Configuration.Type == ShutterType.OpenClose)
             {
                 // fully open
-                (shutter.Shutter.OpenCloseValue as ValueBase<bool>)?.Write(false);
+                (shutter.OpenCloseValue as ValueBase<bool>)?.Write(false);
             }
         }
     }

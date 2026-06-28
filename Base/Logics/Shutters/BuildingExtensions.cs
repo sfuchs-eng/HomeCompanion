@@ -4,7 +4,15 @@ namespace HomeCompanion.Logics.Shutters;
 
 public static class BuildingExtensions
 {
-    public static IEnumerable<BuildingContext> EnumerateBuildings(this Model model)
+    public static IEnumerable<BuildingKey> EnumerateBuildingKeys(this Model model)
+    {
+        foreach (var building in model.Buildings.Values)
+        {
+            yield return new BuildingKey(building);
+        }
+    }
+
+    public static IEnumerable<BuildingContext> EnumerateBuildingContexts(this Model model)
     {
         foreach (var building in model.Buildings.Values)
         {

@@ -42,7 +42,7 @@ public class BuildingRuntime(
         var loggerFactory = runtimeCreationContext.LoggerFactory;
         var newRuntimes = new Dictionary<BuildingKey, BuildingRuntime>();
 
-        foreach (var buildingKey in model.EnumerateBuildings())
+        foreach (var buildingKey in model.EnumerateBuildingKeys())
         {
             if (existingRuntimes != null && existingRuntimes.ContainsKey(buildingKey))
             {

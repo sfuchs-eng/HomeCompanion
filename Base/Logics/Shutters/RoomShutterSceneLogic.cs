@@ -64,12 +64,6 @@ public class RoomShutterSceneLogic(
 
     private async Task HandleShutterAutomationComputationTriggerEventForRoomAsync(RoomKey roomKey, ShutterAutomationComputationTriggerEvent @event, CancellationToken cancellationToken)
     {
-        var room = roomKey.Room;
-        if (room == null)
-        {
-            logger.LogWarning("Room key {RoomKey} does not have a corresponding room in the model.", roomKey.Key);
-            return;
-        }
         if (runtimesProvider.RoomRuntimes.TryGetValue(roomKey, out var roomRuntime))
         {
             await roomRuntime.HandleShutterAutomationComputationTriggerEvent(@event.Context, cancellationToken);

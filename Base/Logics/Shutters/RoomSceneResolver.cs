@@ -9,7 +9,7 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 public class RoomSceneResolver
 {
-    protected readonly RoomKey roomKey;
+    protected readonly RoomContext roomContext;
     protected readonly ILogger<RoomSceneResolver> logger;
 
     #region Room shutter scene state machine
@@ -28,9 +28,9 @@ public class RoomSceneResolver
     protected byte LastPermittedPreviousScene { get; private set; } = (byte)RoomShutterScene.Undefined;
     #endregion
 
-    public RoomSceneResolver(RoomKey roomKey, ILogger<RoomSceneResolver> logger)
+    public RoomSceneResolver(RoomContext roomContext, ILogger<RoomSceneResolver> logger)
     {
-        this.roomKey = roomKey;
+        this.roomContext = roomContext;
         this.logger = logger;
     }
 
@@ -40,7 +40,7 @@ public class RoomSceneResolver
 
         // current requested scene
         RoomShutterScene currentSceneRequest = RoomShutterScene.Undefined;
-        if (!roomKey.Room.ShutterScene?.TryGetEnumValue<RoomShutterScene>(out currentSceneRequest) ?? false)
+        if (!roomContext.Room.ShutterScene?.TryGetEnumValue<RoomShutterScene>(out currentSceneRequest) ?? false)
         {
             currentSceneRequest = RoomShutterScene.Undefined;
         }
@@ -52,13 +52,13 @@ public class RoomSceneResolver
         var roomObjectiveProfile = conditionsAssessor.ResolveCurrentRoomObjectiveProfile();
 
         // Building absence mode active? --> enter automation
-        var buildingAbsenceModeActive = roomKey.Building.GetShadowingSpecial().Absence?.Value == true;
+        var buildingAbsenceModeActive = roomContext.Building.GetShadowingSpecial().Absence?.Value == true;
 
 
         //=== global shutter scene override? ===
 
         var globalShutterScene = RoomShutterScene.Undefined;
-        if (roomKey.Building.GetShadowingSpecial().GlobalShutterScene?.TryGetEnumValue<RoomShutterScene>(out var scene) ?? false)
+        if (roomContext.Building.GetShadowingSpecial().GlobalShutterScene?.TryGetEnumValue<RoomShutterScene>(out var scene) ?? false)
         {
             globalShutterScene = scene;
         }

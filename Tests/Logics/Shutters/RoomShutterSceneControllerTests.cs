@@ -48,14 +48,20 @@ public class RoomShutterSceneControllerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(fix.RuntimesController.BuildingRuntimes.ContainsKey(buildingKey), Is.True, "Building runtime for the test building should exist in the RuntimesController.");
-            Assert.That(fix.RuntimesController.BuildingRuntimes[buildingKey].BuildingKey.Building, Is.EqualTo(building), "The building runtime should be associated with the correct building.");
+            Assert.That(fix.RuntimesController.BuildingRuntimes[buildingKey].BuildingKey, Is.EqualTo(buildingKey), "The building runtime should be associated with the correct building key.");
             Assert.That(fix.RuntimesController.RoomRuntimes.ContainsKey(roomKey), Is.True, "Room runtime for the test room should exist in the RuntimesController.");
-            Assert.That(fix.RuntimesController.RoomRuntimes[roomKey].RoomKey.Room, Is.EqualTo(room), "The room runtime should be associated with the correct room.");
+            Assert.That(fix.RuntimesController.RoomRuntimes[roomKey].RoomContext.Room, Is.EqualTo(room), "The room runtime should be associated with the correct room context.");
         }
 
         var rtBuilding = fix.RuntimesController.BuildingRuntimes.Single(b => b.Key.Key.Equals("TestBuilding1")).Value;
         var rtRoom = fix.RuntimesController.RoomRuntimes.Single(r => r.Key.Equals(roomKey)).Value;
 
-        Assert.Fail("TODO: implement tests for the RoomShutterSceneController's behavior, including how it reacts to changes in the model and value references, and how it manages room shutter scenes.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(rtBuilding.BuildingKey, Is.EqualTo(buildingKey));
+            Assert.That(rtRoom.RoomKey, Is.EqualTo(roomKey));
+            Assert.That(rtRoom.RoomContext.Building, Is.EqualTo(building));
+            Assert.That(rtRoom.RoomContext.Room, Is.EqualTo(room));
+        }
     }
 }

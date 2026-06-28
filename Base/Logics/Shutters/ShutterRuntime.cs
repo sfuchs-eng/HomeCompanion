@@ -5,12 +5,13 @@ using Microsoft.Extensions.Logging;
 namespace HomeCompanion.Logics.Shutters;
 
 public class ShutterRuntime(
-    ShutterKey shutterKey,
+    ShutterContext shutterContext,
     IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
     ILogger<ShutterRuntime> logger
 ) : RuntimeBase(logger)
 {
-    public ShutterKey ShutterKey { get; } = shutterKey;
+    public ShutterContext ShutterContext { get; } = shutterContext;
+    public ShutterKey ShutterKey => ShutterContext.ShutterKey;
     private readonly ILogger<ShutterRuntime> logger = logger;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
 
@@ -24,8 +25,7 @@ public class ShutterRuntime(
     /// </summary>
     public override async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        var shutter = ShutterKey.Shutter;
-        var shutterConfig = ShutterKey.ShutterConfig;
+        var shutter = ShutterContext.Shutter;
 
         shutter.AngleValue?.Written += HandleShutterCommanded;
         shutter.PositionValue?.Written += HandleShutterCommanded;
@@ -51,7 +51,7 @@ public class ShutterRuntime(
     /// </summary>
     public override Task StopAsync(CancellationToken cancellationToken = default)
     {
-        var shutter = ShutterKey.Shutter;
+        var shutter = ShutterContext.Shutter;
 
         shutter.AngleValue?.Written -= HandleShutterCommanded;
         shutter.PositionValue?.Written -= HandleShutterCommanded;
@@ -64,7 +64,7 @@ public class ShutterRuntime(
     {
         if ( !shutterTarget.ShutterKey.Equals(this.ShutterKey) )
             throw new ArgumentException($"The provided shutter target {shutterTarget} does not match the shutter key {this.ShutterKey} of this runtime.", nameof(shutterTarget));
-        var shutter = ShutterKey.Shutter;
+        var shutter = ShutterContext.Shutter;
         // switch:      ShutterType.OpenClose => shutter.OpenCloseValue.TryWriteNumeric(shutterTarget.OpenClose, shutterTarget.Duration),
 
         bool success = true;
@@ -99,14 +99,15 @@ public class ShutterRuntime(
 
         var newRuntimes = new Dictionary<ShutterKey, ShutterRuntime>();
 
-        foreach (var shutterKey in model.EnumerateShutterKeys())
+        foreach (var shutterContext in model.EnumerateShutterContexts())
         {
+            var shutterKey = shutterContext.ShutterKey;
             if (existingRuntimes != null && existingRuntimes.ContainsKey(shutterKey))
             {
                 continue;
             }
 
-            var runtime = new ShutterRuntime(shutterKey, queueFeeder, loggerFactory.CreateLogger<ShutterRuntime>());
+            var runtime = new ShutterRuntime(shutterContext, queueFeeder, loggerFactory.CreateLogger<ShutterRuntime>());
             newRuntimes[shutterKey] = runtime;
         }
 

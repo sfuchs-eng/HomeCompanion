@@ -16,28 +16,28 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 public class RoomSceneConditionsAssessor
 {
-    protected readonly RoomKey roomKey;
+    protected readonly RoomContext roomContext;
     protected readonly ILogger<RoomSceneConditionsAssessor> logger;
 
-    public RoomSceneConditionsAssessor(RoomKey roomKey, ILogger<RoomSceneConditionsAssessor> logger)
+    public RoomSceneConditionsAssessor(RoomContext roomContext, ILogger<RoomSceneConditionsAssessor> logger)
     {
-        this.roomKey = roomKey;
+        this.roomContext = roomContext;
         this.logger = logger;
     }
 
     public virtual RoomObjectiveProfile ResolveCurrentRoomObjectiveProfile()
     {
-        return roomKey.Room.Configuration.ObjectiveProfile switch
+        return roomContext.Room.Configuration.ObjectiveProfile switch
         {
             RoomObjectiveProfile.InheritFromThermalControl => ResolveRoomThermalControlModeObjectiveProfile(),
-            _ => roomKey.Room.Configuration.ObjectiveProfile
+            _ => roomContext.Room.Configuration.ObjectiveProfile
         };
     }
 
     protected virtual RoomObjectiveProfile ResolveRoomThermalControlModeObjectiveProfile()
     {
         var buildingThermalControlMode = ThermalControl.ThermalControlMode.Undefined;
-        if (roomKey.Building.TryGetShadowingSpecial(out var shadowingSpecial))
+        if (roomContext.Building.TryGetShadowingSpecial(out var shadowingSpecial))
         {
             buildingThermalControlMode = shadowingSpecial.ThermalControlMode?.TryGetThermalControlMode() ?? ThermalControl.ThermalControlMode.Undefined;
         }
@@ -45,7 +45,7 @@ public class RoomSceneConditionsAssessor
         if (buildingThermalControlMode == ThermalControl.ThermalControlMode.Undefined)
         {
             // building is not defined, revert back to room-level default.
-            return roomKey.Room.Configuration.ObjectiveProfile;
+            return roomContext.Room.Configuration.ObjectiveProfile;
         }
 
         return buildingThermalControlMode switch

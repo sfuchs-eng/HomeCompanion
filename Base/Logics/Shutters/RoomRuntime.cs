@@ -18,13 +18,14 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 /// <typeparam name="ShutterAutomationComputationTriggerContext"></typeparam>
 public class RoomRuntime(
-    RoomKey roomKey,
+    RoomContext roomContext,
     IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
     TimeProvider timeProvider,
     ILogger<RoomRuntime> logger
 ) : RuntimeBase(logger)
 {
-    public RoomKey RoomKey { get; } = roomKey;
+    public RoomContext RoomContext { get; } = roomContext;
+    public RoomKey RoomKey => RoomContext.RoomKey;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly ILogger<RoomRuntime> logger = logger;
@@ -41,8 +42,8 @@ public class RoomRuntime(
 
     public override Task StartAsync(CancellationToken cancellationToken = default)
     {
-        RoomKey.Room.Temperature?.Changed += HandleRoomTemperatureChanged;
-        RoomKey.Room.ShutterScene?.Changed += HandleRoomShutterSceneChanged;
+        RoomContext.Room.Temperature?.Changed += HandleRoomTemperatureChanged;
+        RoomContext.Room.ShutterScene?.Changed += HandleRoomShutterSceneChanged;
         return Task.CompletedTask;
     }
 
@@ -67,7 +68,7 @@ public class RoomRuntime(
             return;
         }
 
-        if (RoomKey.Room.ShutterScene is not ValueBase<byte> sceneValue)
+        if (RoomContext.Room.ShutterScene is not ValueBase<byte> sceneValue)
         {
             logger.LogWarning("Cannot set room shutter scene for room {RoomKey} because the ShutterScene value is not a ValueBase<byte>. LastCommanded: {LastCommanded}", RoomKey.Key, LastSceneCommanded);
             return;
@@ -112,11 +113,11 @@ public class RoomRuntime(
         if (roomScene?.IsAutomationScene() == true)
         {
             logger.LogTrace("Room shutter scene is set to {RoomScene} for room {RoomKey}. Enqueuing a recomputation trigger for the room runtime to handle it.", roomScene, RoomKey.Key);
-            IEnumerable<IThingKey> thingKeys = RoomKey.Room.Shutters.Select(s => new ShutterKey(RoomKey, s.Value));
+            IEnumerable<IThingKey> thingKeys = RoomContext.Room.Shutters.Values.Select(shutter => new ShutterKey(RoomKey, shutter));
             queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
                 thingKeys: thingKeys,
                 scope: ShutterAutomationComputationScope.ShutterSpecific,
-                triggeringValue: RoomKey.Room.ShutterScene != null ? [RoomKey.Room.ShutterScene] : [],
+                triggeringValue: RoomContext.Room.ShutterScene != null ? [RoomContext.Room.ShutterScene] : [],
                 valueEventArgs: [],
                 timestamp: timeProvider.GetLocalNow(),
                 urgency: ShutterAutomationComputationTriggerUrgency.Slow
@@ -125,14 +126,14 @@ public class RoomRuntime(
         }
 
         // is it a defined scene with shutter presets? then enqueue a trigger for the shutters to discover and react to the new scene.
-        if (RoomKey.TryGetRoomSceneShutterPreset(scene, out var _))
+        if (RoomContext.TryGetRoomSceneShutterPreset(scene, out var _))
         {
             logger.LogTrace("Room shutter scene is set to {RoomScene} for room {RoomKey}. Enqueuing a recomputation trigger for the shutters to handle it.", roomScene, RoomKey.Key);
-            IEnumerable<IThingKey> thingKeys = RoomKey.Room.Shutters.Select(s => new ShutterKey(RoomKey, s.Value));
+            IEnumerable<IThingKey> thingKeys = RoomContext.Room.Shutters.Values.Select(shutter => new ShutterKey(RoomKey, shutter));
             queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
                 thingKeys: thingKeys,
                 scope: ShutterAutomationComputationScope.ShutterSpecific,
-                triggeringValue: RoomKey.Room.ShutterScene != null ? [RoomKey.Room.ShutterScene] : [],
+                triggeringValue: RoomContext.Room.ShutterScene != null ? [RoomContext.Room.ShutterScene] : [],
                 valueEventArgs: [],
                 timestamp: timeProvider.GetLocalNow(),
                 urgency: ShutterAutomationComputationTriggerUrgency.Normal
@@ -187,8 +188,8 @@ public class RoomRuntime(
 
     public override Task StopAsync(CancellationToken cancellationToken = default)
     {
-        RoomKey.Room.Temperature?.Changed -= HandleRoomTemperatureChanged;
-        RoomKey.Room.ShutterScene?.Changed -= HandleRoomShutterSceneChanged;
+        RoomContext.Room.Temperature?.Changed -= HandleRoomTemperatureChanged;
+        RoomContext.Room.ShutterScene?.Changed -= HandleRoomShutterSceneChanged;
         return Task.CompletedTask;
     }
 
@@ -206,17 +207,18 @@ public class RoomRuntime(
 
         var newRuntimes = new Dictionary<RoomKey, RoomRuntime>();
 
-        foreach (var roomKey in model.EnumerateRoomContexts())
+        foreach (var roomContext in model.EnumerateRoomContexts())
         {
+            var roomKey = roomContext.RoomKey;
             if (roomRuntimes?.ContainsKey(roomKey) == true)
             {
                 continue;
             }
 
-            var runtime = new RoomRuntime(roomKey, queueFeeder, runtimeCreationContext.TimeProvider, loggerFactory.CreateLogger<RoomRuntime>())
+            var runtime = new RoomRuntime(roomContext, queueFeeder, runtimeCreationContext.TimeProvider, loggerFactory.CreateLogger<RoomRuntime>())
             {
-                SceneConditionsAssessor = new RoomSceneConditionsAssessor(roomKey, loggerFactory.CreateLogger<RoomSceneConditionsAssessor>()),
-                SceneResolver = new RoomSceneResolver(roomKey, loggerFactory.CreateLogger<RoomSceneResolver>())
+                SceneConditionsAssessor = new RoomSceneConditionsAssessor(roomContext, loggerFactory.CreateLogger<RoomSceneConditionsAssessor>()),
+                SceneResolver = new RoomSceneResolver(roomContext, loggerFactory.CreateLogger<RoomSceneResolver>())
             };
             newRuntimes[roomKey] = runtime;
         }
