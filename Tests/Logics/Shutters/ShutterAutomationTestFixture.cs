@@ -8,6 +8,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
+/// <summary>
+/// Provides a test fixture for testing shutter automation and room shutter scene logic, including model creation, value reference management, and runtime controller setup.
+/// </summary>
+/// <param name="valuesProvider"></param>
+/// <param name="eventPublisher"></param>
+/// <param name="eventSubscriber"></param>
+/// <param name="timeProvider"></param>
+/// <param name="modelProvider"></param>
+/// <param name="runtimesProvider"></param>
+/// <param name="runtimesController"></param>
+/// <param name="loggerFactory"></param>
+/// <param name="logger"></param> <summary>
 public class ShutterAutomationTestFixture(
     IValueProvider valuesProvider,
     IEventPublisher eventPublisher,
@@ -67,7 +79,7 @@ public class ShutterAutomationTestFixture(
                                         ["Shutter2_SE"] = new CfgShutter { FacadeReference = "SE", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter2Position", AngleValueReference = "Float:Shutter2Angle" },
                                         ["Shutter3_SW"] = new CfgShutter { FacadeReference = "SW", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter3Position", AngleValueReference = "Float:Shutter3Angle" },
                                         ["Shutter4_NE"] = new CfgShutter { FacadeReference = "NE", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter4Position", AngleValueReference = "Float:Shutter4Angle" },
-                                        ["Shutter5_RoofTiltedSW"] = new CfgShutter { FacadeReference = "RoofTiltedSW", Type = ShutterType.OpenClose, PositionValueReference = "Bool:Shutter5Closed" }
+                                        ["Shutter5_RoofTiltedSW"] = new CfgShutter { FacadeReference = "RoofTiltedSW", Type = ShutterType.OpenClose, OpenCloseReference = "Bool:Shutter5Closed" }
                                     }
                                 }
                             }
@@ -181,7 +193,7 @@ public class ShutterAutomationTestFixture(
     public static ShutterAutomationTestFixture Create(CfgModel? modelConfig = null, Model? model = null, Dictionary<string, IValue>? valueReferences = null, TimeProvider? timeProvider = null)
     {
         modelConfig ??= model?.Configuration ?? CreateDefaultModelConfiguration();
-        if ( model == null )
+        if (model == null)
         {
             var tempValueReferences = valueReferences ?? [];
             BuildDefaultTestModel(modelConfig, out model, ref tempValueReferences);

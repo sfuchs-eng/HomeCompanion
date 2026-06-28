@@ -11,7 +11,7 @@ namespace HomeCompanion.Tests.Logics.Shutters;
 public class RoomShutterSceneControllerTests
 {
     [Test(Description = "Tests that the RoomShutterSceneController initializes correctly and creates the expected room runtime.")]
-    public void TestRoomShutterSceneControllerInitialization()
+    public void RoomShutterSceneControllerInitialization()
     {
         var fix = ShutterAutomationTestFixture.Create();
         Assert.That(fix.RuntimesController.RoomRuntimes, Is.Not.Null);
