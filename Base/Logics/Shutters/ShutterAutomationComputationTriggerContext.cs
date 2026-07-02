@@ -7,7 +7,7 @@ public class ShutterAutomationComputationTriggerContext
     public IEnumerable<IThingKey> ThingKeys { get; }
     public ShutterAutomationComputationScope Scope { get; }
     public ShutterAutomationComputationTriggerUrgency Urgency { get; }
-    public IEnumerable<IValue>? TriggeringValue { get; }
+    public IEnumerable<IValue>? TriggeringValues { get; }
     public IEnumerable<ValueEventArgs>? ValueEventArgs { get; }
     public DateTimeOffset Timestamp { get; }
 
@@ -22,7 +22,7 @@ public class ShutterAutomationComputationTriggerContext
         ThingKeys = thingKeys;
         Scope = scope;
         Urgency = urgency;
-        TriggeringValue = triggeringValue;
+        TriggeringValues = triggeringValue;
         ValueEventArgs = valueEventArgs;
         Timestamp = timestamp;
     }
@@ -34,7 +34,7 @@ public class ShutterAutomationComputationTriggerContext
             throw new ArgumentException("Cannot merge trigger contexts with overlapping shutter keys.", nameof(triggerContexts));
         Scope = triggerContexts.Max(tc => tc.Scope);
         Urgency = triggerContexts.Max(tc => tc.Urgency);
-        TriggeringValue = triggerContexts.SelectMany(tc => tc.TriggeringValue ?? Enumerable.Empty<IValue>()).Distinct();
+        TriggeringValues = triggerContexts.SelectMany(tc => tc.TriggeringValues ?? Enumerable.Empty<IValue>()).Distinct();
         ValueEventArgs = triggerContexts.SelectMany(tc => tc.ValueEventArgs ?? Enumerable.Empty<ValueEventArgs>()).Distinct();
         Timestamp = triggerContexts.Min(tc => tc.Timestamp);
     }

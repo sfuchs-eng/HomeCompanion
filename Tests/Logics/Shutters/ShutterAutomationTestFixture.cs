@@ -1,10 +1,14 @@
+using System;
 using HomeCompanion.Base.Model;
+using HomeCompanion.Base.Utilities;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Events;
 using HomeCompanion.Logics.Shutters;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Org.BouncyCastle.Asn1.Cms;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -20,7 +24,7 @@ namespace HomeCompanion.Tests.Logics.Shutters;
 /// <param name="runtimesController"></param>
 /// <param name="loggerFactory"></param>
 /// <param name="logger"></param> <summary>
-public class ShutterAutomationTestFixture(
+public partial class ShutterAutomationTestFixture(
     IValueProvider valuesProvider,
     IEventPublisher eventPublisher,
     IEventSubscriber eventSubscriber,
@@ -42,7 +46,10 @@ public class ShutterAutomationTestFixture(
     public ILoggerFactory LoggerFactory { get; private set; } = loggerFactory;
     public ILogger<ShutterAutomationTestFixture> Logger { get; private set; } = logger;
 
-    public Dictionary<string, IValue> ValueReferences { get; private set; } = [];
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        await RuntimesController.InitializeAsync(cancellationToken);
+    }
 
     /// <summary>
     /// IValue *Reference properties must be prefixed with their type. E.g. an ValueBase&lt;bool&gt; property must be referenced as "Bool:PropertyName", an ValueBase&lt;int&gt; property as "Int:PropertyName", etc.
@@ -73,6 +80,9 @@ public class ShutterAutomationTestFixture(
                             {
                                 ["TowerRoom"] = new CfgRoom
                                 {
+                                    TemperatureReference = "Float:TowerRoomTemperature",
+                                    AntiGlareEnableReference = "Bool:TowerRoomAntiGlareEnable",
+                                    ShutterSceneReference = "Byte:TowerRoomShutterScene",
                                     Shutters = new Dictionary<string, CfgShutter>
                                     {
                                         ["Shutter1_NW"] = new CfgShutter { FacadeReference = "NW", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter1Position", AngleValueReference = "Float:Shutter1Angle" },
@@ -136,6 +146,18 @@ public class ShutterAutomationTestFixture(
         (shadowingSpecial.SunPositionAzimuth as ValueBase<float>)?.Write(137.5f);
         (shadowingSpecial.SunPositionElevation as ValueBase<float>)?.Write(26.3f);
         (shadowingSpecial.ThermalControlMode as ValueBase<byte>)?.Write((byte)ThermalControlMode.Passive);
+        (shadowingSpecial.UvIntensity as ValueBase<float>)?.Write(0.0f);
+
+        // Set defaults for room level values
+        var allRooms = model.EnumerateRoomContexts().ToArray();
+        foreach (var roomContext in allRooms)
+        {
+            var room = roomContext.Room;
+            // set default values for the IValue properties used in the default model configuration
+            (roomContext.Room.AntiGlareEnable as ValueBase<bool>)?.Write(false);
+            (roomContext.Room.ShutterScene as ValueBase<byte>)?.Write((byte)RoomShutterScene.HardOpen); // value 1, HardOpen, is equivalent to KNX scene 2 = all shutters open.
+            (roomContext.Room.Temperature as ValueBase<float>)?.Write(20.0f);
+        }
 
         var allShutters = model.EnumerateShutterContexts().ToArray();
         foreach (var shutterContext in allShutters)
@@ -163,7 +185,7 @@ public class ShutterAutomationTestFixture(
     /// <param name="modelConfig">The model configuration to use. If null, a default configuration is created.</param>
     /// <param name="model">The created model.</param>
     /// <param name="valueReferences">The dictionary of generated IValue instances.</param>
-    public static void BuildDefaultTestModel(CfgModel? modelConfig, out Model model, ref Dictionary<string, IValue> valueReferences)
+    public static void BuildTestModel(CfgModel? modelConfig, out Model model, TimeProvider timeProvider, Dictionary<string, IValue> valueReferences, out Dictionary<string, IValue> generatedValues)
     {
         var cfg = modelConfig ?? CreateDefaultModelConfiguration();
 
@@ -171,54 +193,103 @@ public class ShutterAutomationTestFixture(
         var mf = new ModelFactory();
         model = mf.CreateModel(cfg);
 
-        // create a value reference provider and populate it with the values from the model
-        valueReferences = new Dictionary<string, IValue>();
-        // find all IModelEntities in the model, then add their values to the value reference provider
-        IEnumerable<IConfigBackedModelEntity> allEntities = model.Buildings.Values
-            .SelectMany(b => b.Floors.Values)
-            .SelectMany(f => f.Rooms.Values)
-            .SelectMany(r => r.Shutters.Values)
-            .Cast<IConfigBackedModelEntity>();
-
         // Use the binder for regularly binding the model's IValue properties. The used special reference provider will generate the values on demand, so we don't need to pre-populate it with values.
-        var valuesProvider = new GenerativeReferenceProvider(valueReferences, null, null);
+        var valuesProvider = new GenerativeValueProvider(valueReferences, new ConsoleLoggerFactory(), timeProvider);
         var binder = new ModelValueBinder(valuesProvider, NullLoggerFactory.Instance.CreateLogger<ModelValueBinder>());
         binder.Bind(model);
-        valueReferences = valuesProvider.GeneratedValues;
+        generatedValues = valuesProvider.GeneratedValues;
 
         // Initialize the IValue properties used in the default model configuration with default values for testing
         SetShadowingBaseScenario(model);
     }
 
-    public static ShutterAutomationTestFixture Create(CfgModel? modelConfig = null, Model? model = null, Dictionary<string, IValue>? valueReferences = null, TimeProvider? timeProvider = null)
+    public static ShutterAutomationTestFixture Create(CfgModel? modelConfig = null, Model? model = null, TimeProvider? timeProvider = null, Dictionary<string, IValue>? valueReferences = null)
     {
         modelConfig ??= model?.Configuration ?? CreateDefaultModelConfiguration();
+        var tempValueReferences = valueReferences ?? new Dictionary<string, IValue>();
         if (model == null)
         {
-            var tempValueReferences = valueReferences ?? [];
-            BuildDefaultTestModel(modelConfig, out model, ref tempValueReferences);
-            valueReferences = tempValueReferences;
+            BuildTestModel(modelConfig, out model, timeProvider ?? TimeProvider.System, tempValueReferences, out var generatedValues);
+            foreach (var kvp in generatedValues)
+            {
+                tempValueReferences[kvp.Key] = kvp.Value;
+            }
         }
-        var valuesProvider = new StubValueReferenceProvider(valueReferences ?? []);
-        var eventPublisher = new StubPublisher();
-        var eventSubscriber = new StubSubscriber();
+        var valuesProvider1 = new ReadOnlyValueProvider(tempValueReferences);
+        //Console.Error.WriteLine($"Created test model with {model.Buildings.Count} buildings, {model.EnumerateRoomContexts().Count()} rooms, and {model.EnumerateShutterContexts().Count()} shutters.");
+        //Console.Error.WriteLine($"Value references: {string.Join(", ", tempValueReferences.Keys)}");
+        //Console.Error.WriteLine($"Value names: {string.Join(", ", tempValueReferences.Values.Select(v => v.Name))}");
+        var eventPublisher = new PassThroughEventBus(new ConsoleLoggerFactory().CreateLogger<PassThroughEventBus>());
+        var eventSubscriber = eventPublisher;
         timeProvider ??= TimeProvider.System;
         var modelProvider = new StubModelProvider(model);
         var loggerFactory = NullLoggerFactory.Instance;
         // have an event queue that is a regular, thread safe list, wrapped in an IQueueFeeder implementation that feeds the events into the list. This allows to enqueue events from the test code and controlling the processing.
-        var eventQueue = new TestEventQueue<ShutterAutomationComputationTriggerContext>(
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            AllowSynchronousContinuations = true
-        });
-        var runtimesController = new ShadowingRuntimesController(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, eventQueue, loggerFactory);
+        var eventQueue = new EventQueueWithPluginHandler<ShutterAutomationComputationTriggerContext>();
+
+        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, eventQueue, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 
         // runtime initialization
         runtimesController.InitializeAsync().GetAwaiter().GetResult();
 
-        return new ShutterAutomationTestFixture(valuesProvider, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, logger);
+        return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, logger);
+    }
+}
+
+/// <summary>
+/// A thread-safe event queue that allows enqueuing events and processing them with a plugin handler.
+/// The plugin handler can be used to process events in a controlled manner, allowing for testing of event-driven logic in the shutter automation system.
+/// The event queue implements <see cref="IQueueFeeder{TEvent}"/> directly, allowing for easy integration with the event-driven architecture of the shutter automation system.
+/// Events get directly processed in the Enqueue method, so that the event queue can be used in a synchronous manner for testing purposes.
+/// Events are stored in a list and can be retrieved for inspection, allowing for verification of the event processing logic in tests. The events are kept in the order they were enqueued, allowing for verification of the event processing order in tests. The events remain in the queue even after they have been processed, allowing for inspection of the event history in tests.
+/// </summary>
+/// <typeparam name="TEvent"></typeparam>
+internal class EventQueueWithPluginHandler<TEvent> : IQueueFeeder<TEvent>
+{
+    private readonly List<TEvent> _eventQueue = new();
+    private readonly object _lock = new();
+    private Func<TEvent, Task>? _pluginHandler;
+
+    public EventQueueWithPluginHandler(Func<TEvent, Task>? pluginHandler = null)
+    {
+        _pluginHandler = pluginHandler;
+    }
+
+    public void SetPluginHandler(Func<TEvent, Task> pluginHandler)
+    {
+        _pluginHandler = pluginHandler;
+    }
+
+    public void Enqueue(TEvent @event)
+    {
+        lock (_lock)
+        {
+            _eventQueue.Add(@event);
+        }
+        ProcessEventAsync(@event).GetAwaiter().GetResult();
+    }
+
+    private async Task ProcessEventAsync(TEvent @event)
+    {
+        if (_pluginHandler != null)
+        {
+            await _pluginHandler(@event);
+        }
+    }
+
+    public IReadOnlyList<TEvent> GetAllEvents()
+    {
+        lock (_lock)
+        {
+            return _eventQueue.AsReadOnly();
+        }
+    }
+
+    public Task EnqueueAsync(TEvent trigger, CancellationToken token)
+    {
+        Enqueue(trigger);
+        return Task.CompletedTask;
     }
 }

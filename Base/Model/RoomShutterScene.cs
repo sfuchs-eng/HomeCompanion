@@ -16,83 +16,97 @@ namespace HomeCompanion.Base.Model;
 public enum RoomShutterScene : byte
 {
     /// <summary>
+    /// KNX scene 1:
     /// Unused scene number, can be used to reflect undefined / unavailable / unknown last scene recall/store.
     /// </summary>
     Undefined = 0,
 
     /// <summary>
+    /// KNX scene 2:
     /// Fully open position, typically 0% closed.
     /// KNX actuated, HomeCompanion should not interfere with this scene.
     /// </summary>
     HardOpen = 1,
 
     /// <summary>
+    /// KNX scene 3:
     /// Scene number for a predefined shadow position, e.g. 30% closed, all shutters connected to this scene.
     /// KNX actuated, HomeCompanion should not interfere with this scene.
     /// </summary>
     HardShadow = 2,
 
     /// <summary>
+    /// KNX scene 4:
     /// Scene number for fully closed shutters.
     /// KNX actuated, HomeCompanion should not interfere with this scene.
     /// </summary>
     HardClosed = 3,
 
     /// <summary>
+    /// KNX scene 22:
     /// Person asks for open shutters in a room.
     /// HomeCompanion should react to this request by opening the shutters, but may ignore it if constraints or safety conditions apply.
     /// </summary>
     RequestOpen = 21,
 
     /// <summary>
+    /// KNX scene 23:
     /// Person asks for shadow position in a room.
     /// HomeCompanion should react to this request by moving the shutters to the shadow position, but may ignore it if constraints or safety conditions apply.
     /// </summary>
     RequestShadow = 22,
 
     /// <summary>
+    /// KNX scene 24:
     /// Person asks for closed shutters in a room.
     /// HomeCompanion should react to this request by closing the shutters, but may ignore it if constraints or safety conditions apply.
     /// </summary>
     RequestClosed = 23,
 
     /// <summary>
+    /// KNX scene 51:
     /// Automation like <see cref="AutoNoReopen"/> but controlled by another system, e.g. a KNX scene controller, rather than HomeCompanion.
     /// HomeCompanion must not react act all to this scene and neither reset it nor interfere with it in any way.
     /// </summary>
     Reserved50 = 50,
 
     /// <summary>
+    /// KNX scene 53:
     /// Automation like <see cref="AutoReopen"/> but controlled by another system, e.g. a KNX scene controller, rather than HomeCompanion.
     /// HomeCompanion must not react act all to this scene and neither reset it nor interfere with it in any way.
     /// </summary>
     Reserved52 = 52,
 
     /// <summary>
+    /// KNX scene 55:
     /// Scene number for the first automation mode in which shutters may be put to shadow position but aren't opened any more, e.g. 54 for "Auto" in the KNX DPT 17.001.
     /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
     /// </summary>
     AutoNoReopen = 54,
 
     /// <summary>
+    /// KNX scene 56:
     /// Scene number for the second automation mode in which shuttters would be reopened as soon as the shadowing trigger condition is over, e.g. 56 for "Auto reopen" in the KNX DPT 17.001.
     /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
     /// </summary>
     AutoReopen = 55,
 
     /// <summary>
+    /// KNX scene 57:
     /// Like <see cref="AutoReopen"/> but with maximum light conditions, tolerating higher sun exposure and room temperature prior shadowing.
     /// HomeCompanion should use this scene for corresponding automation actions according configuration, constraints and other inputs.
     /// </summary>
     AutoMaxLight = 56,
 
     /// <summary>
+    /// KNX scene 58:
     /// Scene number for when people in the room are sleeping.
     /// Keep shutters closed to prevent noise and early light, but allow manual override from closed to shadow position.
     /// </summary>
     Sleeping = 57,
 
     /// <summary>
+    /// KNX scene 59:
     /// Scene number for when people in the room are awake but waiting for other rooms to be released from night closure.
     /// If shutters are closed, move them to shadow position, but do not allow opening shutters in this room if other rooms are still in night closure mode.
     /// Once all rooms are released from night closure, transition the room scene automatically to a suitable automatic scene (use the <see cref="RoomObjectiveProfile"/> based auto-scene determination).
@@ -100,6 +114,7 @@ public enum RoomShutterScene : byte
     AwakeWaitingForNightClosureRelease = 58,
 
     /// <summary>
+    /// KNX scene 61:
     /// Scene number for cleaning mode.
     /// For venetian blinds this would move the slats to a position allowing easy cleaning, e.g. 100% closed with 100% tilt angle reflecting a horizontal position.
     /// Special in this mode:
@@ -111,6 +126,7 @@ public enum RoomShutterScene : byte
     CleanShutter = 60,
 
     /// <summary>
+    /// KNX scene 62:
     /// Scene number for drying the shutters after washing them.
     /// Move to fully closed and an almost vertical but not fully closed tilt angle, e.g. 100% closed with 80% tilt angle for venetian blinds to maximize dripping and airflow for drying.
     /// Special in this mode:
@@ -122,6 +138,7 @@ public enum RoomShutterScene : byte
     DryShutter = 61,
 
     /// <summary>
+    /// KNX scene 63:
     /// Scene number for cleaning the window behind the shutter.
     /// Move to fully open position, e.g. 0% closed for roller blinds or 0% closed with 0% tilt angle for venetian blinds to allow easy access to the window for cleaning.
     /// Special in this mode:
@@ -133,6 +150,7 @@ public enum RoomShutterScene : byte
     CleanWindow = 62,
 
     /// <summary>
+    /// KNX scene 64:
     /// Scene number that shall not cause any shutter command. It's a valid scene though.
     /// HomeCompanion should treat this scene like a temporary manual override, resetting it back to automation after a configurable period if such is configured, or ignoring it until the next manual open if not.
     /// </summary>
