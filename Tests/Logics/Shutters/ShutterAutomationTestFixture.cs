@@ -1,6 +1,5 @@
 using System;
 using HomeCompanion.Base.Model;
-using HomeCompanion.Base.Utilities;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Events;
 using HomeCompanion.Logics.Shutters;
@@ -8,7 +7,6 @@ using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Org.BouncyCastle.Asn1.Cms;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -32,6 +30,9 @@ public partial class ShutterAutomationTestFixture(
     IModelProvider modelProvider,
     IRuntimesProvider runtimesProvider,
     ShadowingRuntimesController runtimesController,
+    ShutterController shutterController,
+    RoomShutterSceneLogic roomShutterSceneLogic,
+    ValuesManager valuesManager,
     ILoggerFactory loggerFactory,
     ILogger<ShutterAutomationTestFixture> logger
 )
@@ -43,12 +44,18 @@ public partial class ShutterAutomationTestFixture(
     public IModelProvider ModelProvider { get; private set; } = modelProvider;
     public IRuntimesProvider RuntimesProvider { get; private set; } = runtimesProvider;
     public ShadowingRuntimesController RuntimesController { get; private set; } = runtimesController;
+    public ShutterController ShutterController { get; private set; } = shutterController;
+    public RoomShutterSceneLogic RoomShutterSceneLogic { get; private set; } = roomShutterSceneLogic;
     public ILoggerFactory LoggerFactory { get; private set; } = loggerFactory;
+    public ValuesManager ValuesManager { get; private set; } = valuesManager;
     public ILogger<ShutterAutomationTestFixture> Logger { get; private set; } = logger;
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await RuntimesController.InitializeAsync(cancellationToken);
+        await ShutterController.InitializeAsync(cancellationToken);
+        await RoomShutterSceneLogic.InitializeAsync(cancellationToken);
+        await ValuesManager.StartAsync(cancellationToken);
     }
 
     /// <summary>
@@ -224,72 +231,16 @@ public partial class ShutterAutomationTestFixture(
         timeProvider ??= TimeProvider.System;
         var modelProvider = new StubModelProvider(model);
         var loggerFactory = NullLoggerFactory.Instance;
-        // have an event queue that is a regular, thread safe list, wrapped in an IQueueFeeder implementation that feeds the events into the list. This allows to enqueue events from the test code and controlling the processing.
-        var eventQueue = new EventQueueWithPluginHandler<ShutterAutomationComputationTriggerContext>();
-
-        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, eventQueue, loggerFactory);
+        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 
-        // runtime initialization
-        runtimesController.InitializeAsync().GetAwaiter().GetResult();
+        var shutterController = new ShutterController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<ShutterController>());
+        var roomShutterSceneLogic = new RoomShutterSceneLogic(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, loggerFactory.CreateLogger<RoomShutterSceneLogic>());
 
-        return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, logger);
-    }
-}
+        var lifeCycleManager = new StubLifeCycleManager();
+        var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, loggerFactory.CreateLogger<ValuesManager>());
 
-/// <summary>
-/// A thread-safe event queue that allows enqueuing events and processing them with a plugin handler.
-/// The plugin handler can be used to process events in a controlled manner, allowing for testing of event-driven logic in the shutter automation system.
-/// The event queue implements <see cref="IQueueFeeder{TEvent}"/> directly, allowing for easy integration with the event-driven architecture of the shutter automation system.
-/// Events get directly processed in the Enqueue method, so that the event queue can be used in a synchronous manner for testing purposes.
-/// Events are stored in a list and can be retrieved for inspection, allowing for verification of the event processing logic in tests. The events are kept in the order they were enqueued, allowing for verification of the event processing order in tests. The events remain in the queue even after they have been processed, allowing for inspection of the event history in tests.
-/// </summary>
-/// <typeparam name="TEvent"></typeparam>
-internal class EventQueueWithPluginHandler<TEvent> : IQueueFeeder<TEvent>
-{
-    private readonly List<TEvent> _eventQueue = new();
-    private readonly object _lock = new();
-    private Func<TEvent, Task>? _pluginHandler;
-
-    public EventQueueWithPluginHandler(Func<TEvent, Task>? pluginHandler = null)
-    {
-        _pluginHandler = pluginHandler;
-    }
-
-    public void SetPluginHandler(Func<TEvent, Task> pluginHandler)
-    {
-        _pluginHandler = pluginHandler;
-    }
-
-    public void Enqueue(TEvent @event)
-    {
-        lock (_lock)
-        {
-            _eventQueue.Add(@event);
-        }
-        ProcessEventAsync(@event).GetAwaiter().GetResult();
-    }
-
-    private async Task ProcessEventAsync(TEvent @event)
-    {
-        if (_pluginHandler != null)
-        {
-            await _pluginHandler(@event);
-        }
-    }
-
-    public IReadOnlyList<TEvent> GetAllEvents()
-    {
-        lock (_lock)
-        {
-            return _eventQueue.AsReadOnly();
-        }
-    }
-
-    public Task EnqueueAsync(TEvent trigger, CancellationToken token)
-    {
-        Enqueue(trigger);
-        return Task.CompletedTask;
+        return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, shutterController, roomShutterSceneLogic, valuesManager, loggerFactory, logger);
     }
 }

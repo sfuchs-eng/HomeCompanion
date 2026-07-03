@@ -154,36 +154,58 @@ public class RoomRuntime(
     /// </summary>
     /// <param name="sender"></param>
     /// <param name="e"></param>
-    private async void HandleRoomShutterSceneChanged(object? sender, ValueChangedEventArgs e)
+    private void HandleRoomShutterSceneChanged(object? sender, ValueChangedEventArgs e)
     {
-        // must not handle our own changes to the room shutter scene, otherwise we would get into an infinite loop of handling our own changes
-        if (sender == this)
-            return;
+        try
+        {
+            // must not handle our own changes to the room shutter scene, otherwise we would get into an infinite loop of handling our own changes
+            if (sender == this)
+                return;
 
-        // handle changes in the room shutter scene originating from other logics or busses, e.g. manual override, schedule transitions, or other logics that set the room shutter scene directly
-        logger.LogTrace("Room shutter scene changed for room {RoomKey} from {OldValue} to {NewValue} by {Sender}. LastCommanded: {LastCommanded}", RoomKey.Key, e.PreviousValue, e.NewValue, sender?.GetType().Name ?? "null", LastSceneCommanded);
+            // handle changes in the room shutter scene originating from other logics or busses, e.g. manual override, schedule transitions, or other logics that set the room shutter scene directly
+            logger.LogTrace("Room shutter scene changed for room {RoomKey} from {OldValue} to {NewValue} by {Sender}. LastCommanded: {LastCommanded}", RoomKey.Key, e.PreviousValue, e.NewValue, sender?.GetType().Name ?? "null", LastSceneCommanded);
 
-        // enqueue a recomputation trigger for the room shutter scene state machine to evaluate the new requested scene and determine whether to accept it or not
-        IEnumerable<IThingKey> thingKeys = [RoomKey];
-        await queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
-            thingKeys: thingKeys,
-            scope: ShutterAutomationComputationScope.RoomSpecific,
-            triggeringValue: e.NewValue != null ? [e.NewValue] : [],
-            valueEventArgs: [e],
-            timestamp: e.Timestamp,
-            urgency: ShutterAutomationComputationTriggerUrgency.Immediate
-        ), CancellationToken.None).ConfigureAwait(false);
+            // enqueue a recomputation trigger for the room shutter scene state machine to evaluate the new requested scene and determine whether to accept it or not
+            IEnumerable<IThingKey> thingKeys = [RoomKey];
+            queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
+                thingKeys: thingKeys,
+                scope: ShutterAutomationComputationScope.RoomSpecific,
+                triggeringValue: e.NewValue != null ? [e.NewValue] : [],
+                valueEventArgs: [e],
+                timestamp: e.Timestamp,
+                urgency: ShutterAutomationComputationTriggerUrgency.Immediate
+            ), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error while handling room shutter scene change for room {RoomKey}.", RoomKey.Key);
+        }
     }
 
     private void HandleRoomTemperatureChanged(object? sender, ValueChangedEventArgs e)
     {
-        // must not handle our own changes to the room temperature, otherwise we would get into an infinite loop of handling our own changes
-        if (sender == this)
-            return;
+        try
+        {
+            // must not handle our own changes to the room temperature, otherwise we would get into an infinite loop of handling our own changes
+            if (sender == this)
+                return;
 
-        // handle changes in the room temperature originating from other logics or busses, e.g. manual override, schedule transitions, or other logics that set the room temperature directly
-
-        throw new NotImplementedException();
+            // handle changes in the room temperature originating from sensors
+            logger.LogTrace("Room temperature changed for room {RoomKey} from {OldValue} to {NewValue} by {Sender}. LastCommanded: {LastCommanded}", RoomKey.Key, e.PreviousValue, e.NewValue, sender?.GetType().Name ?? "null", LastSceneCommanded);
+            IEnumerable<IThingKey> thingKeys = [RoomKey];
+            queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
+                thingKeys: thingKeys,
+                scope: ShutterAutomationComputationScope.RoomSpecific,
+                triggeringValue: e.NewValue != null ? [e.NewValue] : [],
+                valueEventArgs: [e],
+                timestamp: e.Timestamp,
+                urgency: ShutterAutomationComputationTriggerUrgency.Slow
+            ), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Error while handling room temperature change for room {RoomKey}.", RoomKey.Key);
+        }
     }
 
     public override Task StopAsync(CancellationToken cancellationToken = default)

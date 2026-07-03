@@ -8,7 +8,6 @@ namespace HomeCompanion.Logics.Shutters;
 /// <summary>
 /// Manages the lifecycles of runtimes for buildings, rooms, and shutters, and handles the distribution of shutter automation computation triggers.
 /// Triggers are sent to the event bus as <see cref="ShutterAutomationComputationTriggerEvent"/> events for consumption by the <see cref="ShutterController"/>, <see cref="RoomShutterSceneLogic"/>, and potentially other components.
-/// 
 /// </summary>
 public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
 {

@@ -36,6 +36,12 @@ public class RoomSceneResolver
 
     public virtual byte? ResolveTargetRoomShutterScene(RoomSceneConditionsAssessor conditionsAssessor)
     {
+        byte permit(RoomShutterScene scene)
+        {
+            LastPermittedScene = (byte)scene;
+            return (byte)scene;
+        }
+
         //=== acquire key information for the room scene resolution ===
 
         // current requested scene
@@ -66,14 +72,14 @@ public class RoomSceneResolver
         // building wide force deactivation of room shutter scene control?
         if (globalShutterScene.IsDeactivated())
         {
-            return (byte)globalShutterScene;
+            return permit(globalShutterScene);
         }
 
         // force override rooms with global scene?
         if (globalShutterScene.IsCleaningScene() || globalShutterScene.IsHardScene() || globalShutterScene.IsRequestScene())
         {
             // global shutter scene override is a special scene, which is always to be accepted and overrides any other scene.
-            return (byte)globalShutterScene;
+            return permit(globalShutterScene);
         }
 
         if (globalShutterScene.IsDoNotInterfere())
@@ -86,7 +92,7 @@ public class RoomSceneResolver
         {
             // global mandates automation. Ensure we're transferring to an automation scene. If the current scene request is a manual scene, we need to override it with an automation scene.
             // which automation scene to choose depends on the room objective profile and other room configurations.
-            return (byte)conditionsAssessor.ResolvePreferredAutomationSceneForRoomObjectiveProfile(roomObjectiveProfile, presence: buildingAbsenceModeActive);
+            return permit(conditionsAssessor.ResolvePreferredAutomationSceneForRoomObjectiveProfile(roomObjectiveProfile, presence: buildingAbsenceModeActive));
         }
 
         // Do not interfere may only exit via manual requested scenes
@@ -110,7 +116,30 @@ public class RoomSceneResolver
         // manual scenes except Request* are always to be accepted
         if (!currentSceneRequest.IsAutomationScene() && !currentSceneRequest.IsRequestScene())
         {
-            return (byte)currentSceneRequest;
+            return permit(currentSceneRequest);
+        }
+
+        // RequestOpen is not a persistent scene itself. Translate to an automation target based on objective profile.
+        if (currentSceneRequest == RoomShutterScene.RequestOpen)
+        {
+            if (roomObjectiveProfile == RoomObjectiveProfile.ThermalPriority)
+            {
+                // In thermal-priority mode, opening requests are constrained.
+                // Keep current automation mode if already in one, otherwise use the strict automation mode.
+                if (lastPermittedScene.IsAutomationScene())
+                    return permit(lastPermittedScene);
+
+                return permit(RoomShutterScene.AutoNoReopen);
+            }
+
+            if (roomObjectiveProfile == RoomObjectiveProfile.BalancedDefault)
+            {
+                // Balanced cooling accepts an opening tendency via the brightest automation mode.
+                return permit(RoomShutterScene.AutoMaxLight);
+            }
+
+            // Daylight-priority and other profiles can reopen.
+            return permit(RoomShutterScene.AutoReopen);
         }
 
         //=== can we follow the requested scene Open? ===
@@ -124,6 +153,6 @@ public class RoomSceneResolver
             return LastPermittedScene;
         }
 
-        return (byte)currentSceneRequest;
+        return permit(currentSceneRequest);
      }
 }

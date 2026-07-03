@@ -11,7 +11,7 @@ namespace HomeCompanion.Values;
 /// Default implementation of <see cref="IValuesManager"/>.
 /// Centralizes value initialization and event routing based on the event target field.
 /// </summary>
-internal sealed class ValuesManager : IValuesManager, IHostedService, IDisposable
+public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable
 {
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;

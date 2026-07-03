@@ -7,9 +7,14 @@ namespace HomeCompanion.Tests.TestUtilities;
 /// </summary>
 /// <typeparam name="string">The type of the reference key.</typeparam>
 /// <typeparam name="IValue">The type of the value.</typeparam>
-internal sealed class ReadOnlyValueProvider(IReadOnlyDictionary<string, IValue> byReference) : IValueProvider
+internal sealed class ReadOnlyValueProvider(IReadOnlyDictionary<string, IValue> byReference) : IValueProvider, IValuesContainer
 {
     public void Add(string reference, IValue value) => throw new NotSupportedException("ReadOnlyValueProvider does not support adding new values.");
+
+    public IEnumerable<IValue> GetValues()
+    {
+        return byReference.Values;
+    }
 
     public IValue Resolve(string reference) => byReference[reference];
 
