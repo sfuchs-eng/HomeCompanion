@@ -11,7 +11,7 @@ public class BuildingRuntime(
 ) : RuntimeBase(logger)
 {
     public BuildingKey BuildingKey { get; } = buildingContext.BuildingKey;
-    protected BuildingContext BuildingContext { get; } = buildingContext;
+    public BuildingContext BuildingContext { get; } = buildingContext;
     protected ShadowingSpecial? ShadowingSpecialRegisteredWith { get; private set; } = null;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
     private readonly ILogger<BuildingRuntime> logger = logger;

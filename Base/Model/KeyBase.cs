@@ -12,13 +12,10 @@ public abstract class KeyBase() : IEquatable<KeyBase>, IThingKey
 {
     /// <summary>
     /// <para>Key format: {Token1}/{Token2}/.../{TokenN}</para>
-    /// <para>where each token is a string identifier of a model object, e.g. building name, floor name, room name, shutter name.</para>
-    /// <para>The tokens are separated by a forward slash. The type identifiers serve human readable debugging purpose and serve disambiguation. They shall not be used for any logic.</para>
+    /// <para>where each token is a string identifier of a model object formatted `{TypeName}:{Identifier}`, e.g. "Building:MyHome", "Shutter:SouthEast1Left"</para>
+    /// <para>The tokens are separated by a forward slash.</para>
     /// <para>The type identifiers are the names of the model object types, e.g. Building, Floor, Room, Shutter.</para>
-    /// <para>{TypeName}:{Identifier}</para>
-    /// <para>e.g. Building:MyBuilding, Room:MyBuilding/1stFloor/LivingRoom, Shutter:MyBuilding/1stFloor/LivingRoom/Shutter1</para>
     /// </summary>
-    /// <value></value>
     public abstract string Key { get; }
 
     public override bool Equals(object? obj)

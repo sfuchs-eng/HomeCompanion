@@ -42,3 +42,16 @@ public enum ValueStatus
     /// </summary>
     Error = 1 << 5
 }
+
+public static class ValueStatusExtensions
+{
+    public static bool IsValid(this ValueStatus status)
+    {
+        return (status & ValueStatus.Error) == 0 && (status & ValueStatus.OutOfRange) == 0;
+    }
+
+    public static bool IsValidAndInitialized(this ValueStatus status)
+    {
+        return (status & ValueStatus.Initialized) != 0 && status.IsValid();
+    }
+}

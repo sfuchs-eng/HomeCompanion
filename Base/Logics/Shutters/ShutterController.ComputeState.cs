@@ -6,6 +6,54 @@ namespace HomeCompanion.Logics.Shutters;
 
 public partial class ShutterController
 {
+    private async Task ComputeShutterTargetStateAsync(RuntimeContext runtimeContext, ShutterAutomationComputationTriggerContext triggerContext, CancellationToken token)
+    {
+        // this is a single-shutter consideration and there must be exactly 1 valid shutter
+        if (runtimeContext.ShutterRuntime is null)
+        {
+            logger.LogWarning("No runtime found for shutter {ShutterKey}. Skipping target state computation.", runtimeContext.ShutterKey.Key);
+            return;
+        }
+
+        // 1. compute individual criteria results for the affected shutter(s) based on the trigger context, e.g. evaluate time-based criteria, weather-based criteria, user preference criteria, etc., and determine which criteria are currently met for each affected shutter
+        // 2. prioritize the criteria results based on their implied priority and derive the desired target state for the affected shutter based on the prioritized criteria results, e.g. if a time-based criterion is met that indicates that the shutter should be closed, but at the same time a user preference criterion is met that indicates that the shutter should be open, then we need to determine which criterion takes precedence based on their implied priority and set the target state accordingly, e.g. if we decide that user preferences take precedence over time-based criteria, then we would set the target state to open in this case
+        // 3. File the shutter target state update into the shutter target processing loop by enqueuing a new ShutterTargetStateUpdateContext containing the affected shutter(s) and their new target state, which will then be processed by the shutter target processing loop to actually update the target state of the affected shutter(s) in the system, e.g. by writing to their position or open/close inputs, and also to update any relevant internal state in the runtimes, e.g. to track whether a shutter is currently overridden or not, etc.
+
+        var roomScene = ResolveRoomShutterSceneForShutter(runtimeContext);
+        var shadowingSpecial = runtimeContext.Building?.GetShadowingSpecial();
+
+        // Is it a "do not touch" room scene we're not owning? If yes, return without action.
+        if (roomScene.GetRoomShutterScene()?.IsDoNotInterfere() ?? false)
+        {
+            return;
+        }
+        
+        // Is it in manual override state that has not been reset yet? If yes, return without action.
+
+        // Is it a hard controlled room scene that we own? Determine target state based on the scene configuration and update the shutter target state accordingly. Then return.
+
+        // It's an automation scene. Compute the target state based on the current environmental conditions, user preferences, and any other relevant criteria, and update the shutter target state accordingly.
+    }
+
+    private byte ResolveRoomShutterSceneForShutter(RuntimeContext runtimeContext)
+    {
+        // Room level
+        if (runtimeContext.Room?.ShutterScene?.TryGetValue(out byte scene) ?? false)
+        {
+            return scene;
+        }
+
+        // see whether we can use the building global scene as fallback
+        if ((runtimeContext.Building?.TryGetShadowingSpecial(out var shadowingSpecial) ?? false) && (shadowingSpecial.GlobalShutterScene?.TryGetValue(out byte buildingScene) ?? false))
+        {
+            return buildingScene;
+        }
+
+        logger.LogWarning("No shutter scene found for shutter {ShutterKey} in room {RoomKey}. Using default scene.", runtimeContext.ShutterKey, runtimeContext.RoomKey);
+
+        return (byte)RoomShutterScene.AutoNoReopen; // default scene
+    }
+
     /// <summary>
     /// The <b>shutter automation computation loop</b> processes the collected triggers and determines the desired target state for each shutter, e.g. based on time of day, weather conditions, user preferences, etc., and enqueues the resulting shutter targets into the <b>shutter target processing loop</b>.
     /// There's no need for batching/debouncinng. Just process one trigger at a time and update the target state for the affected shutter(s) accordingly, as each trigger is expected to potentially change the target state of one or more shutters, and we want to react to changes as quickly as possible, e.g. when a trigger is indicating that a shutter was manually overridden via a wall switch or remote control, we want to immediately update the target state for that shutter in order to pause automation for it and avoid unwanted automatic movements.
@@ -62,15 +110,5 @@ public partial class ShutterController
             default:
                 return shutterRuntimes.Keys; // if the scope is global or undefined, we conservatively assume that all shutters could potentially be affected and return all shutter keys, which ensures that we don't miss any updates but might result in some unnecessary computations for unaffected shutters, but that's an acceptable trade-off for simplicity and correctness
         }
-    }
-
-    private record RuntimeContext(ShutterKey ShutterKey, BuildingRuntime? BuildingRuntime, RoomRuntime? RoomRuntime, ShutterRuntime? ShutterRuntime);
-
-    private async Task ComputeShutterTargetStateAsync(RuntimeContext runtimeContext, ShutterAutomationComputationTriggerContext triggerContext, CancellationToken token)
-    {
-        // 1. compute individual criteria results for the affected shutter(s) based on the trigger context, e.g. evaluate time-based criteria, weather-based criteria, user preference criteria, etc., and determine which criteria are currently met for each affected shutter
-        // 2. prioritize the criteria results based on their implied priority and derive the desired target state for the affected shutter based on the prioritized criteria results, e.g. if a time-based criterion is met that indicates that the shutter should be closed, but at the same time a user preference criterion is met that indicates that the shutter should be open, then we need to determine which criterion takes precedence based on their implied priority and set the target state accordingly, e.g. if we decide that user preferences take precedence over time-based criteria, then we would set the target state to open in this case
-        // 3. File the shutter target state update into the shutter target processing loop by enqueuing a new ShutterTargetStateUpdateContext containing the affected shutter(s) and their new target state, which will then be processed by the shutter target processing loop to actually update the target state of the affected shutter(s) in the system, e.g. by writing to their position or open/close inputs, and also to update any relevant internal state in the runtimes, e.g. to track whether a shutter is currently overridden or not, etc.
-        throw new NotImplementedException();
     }
 }

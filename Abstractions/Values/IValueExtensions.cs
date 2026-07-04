@@ -60,6 +60,9 @@ public static class IValueExtensions
 
     public static TNumeric? GetNumericValue<TNumeric>(this IValue? value, ILogger? logger = null) where TNumeric : struct, IConvertible
     {
+        if (!value?.Status.IsValidAndInitialized() ?? false)
+            return null;
+            
         if (value is IValue<TNumeric> typed)
             return typed.Value;
 
@@ -104,6 +107,12 @@ public static class IValueExtensions
      /// <returns>True if the value is of type <see cref="IValue{double}"/> and the numeric value was successfully retrieved; otherwise, false.</returns>
     public static bool TryGetNumericValue(this IValue? value, out double numeric)
     {
+        if (!(value?.Status.IsValidAndInitialized() ?? false))
+        {
+            numeric = 0;
+            return false;
+        }
+
         if (value is IValue<double> dblValue)
         {
             numeric = dblValue.Value;
@@ -138,6 +147,12 @@ public static class IValueExtensions
 
     public static bool TryGetValue<T>(this IValue value, out T typedValue, ILogger? logger = null)
     {
+        if ( !value.Status.IsValidAndInitialized() )
+        {
+            typedValue = default!;
+            return false;
+        }
+
         if (value is IValue<T> typed)
         {
             typedValue = typed.Value;
@@ -152,6 +167,12 @@ public static class IValueExtensions
 
     public static bool TryGetIntegralValue<T>(this IValue value, out T integralValue, ILogger? logger = null) where T : struct, IConvertible
     {
+        if (!value.Status.IsValidAndInitialized())
+        {
+            integralValue = default!;
+            return false;
+        }
+
         if (value is IValue<T> typed)
         {
             integralValue = typed.Value;
@@ -206,6 +227,12 @@ public static class IValueExtensions
 
     public static bool TryGetEnumValue<TEnum>(this IValue? value, out TEnum enumValue, ILogger? logger = null) where TEnum : struct, Enum
     {
+        if ( !value?.Status.IsValidAndInitialized() ?? false)
+        {
+            enumValue = default!;
+            return false;
+        }
+
         // First try to get the value as the expected enum type directly.
         if (value is IValue<TEnum> typed)
         {

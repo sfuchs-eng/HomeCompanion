@@ -27,6 +27,10 @@ public class ShutterAutomationComputationTriggerContext
         Timestamp = timestamp;
     }
 
+    /// <summary>
+    /// Aggregates multiple trigger contexts into a single context, merging their properties. The resulting context will have the combined ThingKeys, the maximum Scope and Urgency, the distinct TriggeringValues and ValueEventArgs, and the earliest Timestamp among the provided contexts.
+    /// </summary>
+    /// <param name="triggerContexts"></param>
     public ShutterAutomationComputationTriggerContext(IEnumerable<ShutterAutomationComputationTriggerContext> triggerContexts)
     {
         ThingKeys = [.. triggerContexts.SelectMany(tc => tc.ThingKeys)];

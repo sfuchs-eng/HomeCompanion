@@ -6,13 +6,15 @@ using Microsoft.Extensions.Logging;
 namespace HomeCompanion.Logics.Shutters;
 
 /// <summary>
-/// Controls the operation of shutters, including processing shutter targets and executing the necessary actions to achieve the desired shutter states.
-/// It contains the full automation stack for shutter operation, including the logic to determine the target shutter positions based on various inputs such as time of day, weather conditions, and user preferences, as well as the logic to execute the necessary actions to bring the shutters into the desired state, e.g. by sending commands to the actuators, while also implementing safety interlocks and movement rate limits as needed.
-/// It's using <see cref="HomeCompanion.Base.Model"/> as configuration base and to connect to the <see cref="IValue"/> related framework.
-/// It consists of multiple proccessing stages:
-/// - Input events are collected and assessed whether to immediately process or to defer and aggregate them for a later processing, e.g. to avoid excessive shutter movements in case of rapidly changing input conditions; this is done in the <b>event processing loop</b>
-/// - The <b>state computation loop</b> determines the desired target state for each shutter, e.g. based on time of day, weather conditions, user preferences, etc.
-/// - The desired target states are then sent to the <b>shutter target processing loop</b>
+/// <para>Controls the operation of shutters, including processing shutter targets and executing the necessary actions to achieve the desired shutter states.</para>
+/// <para>It contains the full automation stack for shutter operation, including the logic to determine the target shutter positions based on various inputs such as time of day, weather conditions, and user preferences, as well as the logic to execute the necessary actions to bring the shutters into the desired state, e.g. by sending commands to the actuators, while also implementing safety interlocks and movement rate limits as needed.</para>
+/// <para>It's using <see cref="HomeCompanion.Base.Model"/> as configuration base and to connect to the <see cref="IValue"/> related framework.</para>
+/// <para>It implements multiple proccessing stages:</para>
+/// <list type="number">
+/// <item><see cref="shutterAutomationTriggerCollector"/> aggregates <see cref="ShutterAutomationComputationTriggerContext"/> in method <see cref="ShutterController.CollectShutterAutomationTriggersAsync(Channel{HomeCompanion.Logics.Shutters.ShutterAutomationComputationTriggerContext}, CancellationToken)"/></item>
+/// <item><see cref="shutterAutomationStateComputationLoop"/> computes shutter target states based on aggregated <see cref="ShutterAutomationComputationTriggerContext"/> in method <see cref="ShutterController.ComputeShutterTargetStateAsync(HomeCompanion.Logics.Shutters.ShutterController.RuntimeContext, HomeCompanion.Logics.Shutters.ShutterAutomationComputationTriggerContext, CancellationToken)"/></item>
+/// <item><see cref="shutterTargetProcessingLoop"/> controls shutters based on <see cref="ShutterTarget"/> to the desired position in method <see cref="ShutterController.ProcessShutterTargetsAsync(Channel{HomeCompanion.Logics.Shutters.ShutterTarget}, CancellationToken)"/></item>
+/// </list>
 /// </summary>
 /// <typeparam name="ShutterController"></typeparam>
 public partial class ShutterController : LogicBase
@@ -108,7 +110,7 @@ public partial class ShutterController : LogicBase
 
     private void HandleShutterExternalOverride(object? sender, ShutterExternalOverrideEventArgs e)
     {
-        throw new NotImplementedException();
+        logger.LogWarning("Not implemented yet: Shutter {ShutterKey} was externally overridden to position {OverridePosition}. The automation logic should adjust its behavior accordingly, e.g. by temporarily pausing automation for the affected shutter.", e.ShutterKey, e.ValueWrittenEventArgs.NewValue.Format());
     }
 
     private async Task CollectShutterAutomationTriggersAsync(Channel<ShutterAutomationComputationTriggerContext> channel, CancellationToken token)

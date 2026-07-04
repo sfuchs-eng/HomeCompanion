@@ -178,6 +178,15 @@ public static class RoomShutterSceneExtensions
         return false;
     }
 
+    public static RoomShutterScene? GetRoomShutterScene(this byte value)
+    {
+        if (Enum.IsDefined(typeof(RoomShutterScene), value))
+        {
+            return (RoomShutterScene)value;
+        }
+        return null;
+    }
+
     public static bool IsAutomationScene(this RoomShutterScene scene)
     {
         return scene == RoomShutterScene.AutoNoReopen || scene == RoomShutterScene.AutoReopen || scene == RoomShutterScene.AutoMaxLight;

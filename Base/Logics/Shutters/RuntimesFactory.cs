@@ -1,6 +1,7 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
 using Microsoft.Extensions.Logging;
+using Quartz;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -15,6 +16,7 @@ public class RuntimesFactory(
     IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder,
     TimeProvider timeProvider,
     IModelProvider modelProvider,
+    ISchedulerFactory schedulerFactory,
     ILoggerFactory loggerFactory,
     ILogger<RuntimesFactory> logger
 ) : IRuntimesFactory
@@ -25,6 +27,7 @@ public class RuntimesFactory(
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder = computationTriggerQueueFeeder;
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly IModelProvider modelProvider = modelProvider;
+    private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
     private readonly ILoggerFactory loggerFactory = loggerFactory;
     private readonly ILogger<RuntimesFactory> logger = logger;
 
@@ -40,6 +43,7 @@ public class RuntimesFactory(
         eventPublisher,
         eventSubscriber,
         computationTriggerQueueFeeder,
+        schedulerFactory,
         timeProvider,
         loggerFactory
     ));
@@ -58,6 +62,7 @@ public class RuntimesFactory(
         eventPublisher,
         eventSubscriber,
         computationTriggerQueueFeeder,
+        schedulerFactory,
         timeProvider,
         loggerFactory
     ));
@@ -69,10 +74,10 @@ public class RuntimesFactory(
         eventPublisher,
         eventSubscriber,
         computationTriggerQueueFeeder,
+        schedulerFactory,
         timeProvider,
         loggerFactory
     ));
-
 }
 
 public interface IRuntimesFactory
@@ -89,6 +94,7 @@ public record class RuntimeCreationContext<TKey, TRuntime>(
     IEventPublisher EventPublisher,
     IEventSubscriber EventSubscriber,
     IQueueFeeder<ShutterAutomationComputationTriggerContext> ComputationTriggerQueueFeeder,
+    ISchedulerFactory SchedulerFactory,
     TimeProvider TimeProvider,
     ILoggerFactory LoggerFactory
 ) where TKey : notnull, IThingKey

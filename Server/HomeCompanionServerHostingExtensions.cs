@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Quartz;
+using HomeCompanion.Base.Quartz;
 
 namespace HomeCompanion.Server;
 
@@ -43,6 +44,17 @@ public static class HomeCompanionServerHostingExtensions
                     s.UseSQLite($"Data Source={dbPath}");
                     s.UseBinarySerializer();
                 });
+            }
+
+            // add DI Jobs: are those attributed with [RegisterQuartzJob] and implement IJob
+            try
+            {
+                q.AddAttributedQuartzJobs();
+            }
+            catch (Exception ex)
+            {
+                // fail fast instead of later when no jobs are found upon installing a trigger, which would be hard to debug
+                throw new Exception("Failed to load types for Quartz DI Jobs. See inner exception for details.", ex);
             }
         });
 
