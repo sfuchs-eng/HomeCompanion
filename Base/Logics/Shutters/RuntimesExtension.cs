@@ -9,6 +9,8 @@ public interface IRuntimesProvider
     public IReadOnlyDictionary<BuildingKey, BuildingRuntime> BuildingRuntimes { get; }
     public IReadOnlyDictionary<RoomKey, RoomRuntime> RoomRuntimes { get; }
     public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes { get; }
+
+    ShutterRuntime GetShutterRuntime(ShutterKey shutterKey);
 }
 
 public class RuntimesExtension : Extensions.IExtensionRegistration

@@ -126,6 +126,25 @@ The value reference resolver accepts flexible formats and normalizes internally,
 
 This enables flexible runtime wiring while preserving explicit defaults in code.
 
+### Quartz job registration
+
+Have `IJob` implementations register themselves with the scheduler via attribute:
+
+```csharp
+[RegisterQuartzJob("MyJobName", "MyAssemblyName")]
+public class MyJob : IJob
+{
+    public Task Execute(IJobExecutionContext context)
+    {
+        // job logic here
+    }
+}
+```
+
+Use `RegisterQuartzJobAttribute.TryGetFromType<T>(out RegisterQuartzJobAttribute attribute)` to retrieve the attribute for a given job type and read its `JobName` and `AssemblyName` values.
+
+See example implementation in `ShutterResetExternalOverrideJob`.
+
 ### Dependencies
 
 The application uses the following main dependencies:
@@ -247,7 +266,7 @@ Important static asset note for library hosts:
 
 ### Linux systemd service
 
-For production on Linux, HomeCompanion can run as a systemd service.
+For production on Linux, HomeCompanion is foreseen to run as a systemd service.
 
 For local development, keep using normal console startup with `dotnet run` or `dotnet watch`.
 The server only enables systemd-specific host behavior when it is actually started by systemd.
@@ -545,3 +564,5 @@ Extension activation note:
 - Ensure the DLL is present in the app output directory or in the configured `HomeCompanion:ExtensionsPath` so extension discovery can load and register it.
 
 See [Integrations.Influx/README.md](Integrations.Influx/README.md) for integration-specific API and usage details.
+
+If you have a `HomeCompanion.Local.Server` host, you can also reference the `HomeCompanion.Integrations.Influx` project directly to get the DLL in the output folder without needing to copy it manually. This is useful for local development and testing. So far there's no separate package published for the Influx integration.

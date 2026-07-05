@@ -27,10 +27,16 @@ public class CfgShutter : CfgEntity
     public ShutterConstraints Constraints { get; set; } = ShutterConstraints.None;
 
     /// <summary>
-    /// The actual shutter constraints are derived from <see cref="EffectiveConstraints(ShutterConstraints)"/>
+    /// Optional mask applied to the room-level shutter constraints before individual shutter constraints are added (set flags "clear" room level set flags before or'ing shutter level Constraints in).
     /// </summary>
     public ShutterConstraints? RoomConstraintsMask { get; set; }
 
+    /// <summary>
+    /// Optional room-level override for the facade incidence cut-over angle in degrees.
+    /// </summary>
+    public double? FacadeSunCutoverAngleOverride { get; set; }
+
+    [Obsolete("Use ShutterContext.ResolveShutterConstraints() instead to get the effective constraints for a shutter.")]
     public ShutterConstraints EffectiveConstraints(ShutterConstraints roomConstraints)
     {
         var mask = RoomConstraintsMask ?? ShutterConstraints.None;

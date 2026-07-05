@@ -2,6 +2,7 @@ using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Quartz;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -11,13 +12,8 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
 {
-//    private readonly IValueProvider valuesProvider;
-//    private readonly IEventPublisher eventPublisher;
-//    private readonly IEventSubscriber eventSubscriber;
-//    private readonly TimeProvider timeProvider;
     private readonly IModelProvider modelProvider;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder;
-//    private readonly ILoggerFactory loggerFactory;
     private readonly ILogger<ShadowingRuntimesController> logger;
     private readonly RuntimesFactory runtimesFactory;
 
@@ -38,6 +34,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
         IEventSubscriber eventSubscriber,
         TimeProvider timeProvider,
         IModelProvider modelProvider,
+        ISchedulerFactory schedulerFactory,
         ILoggerFactory loggerFactory
 ) : base(eventPublisher, eventSubscriber)
     {
@@ -49,7 +46,16 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
         computationTriggerQueueFeeder = new FeedTriggerQueueViaEventBus(eventPublisher);
         //      this.loggerFactory = loggerFactory;
         this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
-        runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
+        runtimesFactory = new(
+            valuesProvider: valuesProvider,
+            eventPublisher: eventPublisher,
+            eventSubscriber: eventSubscriber,
+            computationTriggerQueueFeeder: computationTriggerQueueFeeder,
+            timeProvider: timeProvider,
+            modelProvider: modelProvider,
+            schedulerFactory: schedulerFactory,
+            loggerFactory: loggerFactory,
+            logger: loggerFactory.CreateLogger<RuntimesFactory>());
     }
 
     // constructor for testing, allowing to inject a custom queue feeder for the computation triggers
@@ -60,18 +66,23 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
         TimeProvider timeProvider,
         IModelProvider modelProvider,
         IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder,
+        ISchedulerFactory schedulerFactory,
         ILoggerFactory loggerFactory
 ) : base(eventPublisher, eventSubscriber)
     {
-        //      this.valuesProvider = valuesProvider;
-        //      this.eventPublisher = eventPublisher;
-        //      this.eventSubscriber = eventSubscriber;
-        //      this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
         this.computationTriggerQueueFeeder = computationTriggerQueueFeeder;
-        //      this.loggerFactory = loggerFactory;
         this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
-        runtimesFactory = new(valuesProvider, eventPublisher, eventSubscriber, computationTriggerQueueFeeder, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<RuntimesFactory>());
+        runtimesFactory = new(
+            valuesProvider: valuesProvider,
+            eventPublisher: eventPublisher,
+            eventSubscriber: eventSubscriber,
+            computationTriggerQueueFeeder: computationTriggerQueueFeeder,
+            timeProvider: timeProvider,
+            modelProvider: modelProvider,
+            schedulerFactory: schedulerFactory,
+            loggerFactory: loggerFactory,
+            logger: loggerFactory.CreateLogger<RuntimesFactory>());
     }
 
     /// <summary>
@@ -195,5 +206,14 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
             success = false;
         }
         return success;
+    }
+
+    public ShutterRuntime GetShutterRuntime(ShutterKey shutterKey)
+    {
+        if (shutterRuntimes.TryGetValue(shutterKey, out var shutterRuntime))
+        {
+            return shutterRuntime;
+        }
+        throw new KeyNotFoundException($"Shutter runtime for key {shutterKey} not found.");
     }
 }
