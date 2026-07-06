@@ -64,6 +64,14 @@ public enum RoomShutterScene : byte
     RequestClosed = 23,
 
     /// <summary>
+    /// KNX scene 25:
+    /// Person asks for night closure of shutters in a room.
+    /// HomeCompanion should react to this request by closing the shutters for the night, not opening them unless night closure (global) is lifted.
+    /// If night closure is false during request, close them and release only after all rooms have been released from night closure.
+    /// </summary>
+    RequestNightClosure = 24,
+
+    /// <summary>
     /// KNX scene 51:
     /// Automation like <see cref="AutoNoReopen"/> but controlled by another system, e.g. a KNX scene controller, rather than HomeCompanion.
     /// HomeCompanion must not react act all to this scene and neither reset it nor interfere with it in any way.
@@ -100,7 +108,7 @@ public enum RoomShutterScene : byte
 
     /// <summary>
     /// KNX scene 58:
-    /// Scene number for when people in the room are sleeping.
+    /// Scene number for when people in the room are sleeping. While <see cref="RequestNightClosure"/> is user requested, this scene is automatically set by HomeCompanion when the room is in sleeping mode.
     /// Keep shutters closed to prevent noise and early light, but allow manual override from closed to shadow position.
     /// </summary>
     Sleeping = 57,

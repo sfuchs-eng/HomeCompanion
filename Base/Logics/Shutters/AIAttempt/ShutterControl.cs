@@ -142,7 +142,7 @@ public class ShutterControl(
                             _logger);
                         var automationLevel = roomConfig.AutomationLevelOverride ?? globalShadowConfig.DefaultAutomationLevel;
                         var persistManualOverride = roomConfig.PersistManualOverride ?? globalShadowConfig.PersistManualOverrides;
-                        var manualOverrideDuration = roomConfig.ManualOverrideDuration ?? globalShadowConfig.DefaultManualOverrideDuration;
+                        var manualOverrideDuration = roomConfig.RoomSceneManualOverrideDuration ?? globalShadowConfig.DefaultRoomSceneManualOverrideDuration;
 
                         var hasInvalidCron = roomConfig.ScheduleTransitions.Values
                             .Any(schedule => !LooksLikeCronExpression(schedule.CronExpression));
@@ -1196,7 +1196,7 @@ internal sealed record ShutterCommandRuntime(
     string? PositionValueReference,
     string? AngleValueReference,
     string? OpenCloseReference,
-    int DefaultShadowSlat);
+    double DefaultShadowSlat);
 
 /// <summary>
 /// Persisted manual override state for <see cref="ShutterControl"/>.

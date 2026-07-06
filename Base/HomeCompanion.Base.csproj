@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.*" />
     <PackageReference Include="Quartz" Version="3.18.2" />
     <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.18.2" />
+    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.18.2" />
   </ItemGroup>
 
   <ItemGroup>

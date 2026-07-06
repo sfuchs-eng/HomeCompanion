@@ -48,10 +48,31 @@ public class ShutterRuntime(
             // we're not handling this as it's coming from ourselves.
             return;
         }
-        StartExternalOverride(sender, e);
+        var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+        Task.Run(async () => await StartExternalOverrideAsync(sender, e, cancel), cancel);
     }
 
-    private void StartExternalOverride(object? sender, ValueWrittenEventArgs e)
+    private TimeSpan GetPermittedManualOverrideDuration()
+    {
+        var shutter = ShutterContext.Shutter;
+
+        // check for shutter-specific override duration
+        if (shutter.Configuration.MaxManualOverrideDuration.HasValue)
+        {
+            return shutter.Configuration.MaxManualOverrideDuration.Value;
+        }
+
+        // check for room-specific override duration
+        if (ShutterContext.Room.Configuration.ShutterMaxManualOverrideDuration.HasValue)
+        {
+            return ShutterContext.Room.Configuration.ShutterMaxManualOverrideDuration.Value;
+        }
+
+        // fall back to building-specific override duration
+        return ShutterContext.Building.GetShadowingSpecial().Configuration.DefaultShutterMaxManualOverrideDuration;
+    }
+
+    private async Task StartExternalOverrideAsync(object? sender, ValueWrittenEventArgs e, CancellationToken cancellationToken)
     {
         IsExternalOverrideActive = true;
         ExternalOverrideStartTime = timeProvider.GetLocalNow();
@@ -60,27 +81,27 @@ public class ShutterRuntime(
         try
         {
             // install a quartz trigger to reset the external override after a certain duration, e.g. 30 minutes, to avoid leaving the shutter in an external override state indefinitely
-            var scheduler = runtimeCreationContext.SchedulerFactory.GetScheduler().GetAwaiter().GetResult();
+            var scheduler = await runtimeCreationContext.SchedulerFactory.GetScheduler();
             var jobKey = typeof(ShutterResetExternalOverrideJob).GetJobKeyFromType()
                 ?? throw new InvalidOperationException($"Could not get job key for job type {typeof(ShutterResetExternalOverrideJob).FullName}.");
 
-            var triggerKey = new TriggerKey($"ResetExternalOverrideTrigger_{ShutterKey.Key}", "ShutterExternalOverride");
+            var triggerKey = ShutterResetExternalOverrideJob.GetTriggerKey(ShutterKey);
 
             // is there already a trigger? if there is a trigger, cancel the trigger and schedule a new trigger
-            if (scheduler.CheckExists(triggerKey).GetAwaiter().GetResult())
+            if (await scheduler.CheckExists(triggerKey))
             {
-                scheduler.UnscheduleJob(triggerKey).GetAwaiter().GetResult();
+                await scheduler.UnscheduleJob(triggerKey);
             }
-            
+
             var jobDetail = JobBuilder.Create<ShutterResetExternalOverrideJob>()
                 .WithIdentity(jobKey)
                 .UsingJobData("ShutterKey", ShutterKey.Key)
                 .Build();
             var trigger = TriggerBuilder.Create()
                 .WithIdentity(triggerKey)
-                .StartAt(DateTimeOffset.UtcNow.AddMinutes(90)) // reset after 90 minutes
+                .StartAt(DateTimeOffset.UtcNow.Add(GetPermittedManualOverrideDuration())) // reset after the permitted manual override duration
                 .Build();
-            scheduler.ScheduleJob(jobDetail, trigger).GetAwaiter().GetResult();
+            await scheduler.ScheduleJob(jobDetail, trigger);
         }
         catch (Exception ex)
         {
@@ -98,10 +119,25 @@ public class ShutterRuntime(
         }
     }
 
-    public void ResetExternalOverride()
+    public async Task ResetExternalOverrideAsync()
     {
         IsExternalOverrideActive = false;
         ExternalOverrideStartTime = null;
+        // cancel any remaining trigger for resetting the external override, if any
+        try
+        {
+            var scheduler = await runtimeCreationContext.SchedulerFactory.GetScheduler();
+            var triggerKey = ShutterResetExternalOverrideJob.GetTriggerKey(ShutterKey);
+            if (await scheduler.CheckExists(triggerKey))
+            {
+                await scheduler.UnscheduleJob(triggerKey);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Error while cancelling reset of external override for shutter {ShutterKey}.", ShutterKey);
+        }
+
         // trigger a re-computation of the shutter target state to resume automation for this shutter, if applicable
         IEnumerable<IThingKey> affectedShutterKeys = [ShutterKey];
         queueFeeder.Enqueue(new ShutterAutomationComputationTriggerContext(
@@ -112,6 +148,20 @@ public class ShutterRuntime(
                 timeProvider.GetLocalNow(),
                 ShutterAutomationComputationTriggerUrgency.Slow
             ));
+    }
+
+    /// <summary>
+    /// Clears any active external override for all shutters and triggers a recomputation of the shutter automation for all affected shutters.
+    /// </summary>
+    /// <param name="runtimesProvider"></param>
+    /// <returns></returns>
+    public static async Task ResetAllExternalOverridesAsync(IRuntimesProvider runtimesProvider)
+    {
+        var resets = runtimesProvider
+            .ShutterRuntimes
+            .Where(kvp => kvp.Value.IsExternalOverrideActive)
+            .Select(kvp => kvp.Value.ResetExternalOverrideAsync());
+        await Task.WhenAll(resets);
     }
 
     /// <summary>
@@ -139,14 +189,18 @@ public class ShutterRuntime(
         switch (shutter.Configuration.Type)
         {
             case ShutterType.VenetianBlind:
-                success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
-                success = success && (shutter.AngleValue?.TryWriteNumeric(shutterTarget.TargetPosition.TiltAngle, this, logger) ?? false);
+                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                    success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
+                if ( !shutterTarget.TargetPosition.PreventTiltChange )
+                    success = success && (shutter.AngleValue?.TryWriteNumeric(shutterTarget.TargetPosition.TiltAngle, this, logger) ?? false);
                 break;
             case ShutterType.Positional:
-                success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
+                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                    success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
                 break;
             case ShutterType.OpenClose:
-                success = success && (shutter.OpenCloseValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
+                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                    success = success && (shutter.OpenCloseValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
                 break;
             default:
                 logger.LogWarning("Unsupported shutter type {ShutterType} for shutter {ShutterKey}.", shutter.Configuration.Type, ShutterKey);

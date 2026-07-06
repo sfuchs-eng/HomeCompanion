@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using HomeCompanion.Abstractions.Serialization;
 using HomeCompanion.Values;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Base.Model;
 
@@ -53,6 +54,17 @@ public class CfgShutter : CfgEntity
     public string? PositionValueReference { get; set; }
 
     /// <summary>
+    /// IVValue scaling factor for the shutter position value:
+    /// PositionValue * ScaleFactorPosition is written, and PositionValue is read as PositionValue / ScaleFactorPosition.
+    /// Default is suitable for a KNX DPST-5-1 and/or OpenHAB linked % value in an IValue<double> with unit percent, where 0 means fully open and 100 means fully closed.
+    /// </summary>
+    /// <remarks>
+    /// The shadowing system uses the position value in p.u. (0.0 open, 1.0 closed) for its calculations, so the scaling factor should be set accordingly.
+    /// </remarks>
+    /// <value></value>
+    public double ScaleFactorPosition { get; set; } = 100.0;
+
+    /// <summary>
     /// Optional reference to the value that carries the shutter lamella angle.
     /// Required for <see cref="ShutterType.VenetianBlind"/>, ignored for other shutter types.
     /// Must be an IValue with numeric type and percent unit, where 0% means fully open/horizontal and 100% (value 100) means fully closed/vertical.
@@ -61,6 +73,17 @@ public class CfgShutter : CfgEntity
     /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
     /// </remarks>
     public string? AngleValueReference { get; set; }
+
+    /// <summary>
+    /// IValue scaling factor for the shutter lamella angle:
+    /// AngleValue * ScaleFactorAngle is written, and AngleValue is read as AngleValue / ScaleFactorAngle.
+    /// Default is suitable for a KNX DPST-5-1 and/or OpenHAB linked % value in an IValue<double> with unit percent, where 0 means fully open/horizontal and 100 means fully closed/vertical.
+    /// </summary>
+    /// <remarks>
+    /// The shadowing system uses the angle value in p.u. (0.0 horizontal, 1.0 vertical) for its calculations, so the scaling factor should be set accordingly.
+    /// </remarks>
+    /// <value></value>
+    public double ScaleFactorAngle { get; set; } = 100.0;
 
     /// <summary>
     /// For Shutters of type <see cref="ShutterType.OpenClose"/>, a reference to the value that carries the open/close state.
@@ -72,16 +95,24 @@ public class CfgShutter : CfgEntity
     public string? OpenCloseReference { get; set; }
 
     /// <summary>
-    /// Do not close shutter beyond this position in percent.
-    /// [%]
+    /// IValue<bool> reference that indicates whether the shutter is released for closure, e.g. by a user action or a scene.
+    /// If the value is false, the shutter must be kept open: e.g. such that people can pass through.
     /// </summary>
-    public int MaxClose { get; set; } = 100;
+    public string? ReleasedForClosureReference { get; set; }
 
     /// <summary>
-    /// Default angle (in percent, 0 horizontal, 100 vertical) for shadowing in case of missing or zero angle value, e.g. for a venetian blind.
-    /// [%]
+    /// Do not close shutter beyond this position in percent.
+    /// p.u., where 0 means fully open and 1 means fully closed.
     /// </summary>
-    public int DefaultShadowSlat { get; set; } = (int)(45.0 / 90 * 100);
+    public double MaxClose { get; set; } = 1.0;
+
+    /// <summary>
+    /// Default angle (in p.u., 0.0 horizontal, 1.0 vertical) for shadowing in case of missing or zero angle value, e.g. for a venetian blind.
+    /// p.u.
+    /// </summary>
+    public double DefaultShadowSlat { get; set; } = 45.0 / 90;
+
+    public TimeSpan? MaxManualOverrideDuration { get; set; }
 
     /// <summary>
     /// Shutter-local sun-position zones that affect whether this shutter should be treated as naturally shadowed.
@@ -230,9 +261,76 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
     public IValue? AngleValue { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.OpenCloseReference))]
-    public IValue? OpenCloseValue { get; set; }
+    public IValue<bool>? OpenCloseValue { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.ReleasedForClosureReference))]
+    public IValue<bool>? ReleasedForClosureValue { get; set; }
 
     public Facade? Facade { get; set; }
 
     CfgEntity IConfigBackedModelEntity.Configuration => Configuration;
+
+    public double GetPositionInPUnit()
+    {
+        if (PositionValue is null)
+            return -1.0;
+        var pos = PositionValue.GetNumericValueOrNull();
+        if (!pos.HasValue)
+            return -1.0;
+        return pos.Value / Configuration.ScaleFactorPosition;
+    }
+
+    public double GetAngleInPUnit()
+    {
+        if (AngleValue is null)
+            return -1.0;
+        var angle = AngleValue.GetNumericValueOrNull();
+        if (!angle.HasValue)
+            return -1.0;
+        return angle.Value / Configuration.ScaleFactorAngle;
+    }
+
+    public void WritePositionInPUnit(double pUnitValue, object? initiator = null, ILogger? logger = null)
+    {
+        if (PositionValue is null)
+            throw new InvalidOperationException("Cannot write position value because PositionValue is not bound.");
+        if (pUnitValue < 0.0)
+            return; // no-op semantics
+        if (pUnitValue > 1.0)
+            throw new ArgumentOutOfRangeException(nameof(pUnitValue), "Position value must be in the range [0.0, 1.0].");
+        if ( !PositionValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorPosition, initiator, logger))
+        {
+            logger?.LogWarning("Failed to write position value {PositionValue} for shutter {ShutterKey}.", pUnitValue, Name);
+        }
+    }
+
+    public void WriteAngleInPUnit(double pUnitValue, object? initiator = null, ILogger? logger = null)
+    {
+        if (AngleValue is null)
+            throw new InvalidOperationException("Cannot write angle value because AngleValue is not bound.");
+        if (pUnitValue < 0.0)
+            return; // no-op semantics
+        if (pUnitValue > 1.0)
+            throw new ArgumentOutOfRangeException(nameof(pUnitValue), "Angle value must be in the range [0.0, 1.0].");
+        if (!AngleValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorAngle, initiator, logger))
+        {
+            logger?.LogWarning("Failed to write angle value {AngleValue} for shutter {ShutterKey}.", pUnitValue, Name);
+        }
+    }
+
+    public bool IsClosed => Configuration.Type switch
+    {
+        ShutterType.OpenClose => OpenCloseValue?.Value ?? false,
+        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition,
+        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition && AngleValue?.GetNumericValueOrNull() >= Configuration.DefaultShadowSlat * Configuration.ScaleFactorAngle,
+        _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
+    };
+
+    public bool IsShadowing => Configuration.Type switch
+    {
+        ShutterType.OpenClose => OpenCloseValue?.Value ?? false,
+        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition,
+        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition && AngleValue?.GetNumericValueOrNull() >= Configuration.DefaultShadowSlat * Configuration.ScaleFactorAngle,
+        _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
+    };
 }

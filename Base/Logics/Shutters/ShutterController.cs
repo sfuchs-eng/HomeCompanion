@@ -12,7 +12,7 @@ namespace HomeCompanion.Logics.Shutters;
 /// <para>It implements multiple proccessing stages:</para>
 /// <list type="number">
 /// <item><see cref="shutterAutomationTriggerCollector"/> aggregates <see cref="ShutterAutomationComputationTriggerContext"/> in method <see cref="ShutterController.CollectShutterAutomationTriggersAsync(Channel{HomeCompanion.Logics.Shutters.ShutterAutomationComputationTriggerContext}, CancellationToken)"/></item>
-/// <item><see cref="shutterAutomationStateComputationLoop"/> computes shutter target states based on aggregated <see cref="ShutterAutomationComputationTriggerContext"/> in method <see cref="ShutterController.ComputeShutterTargetStateAsync(HomeCompanion.Logics.Shutters.ShutterController.RuntimeContext, HomeCompanion.Logics.Shutters.ShutterAutomationComputationTriggerContext, CancellationToken)"/></item>
+/// <item><see cref="shutterAutomationStateComputationLoop"/> computes shutter target states based on aggregated <see cref="ShutterAutomationComputationTriggerContext"/> in method <see cref="ShutterController.ComputeShutterTargetStateAsync(HomeCompanion.Logics.Shutters.ShutterController.ShutterRuntimeContext, HomeCompanion.Logics.Shutters.ShutterAutomationComputationTriggerContext, CancellationToken)"/></item>
 /// <item><see cref="shutterTargetProcessingLoop"/> controls shutters based on <see cref="ShutterTarget"/> to the desired position in method <see cref="ShutterController.ProcessShutterTargetsAsync(Channel{HomeCompanion.Logics.Shutters.ShutterTarget}, CancellationToken)"/></item>
 /// </list>
 /// </summary>
@@ -261,10 +261,19 @@ public partial class ShutterController : LogicBase
 /// Encapsulates the desired target state for a shutter, including the logic to determine the target position based on various inputs such as time of day, weather conditions, and user preferences.
 /// Serves as input for shutter actuation, allowing for a last gating possibility to e.g. limit movement rates, or implement safety interlocks at shutter level just prior actuator hardware.
 /// </summary>
-internal class ShutterTarget(ShutterKey shutterKey, ShutterPosition targetPosition)
+internal class ShutterTarget(ShutterRuntimeContext shutterRuntimeContext, ShutterPosition targetPosition)
 {
-    public ShutterKey ShutterKey { get; } = shutterKey;
+    public ShutterKey ShutterKey => ShutterRuntimeContext.ShutterKey;
+    public ShutterRuntimeContext ShutterRuntimeContext { get; } = shutterRuntimeContext;
     public ShutterPosition TargetPosition { get; } = targetPosition;
+
+    public void Set(double liftPosition, double tiltAngle)
+    {
+        TargetPosition.LiftPosition = liftPosition;
+        TargetPosition.TiltAngle = tiltAngle;
+    }
+
+    public bool IsNoOp => TargetPosition.PreventPositionChange && TargetPosition.PreventTiltChange;
 }
 
 /// <summary>
@@ -278,10 +287,14 @@ public class ShutterPosition(double liftPosition, double tiltAngle)
     /// <summary>
     /// Lift position of the shutter, where 0.0 represents fully closed and 1.0 represents fully open. For roller shutters, this value is either 0.0 or 1.0, while for venetian blinds it can take any value in between to represent partial opening.
     /// </summary>
-    public double LiftPosition { get; } = liftPosition;
+    public double LiftPosition { get; set; } = liftPosition;
+
+    public bool PreventPositionChange => LiftPosition < 0.0;
 
     /// <summary>
     /// Tilt angle of the shutter slats in p.u., where 0 degrees represents fully open = horizontal slats, 1.0 represents slats fully closed = vertical.
     /// </summary>
-    public double TiltAngle { get; } = tiltAngle;
+    public double TiltAngle { get; set; } = tiltAngle;
+
+    public bool PreventTiltChange => TiltAngle < 0.0;
 }

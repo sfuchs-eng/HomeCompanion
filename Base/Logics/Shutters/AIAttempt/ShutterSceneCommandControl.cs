@@ -167,7 +167,7 @@ public sealed class ShutterSceneCommandControl(
 
                     var roomKey = ShutterControl.CreateRoomKey(building.Name, floor.Name, room.Name);
                     var roomConfig = room.Configuration;
-                    var manualOverrideDuration = roomConfig.ManualOverrideDuration ?? globalConfig.DefaultManualOverrideDuration;
+                    var manualOverrideDuration = roomConfig.RoomSceneManualOverrideDuration ?? globalConfig.DefaultRoomSceneManualOverrideDuration;
                     var persistManualOverride = roomConfig.PersistManualOverride ?? globalConfig.PersistManualOverrides;
                     var resumeAutomationScenes = ResolveResumeAutomationScenes(globalConfig);
                     var defaultResumeAutomationScene = ResolveDefaultResumeAutomationScene(globalConfig, resumeAutomationScenes);
@@ -1271,7 +1271,7 @@ public sealed class ShutterSceneCommandControl(
         string? PositionValueReference,
         string? AngleValueReference,
         string? OpenCloseReference,
-        int DefaultShadowSlat);
+        double DefaultShadowSlat);
 
     private readonly record struct ResumePlan(int ResumeScene, TimeSpan Delay, string Reason);
 

@@ -100,11 +100,11 @@ public static class IValueExtensions
     }
 
     /// <summary>
-     /// Attempts to retrieve the numeric value from an <see cref="IValue"/> if it is of type <see cref="IValue{double}"/>.
-     /// </summary>
-     /// <param name="value">The value to retrieve the numeric value from.</param>
-     /// <param name="numeric">The output parameter that will contain the numeric value if retrieval is successful; otherwise, it will be set to 0.</param>
-     /// <returns>True if the value is of type <see cref="IValue{double}"/> and the numeric value was successfully retrieved; otherwise, false.</returns>
+    /// Attempts to retrieve the numeric value from an <see cref="IValue"/> if it is of type <see cref="IValue{double}"/>.
+    /// </summary>
+    /// <param name="value">The value to retrieve the numeric value from.</param>
+    /// <param name="numeric">The output parameter that will contain the numeric value if retrieval is successful; otherwise, it will be set to 0.</param>
+    /// <returns>True if the value is of type <see cref="IValue{double}"/> and the numeric value was successfully retrieved; otherwise, false.</returns>
     public static bool TryGetNumericValue(this IValue? value, out double numeric)
     {
         if (!(value?.Status.IsValidAndInitialized() ?? false))
@@ -143,6 +143,23 @@ public static class IValueExtensions
         {
             return false;
         }
+    }
+
+    public static double? GetNumericValueOrNull(this IValue? value, ILogger? logger = null)
+    {
+        if (!value?.Status.IsValidAndInitialized() ?? false)
+            return null;
+
+        if (value is IValue<double> typed)
+            return typed.Value;
+
+        if (value?.OValue is null)
+            return null;
+
+        if (TryGetNumericValue(value, out double numeric))
+            return numeric;
+
+        return null;
     }
 
     public static bool TryGetValue<T>(this IValue value, out T typedValue, ILogger? logger = null)
@@ -227,6 +244,12 @@ public static class IValueExtensions
 
     public static bool TryGetEnumValue<TEnum>(this IValue? value, out TEnum enumValue, ILogger? logger = null) where TEnum : struct, Enum
     {
+        if (value is null)
+        {
+            enumValue = default!;
+            return false;
+        }
+
         if ( !value?.Status.IsValidAndInitialized() ?? false)
         {
             enumValue = default!;
@@ -241,7 +264,7 @@ public static class IValueExtensions
         }
 
         // if that fails, see whether we can parse the enum's underlying type from IValue<EnumUnderlyingType> and convert to the enum type. Use TryGetIntegralValue to handle various integral underlying types.
-        if (TryGetIntegralValue(value, out long integral, logger) && Enum.IsDefined(typeof(TEnum), integral))
+        if (TryGetIntegralValue(value!, out long integral, logger) && Enum.IsDefined(typeof(TEnum), integral))
         {
             enumValue = (TEnum)Enum.ToObject(typeof(TEnum), integral);
             return true;

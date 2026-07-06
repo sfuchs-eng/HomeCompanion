@@ -1,4 +1,5 @@
-using System;
+using Quartz.Impl;
+//using Microsoft.Extensions.Time.Testing; // For FakeTimeProvider
 using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Events;
@@ -229,9 +230,10 @@ public partial class ShutterAutomationTestFixture(
         var eventPublisher = new PassThroughEventBus(new ConsoleLoggerFactory().CreateLogger<PassThroughEventBus>());
         var eventSubscriber = eventPublisher;
         timeProvider ??= TimeProvider.System;
+        var schedulerFactory = new TestSchedulerFactory(timeProvider);
         var modelProvider = new StubModelProvider(model);
         var loggerFactory = NullLoggerFactory.Instance;
-        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory);
+        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, schedulerFactory, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 

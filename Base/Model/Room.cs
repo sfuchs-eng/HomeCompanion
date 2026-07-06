@@ -68,9 +68,11 @@ public class CfgRoom : CfgEntity
     public bool? PersistManualOverride { get; set; }
 
     /// <summary>
-    /// Optional room-level override for temporary manual override duration.
+    /// Optional room-level override for temporary manual override duration of room scene.
     /// </summary>
-    public TimeSpan? ManualOverrideDuration { get; set; }
+    public TimeSpan? RoomSceneManualOverrideDuration { get; set; }
+
+    public TimeSpan? ShutterMaxManualOverrideDuration { get; set; }
 
     /// <summary>
     /// Minimum shadow position used for UV-protection objective.

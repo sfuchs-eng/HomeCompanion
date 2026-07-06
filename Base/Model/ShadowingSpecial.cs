@@ -71,7 +71,9 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// <summary>
     /// Default duration used for temporary manual overrides if a room does not override it.
     /// </summary>
-    public TimeSpan DefaultManualOverrideDuration { get; set; } = TimeSpan.FromHours(2);
+    public TimeSpan DefaultRoomSceneManualOverrideDuration { get; set; } = TimeSpan.FromHours(2);
+
+    public TimeSpan DefaultShutterMaxManualOverrideDuration { get; set; } = TimeSpan.FromMinutes(90);
 
     /// <summary>
     /// Scene numbers that clear manual override and resume automation.
@@ -99,6 +101,13 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// Reference to the global absence status value.
     /// </summary>
     public string? AbsenceReference { get; set; }
+
+    /// <summary>
+    /// Shutters are not allowed to be opened when this value is true, e.g. for noise reasons during night time.
+    /// Moving slats is still allowed, e.g. to allow some light and airflow while still keeping noise minimal.
+    /// </summary>
+    /// <value></value>
+    public string? NightModeReference { get; set; }
 
     /// <summary>
     /// Reference to the value that disables auto-shadow assessment for the entire house.
@@ -142,6 +151,8 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
 
     public float UvIntensityThreshold { get; set; } = 300.0f;
 
+    public bool ExecuteHardScenes { get; set; } = true;
+
     public Dictionary<byte, CfgRoomSceneShutterPreset> SceneShutterPresets { get; set; } = new Dictionary<byte, CfgRoomSceneShutterPreset>
     {
         [(byte)RoomShutterScene.CleanShutter] = new CfgRoomSceneShutterPreset { Label = "Clean shutters", Position = 100.0, Slat = 0.0 },
@@ -161,24 +172,28 @@ public class CfgRoomSceneShutterPreset
     public string? Label { get; set; }
 
     /// <summary>
-    /// Reference to a shutter position value.
+    /// A shutter position value, 0 = fully open, 1.0 = fully closed.
     /// </summary>
     public double Position { get; set; }
 
     /// <summary>
-    /// Reference to a shutter slat angle value.
+    /// A shutter slat angle value, 0 = horizontal/open, 1.0 = vertical/closed.
     /// </summary>
     public double Slat { get; set; }
 
     /// <summary>
+    /// Readonly, derived from <see cref="Position"/>.
     /// <see cref="Open"/> and <see cref="Closed"/> properties translate the position and slat values into boolean states for convenient use with open/close capable shutters.
     /// </summary>
+    /// <value>True if fully open</value>
     public bool Open => Position < Double.Epsilon;
 
     /// <summary>
+    /// Readonly, derived from <see cref="Position"/> and <see cref="Slat"/>.
     /// <see cref="Open"/> and <see cref="Closed"/> properties translate the position and slat values into boolean states for convenient use with open/close capable shutters.
     /// </summary>
-    public bool Closed => Position > 100.0 - Double.Epsilon && Slat > 100.0 - Double.Epsilon;
+    /// <value>True if fully closed incl Slat >= 100%</value>
+    public bool Closed => Position > 1.0 - Double.Epsilon && Slat > 1.0 - Double.Epsilon;
 }
 
 /// <summary>
@@ -252,6 +267,13 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.AbsenceReference))]
     public IValue<bool>? Absence { get; set; }
+
+    /// <summary>
+    /// Shadowing input: True when the building is in night mode, false otherwise.
+    /// </summary>
+    /// <value></value>
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.NightModeReference))]
+    public IValue<bool>? NightMode { get; set; }
 
     /// <summary>
     /// Shadowing input: if true, despite <see cref="ThermalControlMode.CoolingPriority"/>, automatic shadowing must not be started (do not automatically transition into auto-shadowing room scenes).

@@ -62,6 +62,17 @@ public class Building : ModelEntityWithConfig<CfgBuilding>
     {
     }
 
+    public IEnumerable<Room> GetAllRooms()
+    {
+        foreach (var floor in Floors.Values)
+        {
+            foreach (var room in floor.Rooms.Values)
+            {
+                yield return room;
+            }
+        }
+    }
+
     public ShadowingSpecial GetShadowingSpecial()
     {
         if (TryGetShadowingSpecial(out var shadowingSpecial))
