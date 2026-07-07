@@ -80,14 +80,20 @@ public class MqttConnectivityProviderTests
 
         ValueUpdateReceived? update = null;
         ValueWriteReceived? write = null;
+        // thisone we change from "await Task.Delay(100);" to a more robust way to wait for the write event after having observed a rare race. Consider same for the other tests if they fail in the future.
+        var writeObserved = new TaskCompletionSource<ValueWriteReceived>(TaskCreationOptions.RunContinuationsAsynchronously);
         bus.Subscribe(new LambdaHandler<ValueUpdateReceived>(e => update = e));
-        bus.Subscribe(new LambdaHandler<ValueWriteReceived>(e => write = e));
+        bus.Subscribe(new LambdaHandler<ValueWriteReceived>(e =>
+        {
+            write = e;
+            writeObserved.TrySetResult(e);
+        }));
 
         await RunWithBusAsync(bus, async () =>
         {
             await provider.StartAsync(CancellationToken.None);
             broker.RaiseInbound("home/living/switch/cmd", "OFF");
-            await Task.Delay(100);
+            await writeObserved.Task.WaitAsync(TimeSpan.FromSeconds(1));
         });
 
         Assert.That(write, Is.Not.Null);
