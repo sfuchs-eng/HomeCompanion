@@ -119,17 +119,56 @@ public class CfgDynamicCutoverAngleRule
     /// <summary>
     /// Optional inclusive lower outdoor-temperature bound in degrees Celsius.
     /// </summary>
-    public double? OutdoorTemperatureMin { get; set; }
+    public double? RoomTemperatureMin { get; set; }
 
     /// <summary>
-    /// Optional inclusive upper outdoor-temperature bound in degrees Celsius.
+    /// Optional inclusive upper room-temperature bound in degrees Celsius.
     /// </summary>
-    public double? OutdoorTemperatureMax { get; set; }
+    public double? RoomTemperatureMax { get; set; }
 
     /// <summary>
     /// Cut-over angle in degrees to apply when this rule matches.
     /// </summary>
     public double CutoverAngle { get; set; }
+
+    /// <summary>
+    /// Must be > CutoverAngle.
+    /// If set, the cut-over angle is interpolated between CutoverAngle and CutoverAngleMax based on the outdoor temperature.
+    /// </summary>
+    public double? CutoverAngleMax { get; set; }
+
+    /// <summary>
+    /// Indicates whether the cut-over angle should be interpolated between CutoverAngle and CutoverAngleMax based on the room temperature.
+    /// </summary>
+    public bool Interpolate => CutoverAngleMax.HasValue && CutoverAngleMax.Value > CutoverAngle && RoomTemperatureMin.HasValue && RoomTemperatureMax.HasValue && RoomTemperatureMax.Value > RoomTemperatureMin.Value;
+
+    public double GetCutoverAngle(double roomTemperature)
+    {
+        if (Interpolate && CutoverAngleMax.HasValue)
+        {
+            // Linear interpolation between CutoverAngle and CutoverAngleMax based on room temperature
+            double t = (roomTemperature - (RoomTemperatureMin ?? roomTemperature)) / ((RoomTemperatureMax ?? roomTemperature) - (RoomTemperatureMin ?? roomTemperature));
+            return CutoverAngle + t * (CutoverAngleMax.Value - CutoverAngle);
+        }
+        else
+        {
+            return CutoverAngle;
+        }
+    }
+
+    public bool Matches(ThermalControlMode currentThermalControlMode, double roomTemperature)
+    {
+        if (ThermalControlMode.HasValue && ThermalControlMode.Value != currentThermalControlMode)
+            return false;
+
+        if (RoomTemperatureMin.HasValue && roomTemperature < RoomTemperatureMin.Value)
+            return false;
+
+        if (RoomTemperatureMax.HasValue && roomTemperature > RoomTemperatureMax.Value)
+            return false;
+
+        return true;
+    }
 }
 
 /// <summary>

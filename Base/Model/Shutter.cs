@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using HomeCompanion.Abstractions.Serialization;
+using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 
@@ -36,13 +37,6 @@ public class CfgShutter : CfgEntity
     /// Optional room-level override for the facade incidence cut-over angle in degrees.
     /// </summary>
     public double? FacadeSunCutoverAngleOverride { get; set; }
-
-    [Obsolete("Use ShutterContext.ResolveShutterConstraints() instead to get the effective constraints for a shutter.")]
-    public ShutterConstraints EffectiveConstraints(ShutterConstraints roomConstraints)
-    {
-        var mask = RoomConstraintsMask ?? ShutterConstraints.None;
-        return (roomConstraints & ~mask) | Constraints;
-    }
 
     /// <summary>
     /// Optional reference to the value that carries the shutter position.
@@ -100,6 +94,8 @@ public class CfgShutter : CfgEntity
     /// </summary>
     public string? ReleasedForClosureReference { get; set; }
 
+    public bool InvertReleasedForClosure { get; set; } = false;
+
     /// <summary>
     /// Do not close shutter beyond this position in percent.
     /// p.u., where 0 means fully open and 1 means fully closed.
@@ -118,6 +114,12 @@ public class CfgShutter : CfgEntity
     /// Shutter-local sun-position zones that affect whether this shutter should be treated as naturally shadowed.
     /// </summary>
     public Dictionary<string, CfgShadowingZone> ShadowingZones { get; set; } = [];
+
+    /// <summary>
+    /// Optional room-level dynamic cut-over angle rules.
+    /// If configured, these rules override building-level dynamic cut-over rules for this room.
+    /// </summary>
+    public List<CfgDynamicCutoverAngleRule> FacadeSunCutoverAngleDynamicRules { get; set; } = [];
 }
 
 /// <summary>
@@ -217,12 +219,13 @@ public enum ShutterConstraints
 
     /// <summary>
     /// Aggressive shadowing for sun protection: the shutter should be closed whenever there is sun irradiation, even if shadowing is not desired or presence is detected in the house.
-    /// It may be reopened when sun exposure is over unless LeaveClosed is set.
+    /// It may be reopened when sun exposure is over unless LeaveClosed is set. E.g. rooms where no people are present but interior must be protected from direct sunlight.
     /// </summary>
     AggressiveSunProtection = 8,
 
     /// <summary>
     /// Shadowing only in case of strongly uncomfortable sun irradiation, e.g. in the afternoon in summer and generally warm conditions, but not during cold seasons.
+    /// E.g. basement windows where it's normally cool anyhow but dailight is desired
     /// </summary>
     CautiousSunProtection = 16,
 
@@ -230,6 +233,77 @@ public enum ShutterConstraints
     /// Always permit manual operation of the shutter regardless of automation rules.
     /// </summary>
     ManualOverride = 32,
+}
+
+public static class ShutterExtensions
+{
+    public static byte ResolveRoomShutterScene(this Shutter shutter, ShutterRuntimeContext runtimeContext, ILogger? logger = null)
+    {
+        // Room level
+        if (runtimeContext.Room?.ShutterScene?.TryGetValue(out byte scene) ?? false)
+        {
+            return scene;
+        }
+
+        // see whether we can use the building global scene as fallback
+        if ((runtimeContext.Building?.TryGetShadowingSpecial(out var shadowingSpecial) ?? false) && (shadowingSpecial.GlobalShutterScene?.TryGetValue(out byte buildingScene) ?? false))
+        {
+            return buildingScene;
+        }
+
+        logger?.LogWarning("No shutter scene found for shutter {ShutterKey} in room {RoomKey}. Using default scene.", runtimeContext.ShutterKey, runtimeContext.RoomKey);
+
+        return (byte)RoomShutterScene.AutoNoReopen; // default scene
+    }
+
+    public static ShutterConstraints ResolveEffectiveConstraints(this Shutter shutter, Building? building, Room? room)
+    {
+        var buildingConstraints = building?.GetShadowingSpecial().Configuration.DefaultShutterConstraints ?? ShutterConstraints.None;
+        var roomConstraints = room?.Configuration.ShutterConstraints ?? ShutterConstraints.None;
+        var roomMask = room?.Configuration.BuildingConstraintsMask ?? ShutterConstraints.None;
+        var shutterConstraints = shutter.Configuration.Constraints;
+        var shutterMask = shutter.Configuration.RoomConstraintsMask ?? ShutterConstraints.None;
+
+        return (((buildingConstraints & ~roomMask) | roomConstraints) & ~shutterMask) | shutterConstraints;
+    }
+
+    public static CfgDynamicCutoverAngleRule ResolveEffectiveCutoverAngleRule(this Shutter shutter, Building building, Room room)
+    {
+        ArgumentNullException.ThrowIfNull(building, nameof(building));
+        ArgumentNullException.ThrowIfNull(room, nameof(room));
+
+        // Room-level rules override building-level rules
+        IEnumerable<CfgDynamicCutoverAngleRule> roomRules = room.Configuration.FacadeSunCutoverAngleDynamicRules;
+        IEnumerable<CfgDynamicCutoverAngleRule> shutterRules = shutter.Configuration.FacadeSunCutoverAngleDynamicRules;
+        IEnumerable<CfgDynamicCutoverAngleRule> buildingRules = building.GetShadowingSpecial().Configuration.FacadeSunCutoverAngleDynamicRules;
+
+        // Combine rules: room rules take precedence over shutter rules, which take precedence over building rules
+        var effectiveRules = new List<CfgDynamicCutoverAngleRule>();
+        effectiveRules.AddRange(buildingRules);
+        effectiveRules.AddRange(shutterRules);
+        effectiveRules.AddRange(roomRules);
+
+        var thermalControlMode = building.GetShadowingSpecial()?.ResolvedThermalControlMode() ?? ThermalControlMode.Passive;
+        var roomTemperature = room.GetRoomTemperatureOrDefault();
+        var winningRule = (roomRules.Concat(shutterRules).Concat(buildingRules))
+            .Where(r => r.Matches(thermalControlMode, roomTemperature))
+            .FirstOrDefault();
+
+        if (winningRule is null)
+        {
+            // No matching rule found, return a default rule with the shutter's configured cut-over angle
+            return new CfgDynamicCutoverAngleRule
+            {
+                CutoverAngle = shutter.Configuration.FacadeSunCutoverAngleOverride ?? 0.0,
+                ThermalControlMode = thermalControlMode,
+                RoomTemperatureMin = null,
+                RoomTemperatureMax = null
+            };
+        }
+
+        // Return the first applicable rule, or null if none are applicable
+        return winningRule;
+    }
 }
 
 /// <summary>
@@ -298,7 +372,7 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
             return; // no-op semantics
         if (pUnitValue > 1.0)
             throw new ArgumentOutOfRangeException(nameof(pUnitValue), "Position value must be in the range [0.0, 1.0].");
-        if ( !PositionValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorPosition, initiator, logger))
+        if (!PositionValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorPosition, initiator, logger))
         {
             logger?.LogWarning("Failed to write position value {PositionValue} for shutter {ShutterKey}.", pUnitValue, Name);
         }
@@ -328,9 +402,17 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
 
     public bool IsShadowing => Configuration.Type switch
     {
-        ShutterType.OpenClose => OpenCloseValue?.Value ?? false,
+        ShutterType.OpenClose => (OpenCloseValue?.IsValid ?? false) && (OpenCloseValue?.Value ?? false),
         ShutterType.Positional => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition,
         ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition && AngleValue?.GetNumericValueOrNull() >= Configuration.DefaultShadowSlat * Configuration.ScaleFactorAngle,
+        _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
+    };
+
+    public bool IsOpen => Configuration.Type switch
+    {
+        ShutterType.OpenClose => (OpenCloseValue?.IsValid ?? false) && !(OpenCloseValue?.Value ?? false),
+        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() <= double.Epsilon,
+        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() <= double.Epsilon,
         _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
     };
 }

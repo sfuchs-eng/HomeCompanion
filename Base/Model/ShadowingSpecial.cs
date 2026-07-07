@@ -21,6 +21,8 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// </summary>
     public ShutterConstraints DefaultShutterConstraints { get; set; } = ShutterConstraints.None;
 
+    public AntiBurglarSettings AntiBurglar { get; set; } = new AntiBurglarSettings();
+
     /// <summary>
     /// Default room temperature threshold used for auto shadowing when no room-specific value is configured.
     /// </summary>
@@ -58,12 +60,6 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     public string? ThermalControlModeReference { get; set; }
 
     /// <summary>
-    /// Default automation level used when rooms do not define an override.
-    /// </summary>
-    [Obsolete("solve via room scene semantics")]
-    public ShadowingAutomationLevel DefaultAutomationLevel { get; set; } = ShadowingAutomationLevel.AutomaticWithTemporaryManualOverride;
-
-    /// <summary>
     /// Enables persistence of manual overrides by default.
     /// </summary>
     public bool PersistManualOverrides { get; set; } = true;
@@ -80,12 +76,6 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// Defaults to legacy-compatible scenes 50 and 52.
     /// </summary>
     public List<int> ResumeAutomationScenes { get; set; } = [50, 52];
-
-    /// <summary>
-    /// Schedule evaluation engine used for room cron transitions.
-    /// </summary>
-    [Obsolete("solve differently")]
-    public ShadowingScheduleEngine ScheduleEngine { get; set; } = ShadowingScheduleEngine.InProcess;
 
     /// <summary>
     /// Reference to the global shutter scene value.
@@ -134,6 +124,8 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// </summary>
     public string? SunIntensityWestReference { get; set; }
 
+    public string? GlobalIlluminanceReference { get; set; }
+
     /// <summary>
     /// Optional reference to a sun azimuth value in degrees.
     /// </summary>
@@ -151,6 +143,11 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
 
     public float UvIntensityThreshold { get; set; } = 300.0f;
 
+    /// <summary>
+    /// Optional room-level dynamic cut-over angle rules.
+    /// </summary>
+    public List<CfgDynamicCutoverAngleRule> FacadeSunCutoverAngleDynamicRules { get; set; } = [];
+
     public bool ExecuteHardScenes { get; set; } = true;
 
     public Dictionary<byte, CfgRoomSceneShutterPreset> SceneShutterPresets { get; set; } = new Dictionary<byte, CfgRoomSceneShutterPreset>
@@ -159,12 +156,24 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
         [(byte)RoomShutterScene.CleanWindow] = new CfgRoomSceneShutterPreset { Label = "Clean window", Position = 0.0, Slat = 0.0 },
         [(byte)RoomShutterScene.DryShutter] = new CfgRoomSceneShutterPreset { Label = "Closed with slats steep: drop water and allow airflow", Position = 100.0, Slat = 60.0 },
     };
+}
+
+public class AntiBurglarSettings
+{
+    public TimeSpan EarliestClosureTime { get; set; } = TimeSpan.FromHours(16.0);
+    public TimeSpan LatestClosureTime { get; set; } = TimeSpan.FromHours(22.0);
+    public TimeSpan EarliestOpeningTime { get; set; } = TimeSpan.FromHours(6.0);
+    public TimeSpan LatestOpeningTime { get; set; } = TimeSpan.FromHours(9.0);
+    public bool EnableAutomaticReopening { get; set; } = false;
+    public double DuskTriggerLowerThresholdLux { get; set; } = 300.0;
+    public double DuskTriggerHysteresisLux { get; set; } = 200.0;
+
+    public double DuskTriggerUpperThresholdLux => DuskTriggerLowerThresholdLux + DuskTriggerHysteresisLux;
 
     /// <summary>
-    /// Scene controllers keyed by scene key for explicit multi-command room or facade presets.
+    /// GlobalIlluminance must be above <see cref="DuskTriggerUpperThresholdLux"/> for this duration before anti-burglar closure is lifted.
     /// </summary>
-    [Obsolete("to be replaced / redesigned")]
-    public Dictionary<string, CfgShadowingSceneController> SpecialScenesAIAttempt { get; set; } = [];
+    public TimeSpan DuskRelaxationDuration { get; set; } = TimeSpan.FromMinutes(30.0);
 }
 
 public class CfgRoomSceneShutterPreset
@@ -281,7 +290,7 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.DisableAutoShadowAssessmentReference))]
     public IValue<bool>? DisableAutoShadowAssessment { get; set; }
-    
+
     /// <summary>
     /// Shadowing input: Outdoor temperature in degrees Celsius.
     /// </summary>
@@ -297,6 +306,9 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityWestReference), RequireNumeric = true)]
     public IValue<float>? SunIntensityWest { get; set; }
+
+    [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.GlobalIlluminanceReference), RequireNumeric = true)]
+    public IValue<float>? GlobalIlluminance { get; set; }
 
     /// <summary>
     /// Shadowing input: Sun position azimuth in degrees.
@@ -322,4 +334,24 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.UvIntensityReference), RequireNumeric = true)]
     public IValue<float>? UvIntensity { get; set; }
+
+    #region Interpretation support
+
+    public bool IsAbsenceModeActive => (Absence?.IsValid ?? false) && (Absence?.Value ?? false);
+
+    public ThermalControlMode ResolvedThermalControlMode()
+    {
+        // dynamic valid value?
+        var dynamicMode = ThermalControlMode?.IsValid ?? false ? ThermalControlMode?.Value : null;
+        if ( dynamicMode.HasValue && Enum.IsDefined(typeof(ThermalControlMode), dynamicMode.Value))
+        {
+            return (ThermalControlMode)dynamicMode.Value;
+        }
+        else
+        {
+            return Configuration.ThermalControl;
+        }
+    }
+
+    #endregion
 }

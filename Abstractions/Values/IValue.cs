@@ -35,7 +35,17 @@ public interface IValue
     public Type ValueType { get; }
     public ValueStatus Status { get; }
 
+    /// <summary>
+    /// Written to by internal logics or HomeCompanion API calls.
+    /// </summary>
+    /// <returns></returns>
     public bool IsActive => (Status & (ValueStatus.Live | ValueStatus.Used)) != 0;
+
+    /// <summary>
+    /// Initialized or written to by bus or API calls, and not in an error state.
+    /// </summary>
+    /// <returns></returns>
+    public bool IsValid => Status.IsValidAndInitialized();
 
     public string? Name { get; }
     public string? Label { get; }

@@ -14,6 +14,7 @@ public class IValueExtensionsTests
     {
         var mockValue = new Mock<IValue>();
         mockValue.Setup(v => v.OValue).Returns(value);
+        mockValue.Setup(v => v.Status).Returns(ValueStatus.Initialized | ValueStatus.Loaded);
         var result = IValueExtensions.TryGetNumericValue(mockValue.Object, out var numeric);
         Assert.That(result, Is.True);
         Assert.That(numeric, Is.EqualTo(expected));
@@ -24,6 +25,7 @@ public class IValueExtensionsTests
     {
         var mockValue = new Mock<IValue>();
         mockValue.Setup(v => v.OValue).Returns(value);
+        mockValue.Setup(v => v.Status).Returns(ValueStatus.Initialized | ValueStatus.Loaded);
         var result = IValueExtensions.TryGetNumericValue(mockValue.Object, out var numeric);
         Assert.That(result, Is.False);
         Assert.That(numeric, Is.EqualTo(0));
@@ -48,6 +50,7 @@ public class IValueExtensionsTests
     {
         var mockValue = new Mock<IValue>();
         mockValue.Setup(v => v.OValue).Returns(value);
+        mockValue.Setup(v => v.Status).Returns(ValueStatus.Initialized | ValueStatus.Loaded);
         var result = IValueExtensions.TryGetIntegralValue<int>(mockValue.Object, out var typedValue);
         Assert.That(result, Is.True);
         Assert.That(typedValue, Is.EqualTo(expected));
@@ -66,6 +69,7 @@ public class IValueExtensionsTests
     {
         var mockValue = new Mock<IValue>();
         mockValue.Setup(v => v.OValue).Returns(value);
+        mockValue.Setup(v => v.Status).Returns(ValueStatus.Initialized | ValueStatus.Loaded);
         var result = IValueExtensions.TryGetValue<double>(mockValue.Object, out var typedValue);
         Assert.That(result, Is.False);
         Assert.That(typedValue, Is.EqualTo(expected));

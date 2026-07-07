@@ -146,7 +146,7 @@ internal class ThreeWireControl(
                 case ThreeWireControlRequest.Release:
                     _forceOpenRequested = false;
                     // go back to the requested position
-                    if (context.PositionRequest.IsActive && !context.PositionRequest.Value)
+                    if (context.PositionRequest.IsValid && !context.PositionRequest.Value)
                     {
                         _commandQueue.Enqueue(ThreeWireControlRequest.Open);
                     }

@@ -28,12 +28,6 @@ public class ShutterContext(Model model, RoomKey roomKey, Shutter shutter) : Con
     /// <returns>The resolved <see cref="ShutterConstraints"/> applicable to the shutter</returns>
     public ShutterConstraints ResolveShutterConstraints()
     {
-        var buildingConstraints = GetShadowingSpecial().Configuration.DefaultShutterConstraints;
-        var roomConstraints = Room.Configuration.ShutterConstraints;
-        var roomMask = Room.Configuration.BuildingConstraintsMask ?? ShutterConstraints.None;
-        var shutterConstraints = Shutter.Configuration.Constraints;
-        var shutterMask = Shutter.Configuration.RoomConstraintsMask ?? ShutterConstraints.None;
-
-        return (((buildingConstraints & ~roomMask) | roomConstraints) & ~shutterMask) | shutterConstraints;
+        return Shutter.ResolveEffectiveConstraints(Building, Room);
     }
 }

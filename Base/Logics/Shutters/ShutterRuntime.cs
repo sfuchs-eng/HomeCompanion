@@ -17,6 +17,11 @@ public class ShutterRuntime(
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = runtimeCreationContext.ComputationTriggerQueueFeeder;
     private readonly TimeProvider timeProvider = runtimeCreationContext.TimeProvider;
 
+    /// <summary>
+    /// The methods <see cref="StartExternalOverrideAsync"/> and <see cref="ResetExternalOverrideAsync"/> manage the external override state for this shutter runtime.
+    /// See <see cref="ShutterResetExternalOverrideJob"/> for the entity that resets the external override state after a certain duration.
+    /// This property indicates whether an external override is currently active, which can be used by other logics to determine whether to respect the external override or not.
+    /// </summary>
     public bool IsExternalOverrideActive { get; private set; } = false;
     public DateTimeOffset? ExternalOverrideStartTime { get; private set; } = null;
 
@@ -234,6 +239,59 @@ public class ShutterRuntime(
         }
 
         return newRuntimes;
+    }
+
+    private DateTimeOffset? lastAntiBurglarClosureTime = null;
+    private bool isAntiBurglarClosureActive = false;
+
+    public bool EvaluateAntiBurglarState(ShutterRuntimeContext runtimeContext, DateTimeOffset now, out bool lastAntiBurglarState, out bool indicatesOpening)
+    {
+        lastAntiBurglarState = isAntiBurglarClosureActive;
+        indicatesOpening = false;
+
+        var resolvedShutterConstraints = runtimeContext.Shutter?.ResolveEffectiveConstraints(runtimeContext.Building, runtimeContext.Room) ?? ShutterConstraints.None;
+        if ( !resolvedShutterConstraints.HasFlag(ShutterConstraints.AntiBurglar) )
+        {
+            return false;
+        }
+
+        var nowTime = now.TimeOfDay;
+        var shadowingSpecial = runtimeContext.Building?.GetShadowingSpecial();
+        CfgShadowingSpecial shadowingConfig = shadowingSpecial?.Configuration ?? new CfgShadowingSpecial();
+        bool isAbsenceModeActive = shadowingSpecial?.IsAbsenceModeActive ?? false;
+
+        // Time based open/close shutters
+        bool isWithinClosedMaxTimeWindow = nowTime >= shadowingConfig.AntiBurglar.EarliestClosureTime || nowTime <= shadowingConfig.AntiBurglar.LatestOpeningTime;
+        bool isWithinClosedMinTimeWindow = nowTime >= shadowingConfig.AntiBurglar.LatestClosureTime && nowTime <= shadowingConfig.AntiBurglar.EarliestOpeningTime;
+        bool isWithinOpenMaxTimeWindow = nowTime >= shadowingConfig.AntiBurglar.EarliestOpeningTime && nowTime <= shadowingConfig.AntiBurglar.LatestOpeningTime;
+        bool isWithinOpenMinTimeWindow = nowTime >= shadowingConfig.AntiBurglar.LatestOpeningTime || nowTime <= shadowingConfig.AntiBurglar.EarliestOpeningTime;
+
+        bool timeRequiresClosure = isWithinClosedMinTimeWindow || (isAbsenceModeActive && isWithinClosedMaxTimeWindow);
+        bool timePermitsOpening = isWithinOpenMinTimeWindow && !timeRequiresClosure;
+
+        // Global illuminance / dusk based open/close shutters
+        var duskLowerThreshold = shadowingConfig.AntiBurglar.DuskTriggerLowerThresholdLux;
+        var duskUpperThreshold = shadowingConfig.AntiBurglar.DuskTriggerUpperThresholdLux;
+        var globalIlluminance = shadowingSpecial?.GlobalIlluminance?.Value ?? double.NaN;
+
+        bool triggerDuskClosure = !double.IsNaN(globalIlluminance) && globalIlluminance < duskLowerThreshold;
+        // time windows sind last closure must have passed too
+        bool triggerDuskOpening =
+                !double.IsNaN(globalIlluminance) && globalIlluminance > duskUpperThreshold
+                && (!lastAntiBurglarClosureTime.HasValue || (now - lastAntiBurglarClosureTime.Value) >= shadowingConfig.AntiBurglar.DuskRelaxationDuration);
+
+        if (timeRequiresClosure || triggerDuskClosure)
+        {
+            isAntiBurglarClosureActive = true;
+            lastAntiBurglarClosureTime = now;
+        }
+        else if (timePermitsOpening || triggerDuskOpening)
+        {
+            isAntiBurglarClosureActive = false;
+            indicatesOpening = shadowingConfig.AntiBurglar.EnableAutomaticReopening;
+        }
+
+        return isAntiBurglarClosureActive;
     }
 }
 

@@ -52,6 +52,6 @@ public static class ValueStatusExtensions
 
     public static bool IsValidAndInitialized(this ValueStatus status)
     {
-        return (status & ValueStatus.Initialized) != 0 && status.IsValid();
+        return (status & (ValueStatus.Initialized | ValueStatus.Loaded)) != 0 && status.IsValid();
     }
 }

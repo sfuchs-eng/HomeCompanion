@@ -37,6 +37,8 @@ public class CfgRoom : CfgEntity
 
     public string? TemperatureReference { get; set; }
 
+    public double DefaultRoomTemperature { get; set; } = 22.0;
+
     public double AutoShadowTemperatureThreshold { get; set; } = 25.0;
 
     /// <summary>
@@ -147,4 +149,11 @@ public class Room : ModelEntity, IConfigBackedModelEntity
     /// Shutters keyed by their configured name.
     /// </summary>
     public Dictionary<string, Shutter> Shutters { get; set; } = [];
+
+    public double GetRoomTemperatureOrDefault()
+    {
+        if (Temperature?.TryGetNumericValue(out double roomTemperature) ?? false)
+            return roomTemperature;
+        return Configuration.DefaultRoomTemperature;
+    }
 }

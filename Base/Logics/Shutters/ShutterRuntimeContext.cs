@@ -2,7 +2,7 @@ using HomeCompanion.Base.Model;
 
 namespace HomeCompanion.Logics.Shutters;
 
-internal class ShutterRuntimeContext(ShutterKey shutterKey, BuildingRuntime? buildingRuntime, RoomRuntime? roomRuntime, ShutterRuntime? shutterRuntime)
+public class ShutterRuntimeContext(ShutterKey shutterKey, BuildingRuntime? buildingRuntime, RoomRuntime? roomRuntime, ShutterRuntime? shutterRuntime)
 {
     public BuildingKey? BuildingKey => BuildingRuntime?.BuildingKey;
     public RoomKey? RoomKey => RoomRuntime?.RoomKey;
