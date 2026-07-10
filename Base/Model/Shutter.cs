@@ -275,6 +275,24 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
 
     public double GetPositionInPUnit()
     {
+        switch (Configuration.Type)
+        {
+            case ShutterType.OpenClose:
+                if (OpenCloseValue is null)
+                    return -1.0;
+                if (!OpenCloseValue.IsValid)
+                    return -1.0;
+                return OpenCloseValue.Value ? 1.0 : 0.0;
+            case ShutterType.Positional:
+            case ShutterType.VenetianBlind:
+                return GetPositionInPUnitFromPositionValue();
+            default:
+                throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented.");
+        }
+    }
+
+    private double GetPositionInPUnitFromPositionValue()
+    {
         if (PositionValue is null)
             return -1.0;
         var pos = PositionValue.GetNumericValueOrNull();
@@ -285,6 +303,8 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
 
     public double GetAngleInPUnit()
     {
+        if ( Configuration.Type != ShutterType.VenetianBlind)
+            return 1.0; // it's closed by nature
         if (AngleValue is null)
             return -1.0;
         var angle = AngleValue.GetNumericValueOrNull();

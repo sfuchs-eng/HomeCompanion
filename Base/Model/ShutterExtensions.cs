@@ -1,3 +1,4 @@
+using HomeCompanion.Base.Utilities;
 using HomeCompanion.Logics.Shutters;
 using Microsoft.Extensions.Logging;
 
@@ -121,5 +122,11 @@ public static class ShutterExtensions
 
         // Return the first applicable rule, or null if none are applicable
         return winningRule;
+    }
+
+    public static SphericVector GetOrientationRad(this Shutter shutter)
+    {
+        var orientation = shutter.Facade?.OrientationRad ?? throw new InvalidOperationException($"Shutter {shutter.Name} does not have a facade bound. Cannot compute spheric vector.");
+        return orientation;
     }
 }

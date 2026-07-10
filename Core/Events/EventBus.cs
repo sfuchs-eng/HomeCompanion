@@ -128,4 +128,12 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
 
         list.Add((e, ct) => handler((T)e, ct));
     }
+
+    public void Publish(IEvent @event)
+    {
+        if (!_channel.Writer.TryWrite(@event))
+        {
+            throw new InvalidOperationException($"Event bus is closed; cannot publish event of type {@event.GetType().Name}.");
+        }
+    }
 }

@@ -185,7 +185,7 @@ public class ShutterRuntime(
 
     internal async Task ExecuteShutterTargetAsync(ShutterTarget shutterTarget)
     {
-        if ( !shutterTarget.ShutterKey.Equals(this.ShutterKey) )
+        if (!shutterTarget.ShutterKey.Equals(this.ShutterKey))
             throw new ArgumentException($"The provided shutter target {shutterTarget} does not match the shutter key {this.ShutterKey} of this runtime.", nameof(shutterTarget));
         var shutter = ShutterContext.Shutter;
         // switch:      ShutterType.OpenClose => shutter.OpenCloseValue.TryWriteNumeric(shutterTarget.OpenClose, shutterTarget.Duration),
@@ -194,24 +194,24 @@ public class ShutterRuntime(
         switch (shutter.Configuration.Type)
         {
             case ShutterType.VenetianBlind:
-                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                if (!shutterTarget.TargetPosition.PreventPositionChange)
                     success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
-                if ( !shutterTarget.TargetPosition.PreventTiltChange )
+                if (!shutterTarget.TargetPosition.PreventTiltChange)
                     success = success && (shutter.AngleValue?.TryWriteNumeric(shutterTarget.TargetPosition.TiltAngle, this, logger) ?? false);
                 break;
             case ShutterType.Positional:
-                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                if (!shutterTarget.TargetPosition.PreventPositionChange)
                     success = success && (shutter.PositionValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
                 break;
             case ShutterType.OpenClose:
-                if ( !shutterTarget.TargetPosition.PreventPositionChange )
+                if (!shutterTarget.TargetPosition.PreventPositionChange)
                     success = success && (shutter.OpenCloseValue?.TryWriteNumeric(shutterTarget.TargetPosition.LiftPosition, this, logger) ?? false);
                 break;
             default:
                 logger.LogWarning("Unsupported shutter type {ShutterType} for shutter {ShutterKey}.", shutter.Configuration.Type, ShutterKey);
                 break;
         }
-        if ( !success )
+        if (!success)
         {
             logger.LogWarning("Failed to write target {ShutterTarget} to shutter {ShutterKey} of type {ShutterType}.", shutterTarget, ShutterKey, shutter.Configuration.Type);
         }
@@ -250,7 +250,7 @@ public class ShutterRuntime(
         indicatesOpening = false;
 
         var resolvedShutterConstraints = runtimeContext.Shutter?.ResolveEffectiveConstraints(runtimeContext.Building, runtimeContext.Room) ?? ShutterConstraints.None;
-        if ( !resolvedShutterConstraints.HasFlag(ShutterConstraints.AntiBurglar) )
+        if (!resolvedShutterConstraints.HasFlag(ShutterConstraints.AntiBurglar))
         {
             return false;
         }
@@ -292,6 +292,125 @@ public class ShutterRuntime(
         }
 
         return isAntiBurglarClosureActive;
+    }
+
+    public ShutterPosition CurrentPosition => new ShutterPosition(
+        ShutterContext.Shutter.GetPositionInPUnit(),
+        ShutterContext.Shutter.GetAngleInPUnit()
+    );
+
+    public bool IsMoving(ShutterPosition targetPosition, double tolerances = 0.01)
+    {
+        var shutter = ShutterContext.Shutter;
+        if (shutter == null)
+            return false;
+
+        var curPos = shutter.GetPositionInPUnit();
+        var curAngle = shutter.GetAngleInPUnit();
+
+        if (curPos < 0.0 || curAngle < 0.0)
+        {
+            //logger.LogDebug("Shutter {ShutterKey} has invalid current position or angle: Position={Position}, Angle={Angle}.", ShutterKey, curPos, curAngle);
+            // could be that the IValue's aren't initialized yet, so we can't determine if it's moving or not. We'll assume it's moving to be safe.
+            return true;
+        }
+
+        bool isMoving = false;
+        switch (shutter.Configuration.Type)
+        {
+            case ShutterType.VenetianBlind:
+                isMoving |= Math.Abs(curPos - targetPosition.LiftPosition) > tolerances;
+                isMoving |= Math.Abs(curAngle - targetPosition.TiltAngle) > tolerances;
+                break;
+            case ShutterType.Positional:
+                isMoving |= Math.Abs(curPos - targetPosition.LiftPosition) > tolerances;
+                break;
+            case ShutterType.OpenClose:
+                if (curPos > 0.5 && targetPosition.LiftPosition <= 0.5)
+                {
+                    isMoving = true; // opening
+                }
+                else if (curPos <= 0.5 && targetPosition.LiftPosition > 0.5)
+                {
+                    isMoving = true; // closing
+                }
+                break;
+            default:
+                logger.LogWarning("Unsupported shutter type {ShutterType} for shutter {ShutterKey}.", shutter.Configuration.Type, ShutterKey);
+                break;
+        }
+
+        return isMoving;
+    }
+
+    public bool IsOpening(ShutterPosition targetPosition, double tolerances = 0.01)
+    {
+        var shutter = ShutterContext.Shutter;
+        if (shutter == null)
+            return false;
+
+        var curPos = shutter.GetPositionInPUnit();
+        var curAngle = shutter.GetAngleInPUnit();
+
+        if (curPos < 0.0 || curAngle < 0.0)
+        {
+            //logger.LogDebug("Shutter {ShutterKey} has invalid current position or angle: Position={Position}, Angle={Angle}.", ShutterKey, curPos, curAngle);
+            // could be that the IValue's aren't initialized yet, so we can't determine if it's moving or not. We'll assume it's moving to be safe.
+            return true;
+        }
+
+        bool isOpening = false;
+        switch (shutter.Configuration.Type)
+        {
+            case ShutterType.VenetianBlind:
+                isOpening |= targetPosition.LiftPosition + tolerances < curPos;
+                isOpening |= targetPosition.TiltAngle + tolerances < curAngle;
+                break;
+            case ShutterType.Positional:
+            case ShutterType.OpenClose:
+                isOpening |= targetPosition.LiftPosition + tolerances < curPos;
+                break;
+            default:
+                logger.LogWarning("Unsupported shutter type {ShutterType} for shutter {ShutterKey}.", shutter.Configuration.Type, ShutterKey);
+                break;
+        }
+
+        return isOpening;
+    }
+    
+    public bool IsClosing(ShutterPosition targetPosition, double tolerances = 0.01)
+    {
+        var shutter = ShutterContext.Shutter;
+        if (shutter == null)
+            return false;
+
+        var curPos = shutter.GetPositionInPUnit();
+        var curAngle = shutter.GetAngleInPUnit();
+
+        if (curPos < 0.0 || curAngle < 0.0)
+        {
+            //logger.LogDebug("Shutter {ShutterKey} has invalid current position or angle: Position={Position}, Angle={Angle}.", ShutterKey, curPos, curAngle);
+            // could be that the IValue's aren't initialized yet, so we can't determine if it's moving or not. We'll assume it's moving to be safe.
+            return true;
+        }
+
+        bool isClosing = false;
+        switch (shutter.Configuration.Type)
+        {
+            case ShutterType.VenetianBlind:
+                isClosing |= targetPosition.LiftPosition - tolerances > curPos;
+                isClosing |= targetPosition.TiltAngle - tolerances > curAngle;
+                break;
+            case ShutterType.Positional:
+            case ShutterType.OpenClose:
+                isClosing |= targetPosition.LiftPosition - tolerances > curPos;
+                break;
+            default:
+                logger.LogWarning("Unsupported shutter type {ShutterType} for shutter {ShutterKey}.", shutter.Configuration.Type, ShutterKey);
+                break;
+        }
+
+        return isClosing;
     }
 }
 

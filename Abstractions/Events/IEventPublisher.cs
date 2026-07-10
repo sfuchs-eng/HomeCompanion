@@ -9,4 +9,5 @@ public interface IEventPublisher
     /// Enqueues <paramref name="event"/> for dispatch. Returns immediately after the event is queued; handlers are invoked asynchronously.
     /// </summary>
     ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default);
+    void Publish(IEvent @event);
 }

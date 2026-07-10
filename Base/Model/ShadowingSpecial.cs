@@ -1,3 +1,5 @@
+using HomeCompanion.Base.Utilities;
+
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
@@ -124,7 +126,11 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// </summary>
     public string? SunIntensityWestReference { get; set; }
 
+    public float SunIntensityPUNorm { get; set; } = 100000.0f;
+
     public string? GlobalIlluminanceReference { get; set; }
+
+    public float GlobalIlluminancePUReference { get; set; } = 1000.0f;
 
     /// <summary>
     /// Optional reference to a sun azimuth value in degrees.
@@ -136,12 +142,18 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     /// </summary>
     public string? SunPositionElevationReference { get; set; }
 
+    public TimeSpan SunIntensityHysteresisDuration { get; set; } = TimeSpan.FromMinutes(30.0);
+    public float SunIntensityShadowThresholdPU { get; set; } = .2f;
+    public float SunIntensityRelaxationThresholdPU { get; set; } = .1f;
+
     /// <summary>
     /// Optional reference to UV index or UV intensity value.
     /// </summary>
     public string? UvIntensityReference { get; set; }
 
-    public float UvIntensityThreshold { get; set; } = 300.0f;
+    public float UvIntensityPUNorm { get; set; } = 100000.0f;
+
+    public float UvIntensityThresholdPU { get; set; } = 0.1f;
 
     /// <summary>
     /// Optional room-level dynamic cut-over angle rules.
@@ -323,6 +335,9 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionElevationReference), RequireNumeric = true)]
     public IValue<float>? SunPositionElevation { get; set; }
+
+    public SphericVector? SunPosition => (SunPositionAzimuth?.IsValid ?? false) && (SunPositionElevation?.IsValid ?? false)
+        ? SphericVector.FromDegrees(SunPositionAzimuth!.Value, SunPositionElevation!.Value) : null;
 
     /// <summary>
     /// See <see cref="HomeCompanion.Logics.ThermalControl.ThermalControlMode"/> for the meaning of this value and valid ranges.

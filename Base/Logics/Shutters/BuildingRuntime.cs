@@ -30,14 +30,9 @@ public class BuildingRuntime(
         bs.Absence?.Changed += HandleValueChangedEvent_NormalAllRooms;
         bs.DisableAutoShadowAssessment?.Changed += HandleValueChangedEvent_FastAllRooms;
         bs.GlobalShutterScene?.Written += HandleValueWrittenEvent_FastAllRooms;
-        bs.OutdoorTemperature?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensityEast?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensitySouth?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensityWest?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunPositionAzimuth?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunPositionElevation?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
         bs.ThermalControlMode?.Changed += HandleValueChangedEvent_NormalAllRooms;
-        bs.UvIntensity?.Changed += HandleValueChangedEvent_SlowEnvironmentalAll;
+
+        // Environmental measurements are handled by <see cref="EnvironmentalsEvaluatorLogic"/> which will trigger shutter automation computations as needed.
 
         return Task.CompletedTask;
     }

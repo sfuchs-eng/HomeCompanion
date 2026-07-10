@@ -57,6 +57,17 @@ Responsibilities are split as follows:
 
 This avoids per-value event bus subscriptions and keeps bus-specific logic in connectivity providers.
 
+The `IValue` extensions in `HomeCompanion.Base.SignalProcessing` provide reactive filtering and transformation of value events, e.g. for time-weighted averaging and hysteresis.
+Consider those for processing environmental sensor values before they are used in automation logic.
+
+```csharp
+// Example: subscribe to a temperature value and apply a 5-minute time-weighted average with 0.5°C hysteresis before triggering logic
+var temperatureValue = ...; // IValue<float> instance
+var subscription = temperatureValue
+    .AsFilteredObservable(TimeSpan.FromMinutes(5), 0.5f)
+    .Subscribe(avgTemp => { /* trigger logic with avgTemp */ });
+```
+
 ### Model value binding (generic, hybrid)
 
 Runtime model entities can bind `IValue` references from their corresponding `CfgEntity` configuration without hardcoded binder logic.
@@ -154,6 +165,13 @@ The application uses the following main dependencies:
   - `Microsoft.Extensions.Logging`
   - `Microsoft.Extensions.Options`
 - `NUnit` for unit testing
+- `Quartz` for scheduling recurring jobs
+- `InfluxDB.Client` for InfluxDB v2 connectivity, dependency of `HomeCompanion.Integrations.Influx`
+- `MailKit` for SMTP e-mail delivery
+- `MQTTnet` for MQTT connectivity, dependency of `SRF.Network.Mqtt`
+- `System.Reactive` for reactive extensions and observable event processing
+- ...
+
 - `SRF.Network` for KNX, OpenHAB and MQTT connectivity
 - `SRF.Knx` libraries for KNX-specific functionality, including DPT encoding/decoding and ETS GA export parsing
 

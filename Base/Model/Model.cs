@@ -20,6 +20,15 @@ public class Model : ModelEntityWithConfig<CfgModel>
     /// Consider whether to use <see cref="ILogic"/> or <see cref="IConfigBackedModelEntity"/> for these.
     /// </summary>
     public Dictionary<string, ISpecial> Specials { get; set; } = [];
+
+    /// <summary>
+    /// Enumerates all specials of the specified type <typeparamref name="T"/>.
+    /// First the ones from the buildings are enumerated, then the ones from the model root.
+    /// </summary>
+    public IEnumerable<T> GetAllSpecials<T>() where T : ISpecial
+    {
+        return Buildings.Values.SelectMany(b => b.Specials.Values.OfType<T>()).Concat(Specials.Values.OfType<T>());
+    }
 }
 
 /// <summary>

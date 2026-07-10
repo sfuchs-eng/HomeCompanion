@@ -1,5 +1,4 @@
 using HomeCompanion.Base.Model;
-using HomeCompanion.Logics.Shutters;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters.AutoShadow;
@@ -7,6 +6,7 @@ namespace HomeCompanion.Logics.Shutters.AutoShadow;
 /// <summary>
 /// Represents the result of evaluating the conditions for a shutter.
 /// Contains also access simplifiers to configuration, runtimes, context, trigger, and other relevant information for the shutter automation logic.
+/// Represents a first step in the automation logic, before the actual target state computation and command generation.
 /// </summary>
 public class ShutterConditionsEvaluationResult
 {
@@ -36,6 +36,12 @@ public class ShutterConditionsEvaluationResult
     public required ShadowingPolicy ShadowingPolicy { get; init; }
 }
 
+/// <summary>
+/// Evaluates the conditions / situation for a shutter based on its configuration, runtime state, and the current context.
+/// Creates a <see cref="ShutterConditionsEvaluationResult"/> that can be used for further automation logic processing.
+/// </summary>
+/// <param name="timeProvider">The time provider used for evaluating time-dependent conditions.</param>
+/// <param name="logger">The logger used for logging evaluation details.</param>
 public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<ShutterConditionsEvaluator> logger)
 {
     private readonly TimeProvider timeProvider = timeProvider;
@@ -44,7 +50,7 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
     public ShutterConditionsEvaluationResult EvaluateConditions(ShutterRuntimeContext runtimeContext, ShutterAutomationComputationTriggerContext triggerContext)
     {
         var shutter = runtimeContext.Shutter;
-        if (shutter is null )
+        if (shutter is null)
         {
             logger.LogWarning("Shutter {ShutterKey} not found in context. Cannot evaluate conditions.", runtimeContext.ShutterKey);
             throw new InvalidOperationException($"Shutter {runtimeContext.ShutterKey} not found in context.");
@@ -102,14 +108,18 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
 
         //==== building level policy
         var thermalControlMode = runtimeContext.Building?.GetShadowingSpecial()?.ResolvedThermalControlMode() ?? ThermalControlMode.Passive;
+        // rather factor temp in later to prevent contradictions and oscillations!
+        // --> AvoidShadowing in case cool-down over night or even by ventilation day over is no issue
+        // --> opt for CautiousShadowing if room temperature is the dominant factor.
+        // --> go for AggressiveShadowing if building temperature / overall heat is the dominant factor.
         ShadowingPolicy buildingPolicy = thermalControlMode switch
         {
-            ThermalControlMode.Passive => ShadowingPolicy.NoShadowing,
+            ThermalControlMode.Passive => ShadowingPolicy.CautiousShadowing,
             ThermalControlMode.BalancedCooling => ShadowingPolicy.CautiousShadowing,
             ThermalControlMode.CoolingPriority => ShadowingPolicy.AggressiveShadowing,
             ThermalControlMode.LightHeating => ShadowingPolicy.AvoidShadowing,
             ThermalControlMode.Winter => ShadowingPolicy.AvoidShadowing,
-            ThermalControlMode.Undefined => ShadowingPolicy.AvoidShadowing,
+            ThermalControlMode.Undefined => ShadowingPolicy.CautiousShadowing,
             _ => throw new InvalidOperationException($"Unknown thermal control mode {thermalControlMode} for building {runtimeContext.BuildingKey?.Key}. Cannot determine shadowing policy for shutter {runtimeContext.ShutterKey.Key}.")
         };
 
@@ -119,6 +129,7 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
             RoomShutterScene.RequestShadow => ShadowingPolicy.AggressiveShadowing,
             RoomShutterScene.RequestClosed => ShadowingPolicy.AggressiveShadowing,
             RoomShutterScene.RequestOpen => ShadowingPolicy.NoShadowing,
+            RoomShutterScene.AutoMaxLight => ShadowingPolicy.AvoidShadowing,
             _ => buildingPolicy // fallback to building policy if room scene is undefined or not recognized
         };
         // room thermal mandating another policy?
@@ -127,22 +138,18 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
         {
             if (roomTemperature.Value < 18.0)
             {
-                roomPolicy = ShadowingPolicy.AvoidShadowing; // too cold, avoid shadowing
+                roomPolicy = roomPolicy.LimitToMax(ShadowingPolicy.AvoidShadowing); // too cold, avoid shadowing
             }
             else if (roomTemperature.Value > (runtimeContext.Room?.Configuration.AutoShadowTemperatureThreshold ?? 25.0))
             {
-                roomPolicy = ShadowingPolicy.AggressiveShadowing; // too hot, prefer shadow
-            }
-            else if (roomTemperature.Value >= (runtimeContext.Room?.Configuration.AutoShadowTemperatureThreshold ?? 25.0) - 4.0)
-            {
-                roomPolicy = ShadowingPolicy.CautiousShadowing; // moderate temperature, cautious shadowing
+                roomPolicy = roomPolicy.EnsureAtLeast(ShadowingPolicy.AggressiveShadowing); // too hot, prefer shadow
             }
         }
 
         var effectiveConstraints = runtimeContext.Shutter?.ResolveEffectiveConstraints(runtimeContext.Building, runtimeContext.Room) ?? ShutterConstraints.None;
 
         // does the shutter have the aggressive constraint set? If yes, it overrides the room and building policy to be aggressive shadowing.
-        if ( effectiveConstraints.HasFlag(ShutterConstraints.AggressiveSunProtection) )
+        if (effectiveConstraints.HasFlag(ShutterConstraints.AggressiveSunProtection))
         {
             logger.LogTrace("Shutter {ShutterKey} has AggressiveSunProtection constraint. Overriding shadowing policy to AggressiveShadowing.", runtimeContext.ShutterKey);
             return ShadowingPolicy.AggressiveShadowing;
@@ -150,7 +157,7 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
 
         // If CautiousSunProtection is set, the lower policy of building and room wins. Irrelevant is sorted out.
         var policyOrderOfPriority = new List<ShadowingPolicy> { ShadowingPolicy.AggressiveShadowing, ShadowingPolicy.CautiousShadowing, ShadowingPolicy.AvoidShadowing, ShadowingPolicy.NoShadowing };
-        if ( effectiveConstraints.HasFlag(ShutterConstraints.CautiousSunProtection) )
+        if (effectiveConstraints.HasFlag(ShutterConstraints.CautiousSunProtection))
         {
             // the lower policy of building, room, and shutter wins. Irrelevant is sorted out.
             policyOrderOfPriority.Reverse();
@@ -192,7 +199,7 @@ public class ShutterConditionsEvaluator(TimeProvider timeProvider, ILogger<Shutt
     protected virtual bool IsNoiseMinimizationRequired(ShutterRuntimeContext runtimeContext)
     {
         var buildingRuntime = runtimeContext.Building;
-        if ( buildingRuntime is null)
+        if (buildingRuntime is null)
         {
             logger.LogWarning("No runtime found for building {BuildingKey}. Cannot determine night mode state for shutter {ShutterKey}.", runtimeContext.BuildingKey, runtimeContext.ShutterKey);
             return false;

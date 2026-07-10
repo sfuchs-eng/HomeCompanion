@@ -34,3 +34,18 @@ public enum ShadowingPolicy
     /// </summary>
     PolicyIrrelevant
 }
+
+public static class ShadowingPolicyExtensions
+{
+    public static ShadowingPolicy LimitToMax(this ShadowingPolicy policy, ShadowingPolicy limit)
+    {
+        // return policy if it's less than or equal to the limit, otherwise return the limit
+        return (ShadowingPolicy)Math.Min((int)policy, (int)limit);
+    }
+
+    public static ShadowingPolicy EnsureAtLeast(this ShadowingPolicy policy, ShadowingPolicy other)
+    {
+        // return the more aggressive policy
+        return (ShadowingPolicy)Math.Max((int)policy, (int)other);
+    }
+}

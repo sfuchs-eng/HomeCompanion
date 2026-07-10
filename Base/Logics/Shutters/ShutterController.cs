@@ -261,7 +261,7 @@ public partial class ShutterController : LogicBase
 /// Encapsulates the desired target state for a shutter, including the logic to determine the target position based on various inputs such as time of day, weather conditions, and user preferences.
 /// Serves as input for shutter actuation, allowing for a last gating possibility to e.g. limit movement rates, or implement safety interlocks at shutter level just prior actuator hardware.
 /// </summary>
-internal class ShutterTarget(ShutterRuntimeContext shutterRuntimeContext, ShutterPosition targetPosition)
+public class ShutterTarget(ShutterRuntimeContext shutterRuntimeContext, ShutterPosition targetPosition)
 {
     public ShutterKey ShutterKey => ShutterRuntimeContext.ShutterKey;
     public ShutterRuntimeContext ShutterRuntimeContext { get; } = shutterRuntimeContext;
@@ -284,6 +284,10 @@ internal class ShutterTarget(ShutterRuntimeContext shutterRuntimeContext, Shutte
 /// <param name="tiltAngle">Tilt angle of the shutter slats in p.u., where 0 degrees represents fully open = horizontal slats, 1.0 represents slats fully closed = vertical</param>
 public class ShutterPosition(double liftPosition, double tiltAngle)
 {
+    public static ShutterPosition NoOp => new(-1.0, -1.0);
+
+    public bool IsNoOp => PreventPositionChange && PreventTiltChange;
+
     /// <summary>
     /// Lift position of the shutter, where 0.0 represents fully closed and 1.0 represents fully open. For roller shutters, this value is either 0.0 or 1.0, while for venetian blinds it can take any value in between to represent partial opening.
     /// </summary>
@@ -297,4 +301,9 @@ public class ShutterPosition(double liftPosition, double tiltAngle)
     public double TiltAngle { get; set; } = tiltAngle;
 
     public bool PreventTiltChange => TiltAngle < 0.0;
+
+    public override string ToString()
+    {
+        return $"{{ Lift: {(PreventPositionChange ? "NoOp" : LiftPosition.ToString("0.00"))}, Tilt: {(PreventTiltChange ? "NoOp" : TiltAngle.ToString("0.00"))} }}";
+    }
 }

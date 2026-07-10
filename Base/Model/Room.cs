@@ -37,6 +37,8 @@ public class CfgRoom : CfgEntity
 
     public string? TemperatureReference { get; set; }
 
+    public double TargetRoomTemperature { get; set; } = 22.0;
+    
     public double DefaultRoomTemperature { get; set; } = 22.0;
 
     public double AutoShadowTemperatureThreshold { get; set; } = 25.0;
