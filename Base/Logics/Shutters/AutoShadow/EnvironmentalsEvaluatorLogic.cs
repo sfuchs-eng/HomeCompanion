@@ -115,9 +115,9 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         subscriptions.Add(subscription);
     }
 
-    private IObservable<float> GetSunIntensityObservable(ShadowingSpecial s)
+    internal IObservable<float> GetSunIntensityObservable(ShadowingSpecial s)
     {
-        IObservable<float> sunIntensityObs = GetSunIntensityObservable(s);
+        IObservable<float> sunIntensityObs;
 
         // 3 directional sun intensity sensors are preferred
         if (s.SunIntensityEast is not null && s.SunIntensitySouth is not null && s.SunIntensityWest is not null)
@@ -160,7 +160,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         return sunIntensityObs;
     }
 
-    private IObservable<bool> GetSunIntensityAboveThresholdObservable(IObservable<float> sunIntensity, ShadowingSpecial s)
+    internal IObservable<bool> GetSunIntensityAboveThresholdObservable(IObservable<float> sunIntensity, ShadowingSpecial s)
     {
         // activation: immediately when sun intensity is above threshold
         // deactivation: if the intensity remained below hysteresis threshold for the specified time
@@ -190,7 +190,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             .DistinctUntilChanged();
     }
 
-    private IObservable<SphericVector> GetSunPositionObservable(ShadowingSpecial s)
+    internal IObservable<SphericVector> GetSunPositionObservable(ShadowingSpecial s)
     {
         var subAziObs = s.SunPositionAzimuth?.AsObservable<float>() ?? Observable.Return(0.0f);
         var subEleObs = s.SunPositionElevation?.AsObservable<float>() ?? Observable.Return(-10.0f);

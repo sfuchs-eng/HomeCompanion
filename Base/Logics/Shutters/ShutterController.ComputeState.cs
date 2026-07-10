@@ -48,9 +48,9 @@ public partial class ShutterController
         //==== Compute shutter target state ====
         ShutterTargetEvaluator evaluator = cond.RoomShutterScene switch
         {
-            RoomShutterScene.AutoMaxLight => new ShutterTargetEvaluatorAutoMaxLight(cond, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoMaxLight>()),
-            RoomShutterScene.AutoReopen => new ShutterTargetEvaluatorAutoReopen(cond, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoReopen>()),
-            RoomShutterScene.AutoNoReopen => new ShutterTargetEvaluatorAutoNoReopen(cond, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoNoReopen>()),
+            RoomShutterScene.AutoMaxLight => new ShutterTargetEvaluatorAutoMaxLight(cond, environmentalsProvider, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoMaxLight>()),
+            RoomShutterScene.AutoReopen => new ShutterTargetEvaluatorAutoReopen(cond, environmentalsProvider, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoReopen>()),
+            RoomShutterScene.AutoNoReopen => new ShutterTargetEvaluatorAutoNoReopen(cond, environmentalsProvider, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorAutoNoReopen>()),
             _ => new ShutterTargetEvaluatorSimpleScenes(cond, timeProvider, loggerFactory.CreateLogger<ShutterTargetEvaluatorSimpleScenes>())
         };
         var shutterTargetEvaluationResult = await evaluator.EvaluateShutterTargetAsync();

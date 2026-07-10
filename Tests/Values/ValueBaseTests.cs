@@ -48,6 +48,10 @@ public class ValueBaseTests
     {
         public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
             => ValueTask.CompletedTask;
+
+        public void Publish(IEvent @event)
+        {
+        }
     }
 
     private sealed class PrefixFormatterMapping(string prefix, bool canFormat = true)

@@ -45,6 +45,11 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
         }
     }
 
+    public void Publish(IEvent @event)
+    {
+        PublishAsync(@event, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
     public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
     {
         if (!_handlersByType.TryGetValue(typeof(T), out var handlers))

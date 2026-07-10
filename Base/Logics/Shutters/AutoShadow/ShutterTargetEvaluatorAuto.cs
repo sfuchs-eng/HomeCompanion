@@ -55,10 +55,11 @@ public class ShutterTargetEvaluatorAuto : ShutterTargetEvaluator
 
     protected override ShutterPosition? EvaluateShutterTargetInternal()
     {
+        // the room is in an automation scene, the policy considers buliding and room thermals as well as user preferences
+        // the target position is determined dominantly based on the shadowing policy and present sun position and intensity
         bool IsInSunExposureRange = this.IsInSunExposureRange();
         bool IsBrightnessAboveThreshold = environmentalsProvider.SunIntensityAboveThreshold;
 
-        
 
         throw new NotImplementedException("EvaluateShutterTargetInternal is not implemented yet.");
     }

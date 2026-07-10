@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Logics.Shutters.AutoShadow;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -24,6 +25,7 @@ public partial class ShutterController : LogicBase
     private readonly IEventSubscriber eventSubscriber;
     private readonly TimeProvider timeProvider;
     private readonly IModelProvider modelProvider;
+    private readonly IEnvironmentalsProvider environmentalsProvider;
     private readonly ILoggerFactory loggerFactory;
     private readonly ILogger<ShutterController> logger;
     private readonly Dictionary<ShutterKey, ShutterRuntime> shutterRuntimes = [];
@@ -52,6 +54,7 @@ public partial class ShutterController : LogicBase
         IEventSubscriber eventSubscriber,
         TimeProvider timeProvider,
         IModelProvider modelProvider,
+        IEnvironmentalsProvider environmentalsProvider,
         ILoggerFactory loggerFactory,
         ILogger<ShutterController> logger
         ) : base(eventPublisher, eventSubscriber)
@@ -61,6 +64,7 @@ public partial class ShutterController : LogicBase
         this.eventSubscriber = eventSubscriber;
         this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
+        this.environmentalsProvider = environmentalsProvider;
         this.loggerFactory = loggerFactory;
         this.logger = logger;
 

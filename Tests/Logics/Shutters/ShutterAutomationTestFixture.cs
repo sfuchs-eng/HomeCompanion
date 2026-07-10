@@ -8,6 +8,8 @@ using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using HomeCompanion.Logics.Shutters.AutoShadow;
+using HomeCompanion.Base.Utilities;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -43,6 +45,7 @@ public partial class ShutterAutomationTestFixture(
     public IEventSubscriber EventSubscriber { get; private set; } = eventSubscriber;
     public TimeProvider TimeProvider { get; private set; } = timeProvider;
     public IModelProvider ModelProvider { get; private set; } = modelProvider;
+    public IEnvironmentalsProvider EnvironmentalsProvider { get; private set; } = new StubEnvironmentalsProvider();
     public IRuntimesProvider RuntimesProvider { get; private set; } = runtimesProvider;
     public ShadowingRuntimesController RuntimesController { get; private set; } = runtimesController;
     public ShutterController ShutterController { get; private set; } = shutterController;
@@ -232,17 +235,31 @@ public partial class ShutterAutomationTestFixture(
         timeProvider ??= TimeProvider.System;
         var schedulerFactory = new TestSchedulerFactory(timeProvider);
         var modelProvider = new StubModelProvider(model);
+        var environmentalsProvider = new StubEnvironmentalsProvider();
         var loggerFactory = NullLoggerFactory.Instance;
         var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, schedulerFactory, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 
-        var shutterController = new ShutterController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, loggerFactory, loggerFactory.CreateLogger<ShutterController>());
+        var shutterController = new ShutterController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, environmentalsProvider, loggerFactory, loggerFactory.CreateLogger<ShutterController>());
         var roomShutterSceneLogic = new RoomShutterSceneLogic(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, loggerFactory.CreateLogger<RoomShutterSceneLogic>());
 
         var lifeCycleManager = new StubLifeCycleManager();
         var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, loggerFactory.CreateLogger<ValuesManager>());
 
         return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, shutterController, roomShutterSceneLogic, valuesManager, loggerFactory, logger);
+    }
+
+    private class StubEnvironmentalsProvider : IEnvironmentalsProvider
+    {
+        public double OutdoorTemperature { get; set; } = 15.0;
+
+        public double SunIntensityPU { get; set; } = 0.8;
+
+        public bool SunIntensityAboveThreshold { get; set; } = true;
+
+        public double UvIntensityPU { get; set; } = 0.5;
+
+        public SphericVector SunPosition { get; set; } = SphericVector.FromDegrees(190.0, 50.0); // Example sun position in azimuth and elevation
     }
 }

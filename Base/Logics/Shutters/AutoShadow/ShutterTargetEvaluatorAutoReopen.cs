@@ -4,8 +4,9 @@ namespace HomeCompanion.Logics.Shutters.AutoShadow;
 
 public class ShutterTargetEvaluatorAutoReopen(
     ShutterConditionsEvaluationResult cond,
+    IEnvironmentalsProvider environmentalsProvider,
     TimeProvider timeProvider,
     ILogger<ShutterTargetEvaluatorAutoReopen> logger
-    ) : ShutterTargetEvaluatorAuto(cond, timeProvider, logger)
+    ) : ShutterTargetEvaluatorAuto(cond, environmentalsProvider, timeProvider, logger)
 {
 }
