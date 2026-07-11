@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using HomeCompanion.Abstractions.Serialization;
+using HomeCompanion.Base.Utilities;
 using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
@@ -129,6 +130,11 @@ public class CfgShadowingZone
 {
     /// <summary>
     /// Zone matching mode.
+    /// <list type="bullet">
+    /// <item>Inside: The shutter is affected by sun exposure if the sun position is within the defined box.</item>
+    /// <item>Outside: The shutter is affected by sun exposure if the sun position is outside the defined box.</item>
+    /// <item>Default: The shutter is affected by sun exposure if the sun position is within 90°deg spheric range of the shutter's normal. Box bounds are ignored in this mode, if configured at all.</item>
+    /// </list>
     /// </summary>
     public ShadowingZoneMode Mode { get; set; } = ShadowingZoneMode.Inside;
 
@@ -151,6 +157,22 @@ public class CfgShadowingZone
     /// Optional elevation upper bound in degrees.
     /// </summary>
     public double? ElevationMax { get; set; }
+
+    public bool IsMatchWithSunPosition(SphericVector sunPosition)
+    {
+        (double azimuth, double elevation) = sunPosition.ToDegreesPair();
+
+        bool azimuthInRange = (!AzimuthMin.HasValue || azimuth >= AzimuthMin.Value) && (!AzimuthMax.HasValue || azimuth <= AzimuthMax.Value);
+        bool elevationInRange = (!ElevationMin.HasValue || elevation >= ElevationMin.Value) && (!ElevationMax.HasValue || elevation <= ElevationMax.Value);
+
+        return Mode switch
+        {
+            ShadowingZoneMode.Default => azimuthInRange && elevationInRange,
+            ShadowingZoneMode.Inside => azimuthInRange && elevationInRange,
+            ShadowingZoneMode.Outside => !azimuthInRange || !elevationInRange,
+            _ => throw new NotImplementedException($"Shadowing zone mode {Mode} not implemented."),
+        };
+    }
 }
 
 /// <summary>

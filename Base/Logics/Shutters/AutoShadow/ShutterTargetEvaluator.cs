@@ -28,6 +28,10 @@ public abstract class ShutterTargetEvaluator(
     protected readonly TimeProvider timeProvider = timeProvider;
     protected readonly ILogger<ShutterTargetEvaluator> logger = logger;
 
+    protected CfgShutter ShutterCfg => cond.RuntimeContext.Shutter?.Configuration ?? throw new InvalidOperationException($"No shutter configuration found for shutter {cond.RuntimeContext.ShutterKey.Key} in room {cond.RuntimeContext.RoomKey?.Key}. Cannot compute target state.");
+    protected Shutter Shutter => cond.RuntimeContext.Shutter ?? throw new InvalidOperationException($"No shutter found for shutter {cond.RuntimeContext.ShutterKey.Key} in room {cond.RuntimeContext.RoomKey?.Key}. Cannot compute target state.");
+    protected ShutterRuntime ShutterRuntime => cond.RuntimeContext.ShutterRuntime ?? throw new InvalidOperationException($"No shutter runtime found for shutter {cond.RuntimeContext.ShutterKey.Key} in room {cond.RuntimeContext.RoomKey?.Key}. Cannot compute target state.");
+
     public virtual async Task<ShutterTargetEvaluationResult?> EvaluateShutterTargetAsync()
     {
         if (await EvaluatePreconditionalCasesAsync() is ShutterPosition preconditionTarget)

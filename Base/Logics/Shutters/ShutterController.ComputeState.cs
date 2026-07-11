@@ -44,7 +44,6 @@ public partial class ShutterController
             return;
         }
 
-
         //==== Compute shutter target state ====
         ShutterTargetEvaluator evaluator = cond.RoomShutterScene switch
         {
