@@ -233,19 +233,35 @@ public class EnvironmentalsEvaluatorLogicTests
     [Test]
     public async Task GetSunPositionObservable_WithMissingInputs_EmitsDefaultFallbackVector()
     {
-        var ctx = CreateContext(cfg =>
+        var allCtx = new List<SutContext>
         {
-            cfg.SunPositionAzimuthReference = null;
-            cfg.SunPositionElevationReference = null;
-        });
+            CreateContext(cfg =>
+            {
+                cfg.SunPositionAzimuthReference = null;
+                cfg.SunPositionElevationReference = "Float:SunPositionElevation";
+            }),
+            CreateContext(cfg =>
+            {
+                cfg.SunPositionAzimuthReference = "Float:SunPositionAzimuth";
+                cfg.SunPositionElevationReference = null;
+            }),
+            CreateContext(cfg =>
+            {
+                cfg.SunPositionAzimuthReference = null;
+                cfg.SunPositionElevationReference = null;
+            })
+        };
 
-        var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(300));
-
-        Assert.Multiple(() =>
+        foreach (var ctx in allCtx)
         {
-            Assert.That(vector.Azimuth, Is.EqualTo(0.0).Within(0.0001));
-            Assert.That(vector.Elevation, Is.EqualTo(-10.0).Within(0.0001));
-        });
+            var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(300));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(vector.Azimuth, Is.EqualTo(0.0).Within(0.0001));
+                Assert.That(vector.Elevation, Is.EqualTo(-10.0).Within(0.0001));
+            });
+        }
     }
 
     [Test]

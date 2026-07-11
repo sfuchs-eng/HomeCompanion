@@ -9,7 +9,6 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using HomeCompanion.Logics.Shutters.AutoShadow;
-using HomeCompanion.Base.Utilities;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -35,6 +34,7 @@ public partial class ShutterAutomationTestFixture(
     ShadowingRuntimesController runtimesController,
     ShutterController shutterController,
     RoomShutterSceneLogic roomShutterSceneLogic,
+    IEnvironmentalsProvider environmentalsProvider,
     ValuesManager valuesManager,
     ILoggerFactory loggerFactory,
     ILogger<ShutterAutomationTestFixture> logger
@@ -45,7 +45,7 @@ public partial class ShutterAutomationTestFixture(
     public IEventSubscriber EventSubscriber { get; private set; } = eventSubscriber;
     public TimeProvider TimeProvider { get; private set; } = timeProvider;
     public IModelProvider ModelProvider { get; private set; } = modelProvider;
-    public IEnvironmentalsProvider EnvironmentalsProvider { get; private set; } = new StubEnvironmentalsProvider();
+    public IEnvironmentalsProvider EnvironmentalsProvider { get; private set; } = environmentalsProvider;
     public IRuntimesProvider RuntimesProvider { get; private set; } = runtimesProvider;
     public ShadowingRuntimesController RuntimesController { get; private set; } = runtimesController;
     public ShutterController ShutterController { get; private set; } = shutterController;
@@ -59,6 +59,8 @@ public partial class ShutterAutomationTestFixture(
         await RuntimesController.InitializeAsync(cancellationToken);
         await ShutterController.InitializeAsync(cancellationToken);
         await RoomShutterSceneLogic.InitializeAsync(cancellationToken);
+        if ( EnvironmentalsProvider is EnvironmentalsEvaluatorLogic envEvalLogic)
+            await envEvalLogic.InitializeAsync(cancellationToken);
         await ValuesManager.StartAsync(cancellationToken);
     }
 
@@ -235,7 +237,8 @@ public partial class ShutterAutomationTestFixture(
         timeProvider ??= TimeProvider.System;
         var schedulerFactory = new TestSchedulerFactory(timeProvider);
         var modelProvider = new StubModelProvider(model);
-        var environmentalsProvider = new StubEnvironmentalsProvider();
+        //var environmentalsProvider = new StubEnvironmentalsProvider();
+        var environmentalsProvider = new EnvironmentalsEvaluatorLogic(eventPublisher, eventSubscriber, modelProvider, timeProvider, NullLoggerFactory.Instance.CreateLogger<EnvironmentalsEvaluatorLogic>());
         var loggerFactory = NullLoggerFactory.Instance;
         var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, schedulerFactory, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
@@ -247,19 +250,6 @@ public partial class ShutterAutomationTestFixture(
         var lifeCycleManager = new StubLifeCycleManager();
         var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, loggerFactory.CreateLogger<ValuesManager>());
 
-        return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, shutterController, roomShutterSceneLogic, valuesManager, loggerFactory, logger);
-    }
-
-    private class StubEnvironmentalsProvider : IEnvironmentalsProvider
-    {
-        public double OutdoorTemperature { get; set; } = 15.0;
-
-        public double SunIntensityPU { get; set; } = 0.8;
-
-        public bool SunIntensityAboveThreshold { get; set; } = true;
-
-        public double UvIntensityPU { get; set; } = 0.5;
-
-        public SphericVector SunPosition { get; set; } = SphericVector.FromDegrees(190.0, 50.0); // Example sun position in azimuth and elevation
+        return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, shutterController, roomShutterSceneLogic, environmentalsProvider, valuesManager, loggerFactory, logger);
     }
 }
