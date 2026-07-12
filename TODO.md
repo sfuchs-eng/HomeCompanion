@@ -2,6 +2,8 @@
 
 Scratchpad, don't take this all for granted.
 
+... and it's indeed pretty outdated right now.
+
 ## Present work focus
 
 ### Port existing functionality from the old HomeCompanion solution into the one at hand

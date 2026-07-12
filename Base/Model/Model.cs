@@ -1,7 +1,8 @@
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
-/// Runtime building model created from configuration.
+/// Runtime building model created from configuration <see cref="CfgModel"/>.
+/// In case you use polymorphism in the configuration, make sure to use <see cref="ModelEntityWithConfig{T}"/> for the corresponding class of the model entity hierarchy as well.
 /// </summary>
 public class Model : ModelEntityWithConfig<CfgModel>
 {
@@ -33,6 +34,11 @@ public class Model : ModelEntityWithConfig<CfgModel>
 
 /// <summary>
 /// Configuration root for the runtime building model.
+/// The following extension points are available:
+/// <list type="bullet">
+/// <item><see cref="CfgModel.Specials"/> and <see cref="Building.Specials"/> for any customization that doesn't fit into the building, facade, or floor categories.</item>
+/// <item>Use the polymorphism support of the configuration system, see <see cref="CfgEntity"/>, to add new building, facade, shutter, or floor types.</item>
+/// </list>
 /// </summary>
 public class CfgModel : CfgEntity
 {
