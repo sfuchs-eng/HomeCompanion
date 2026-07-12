@@ -6,6 +6,11 @@ Scratchpad, don't take this all for granted.
 
 ## Present work focus
 
+### Priority 1 — Shutter automation logic
+
+Unit tests passing. Scan again for "NotImplemented" and "Not yet implemented" markers in the code base to identify missing pieces.
+Then prep for hot trials on life system.
+
 ### Port existing functionality from the old HomeCompanion solution into the one at hand
 
 - [x] InfluxDB connectivity
