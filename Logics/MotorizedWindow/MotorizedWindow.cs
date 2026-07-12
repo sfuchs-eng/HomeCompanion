@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Base.Logics.MotorizedWindow;
+namespace HomeCompanion.Logics.MotorizedWindow;
 
 internal class MotorizedWindow
 {

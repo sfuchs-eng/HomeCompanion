@@ -1,7 +1,6 @@
-using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Base.Model;
 
 /// <summary>
 /// Represents a unique key for a building, used to identify and manage buildings within the HomeCompanion system.

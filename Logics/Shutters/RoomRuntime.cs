@@ -1,8 +1,4 @@
 using Microsoft.Extensions.Logging;
-using HomeCompanion.Base.Utilities;
-using HomeCompanion.Base.Model;
-using HomeCompanion.Base.SignalProcessing;
-using System.Reactive.Linq;
 
 namespace HomeCompanion.Logics.Shutters;
 

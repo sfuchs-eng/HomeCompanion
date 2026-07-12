@@ -1,6 +1,6 @@
 using HomeCompanion.Base.Model;
 
-namespace HomeCompanion.Base.Logics.MotorizedWindow;
+namespace HomeCompanion.Logics.MotorizedWindow;
 
 public class CfgMotorizedWindowSpecial : CfgSpecial
 {

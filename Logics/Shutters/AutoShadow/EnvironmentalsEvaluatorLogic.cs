@@ -1,5 +1,4 @@
 using System.Reactive.Linq;
-using HomeCompanion.Base.Model;
 using HomeCompanion.Base.SignalProcessing;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Extensions;

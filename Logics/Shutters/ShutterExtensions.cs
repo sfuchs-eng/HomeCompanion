@@ -1,8 +1,6 @@
-using HomeCompanion.Base.Utilities;
-using HomeCompanion.Logics.Shutters;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Base.Model;
+namespace HomeCompanion.Logics.Shutters;
 
 public static class ShutterExtensions
 {
@@ -73,17 +71,6 @@ public static class ShutterExtensions
         logger?.LogWarning("No shutter scene found for shutter {ShutterKey} in room {RoomKey}. Using default scene.", runtimeContext.ShutterKey, runtimeContext.RoomKey);
 
         return (byte)RoomShutterScene.AutoNoReopen; // default scene
-    }
-
-    public static ShutterConstraints ResolveEffectiveConstraints(this Shutter shutter, Building? building, Room? room)
-    {
-        var buildingConstraints = building?.GetShadowingSpecial().Configuration.DefaultShutterConstraints ?? ShutterConstraints.None;
-        var roomConstraints = room?.Configuration.ShutterConstraints ?? ShutterConstraints.None;
-        var roomMask = room?.Configuration.BuildingConstraintsMask ?? ShutterConstraints.None;
-        var shutterConstraints = shutter.Configuration.Constraints;
-        var shutterMask = shutter.Configuration.RoomConstraintsMask ?? ShutterConstraints.None;
-
-        return (((buildingConstraints & ~roomMask) | roomConstraints) & ~shutterMask) | shutterConstraints;
     }
 
     public static CfgDynamicCutoverAngleRule ResolveEffectiveCutoverAngleRule(this Shutter shutter, Building building, Room room)

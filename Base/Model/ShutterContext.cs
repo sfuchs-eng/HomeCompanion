@@ -1,5 +1,3 @@
-using HomeCompanion.Logics.Shutters;
-
 namespace HomeCompanion.Base.Model;
 
 public class ShutterContext(Model model, RoomKey roomKey, Shutter shutter) : ContextBase<ShutterKey>(new ShutterKey(roomKey, shutter))
@@ -26,6 +24,7 @@ public class ShutterContext(Model model, RoomKey roomKey, Shutter shutter) : Con
     /// considering building-level defaults, room-level defaults, and individual shutter constraints.
     /// </summary>
     /// <returns>The resolved <see cref="ShutterConstraints"/> applicable to the shutter</returns>
+    [Obsolete("Use Shutter.ResolveEffectiveConstraints(Building, Room) instead.")]
     public ShutterConstraints ResolveShutterConstraints()
     {
         return Shutter.ResolveEffectiveConstraints(Building, Room);

@@ -1,6 +1,4 @@
-using HomeCompanion.Base.Model;
-
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Base.Model;
 
 public static class BuildingExtensions
 {
@@ -9,14 +7,6 @@ public static class BuildingExtensions
         foreach (var building in model.Buildings.Values)
         {
             yield return new BuildingKey(building);
-        }
-    }
-
-    public static IEnumerable<BuildingContext> EnumerateBuildingContexts(this Model model)
-    {
-        foreach (var building in model.Buildings.Values)
-        {
-            yield return new BuildingContext(building);
         }
     }
 

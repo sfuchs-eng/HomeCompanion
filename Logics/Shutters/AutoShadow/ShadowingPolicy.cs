@@ -1,4 +1,4 @@
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.AutoShadow;
 
 /// <summary>
 /// Results from the thermal assessment of the building and its rooms/room shutter scene, room temp, ...

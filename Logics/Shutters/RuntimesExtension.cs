@@ -1,4 +1,3 @@
-using HomeCompanion.Base.Model;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 

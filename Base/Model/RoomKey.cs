@@ -1,5 +1,4 @@
 using HomeCompanion.Base.Utilities;
-using HomeCompanion.Logics.Shutters;
 
 namespace HomeCompanion.Base.Model;
 

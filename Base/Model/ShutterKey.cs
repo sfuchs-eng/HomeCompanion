@@ -1,5 +1,3 @@
-using HomeCompanion.Logics.Shutters;
-
 namespace HomeCompanion.Base.Model;
 
 public class ShutterKey : KeyBase

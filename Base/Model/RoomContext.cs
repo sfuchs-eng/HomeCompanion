@@ -1,5 +1,3 @@
-using HomeCompanion.Logics.Shutters;
-
 namespace HomeCompanion.Base.Model;
 
 public class RoomContext(Model model, BuildingKey buildingKey, Floor floor, Room room) : ContextBase<RoomKey>(new RoomKey(buildingKey, floor, room))

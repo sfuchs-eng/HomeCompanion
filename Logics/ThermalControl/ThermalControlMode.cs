@@ -38,7 +38,6 @@ public enum ThermalControlMode
     HeatProtect = 40,
 }
 
-
 public static class ThermalControlModeExtensions
 {
     public static ThermalControlMode TryGetThermalControlMode(this IValue<byte>? value)

@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using HomeCompanion.Abstractions.Serialization;
 using HomeCompanion.Base.Utilities;
-using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 
@@ -392,4 +391,16 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
         ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() <= double.Epsilon,
         _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
     };
+
+    public ShutterConstraints ResolveEffectiveConstraints(Building? building, Room? room)
+    {
+        var shutter = this;
+        var buildingConstraints = building?.GetShadowingSpecial().Configuration.DefaultShutterConstraints ?? ShutterConstraints.None;
+        var roomConstraints = room?.Configuration.ShutterConstraints ?? ShutterConstraints.None;
+        var roomMask = room?.Configuration.BuildingConstraintsMask ?? ShutterConstraints.None;
+        var shutterConstraints = shutter.Configuration.Constraints;
+        var shutterMask = shutter.Configuration.RoomConstraintsMask ?? ShutterConstraints.None;
+
+        return (((buildingConstraints & ~roomMask) | roomConstraints) & ~shutterMask) | shutterConstraints;
+    }
 }

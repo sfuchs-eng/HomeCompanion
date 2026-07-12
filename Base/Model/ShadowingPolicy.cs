@@ -1,5 +1,3 @@
-using HomeCompanion.Logics.Shutters;
-
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
@@ -155,23 +153,6 @@ public class CfgDynamicCutoverAngleRule
         else
         {
             return CutoverAngle;
-        }
-    }
-
-    internal double GetCutoverAngle(double roomTemperature, ShadowingPolicy shadowingPolicy)
-    {
-        switch (shadowingPolicy)
-        {
-            case ShadowingPolicy.AggressiveShadowing:
-                // no interpolation, stick to minimum
-                return CutoverAngle; // Use the base cut-over angle for aggressive shadowing
-
-            case ShadowingPolicy.AvoidShadowing:
-                // no interpolation, stick to maximum if defined, otherwise use base
-                return CutoverAngleMax ?? CutoverAngle; // Use the maximum cut-over angle for avoid shadowing
-
-            default:
-                return GetCutoverAngle(roomTemperature); // No change for default policy
         }
     }
 

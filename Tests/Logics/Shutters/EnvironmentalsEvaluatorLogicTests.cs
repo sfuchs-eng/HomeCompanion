@@ -1,7 +1,6 @@
 using System.Reactive.Subjects;
 using System.Reactive.Linq;
 using HomeCompanion.Base.Model;
-using HomeCompanion.Base.Utilities;
 using HomeCompanion.Events;
 using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Logics.Shutters.AutoShadow;

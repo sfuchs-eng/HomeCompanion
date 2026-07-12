@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using HomeCompanion.Logics.Shutters;
 
 namespace HomeCompanion.Base.Utilities;
 

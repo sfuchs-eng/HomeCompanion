@@ -1,5 +1,3 @@
-using HomeCompanion.Base.Model;
-
 namespace HomeCompanion.Logics.Shutters;
 
 public class BuildingContext(Building building) : ContextBase<BuildingKey>(new BuildingKey(building))

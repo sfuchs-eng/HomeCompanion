@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Logics.Shutters.AutoShadow;
 using Microsoft.Extensions.Logging;

@@ -47,7 +47,7 @@ public class SphericVector : Vector2D
 
     private static double ToDegrees(double radians) => radians * 180.0 / Math.PI;
 
-    internal static double AngleBetween(SphericVector reference, SphericVector other)
+    public static double AngleBetween(SphericVector reference, SphericVector other)
     {
         double e1 = reference.Elevation;
         double e2 = other.Elevation;

@@ -1,6 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>HomeCompanion.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
     <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />

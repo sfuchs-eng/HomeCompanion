@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace HomeCompanion.Base.Logics.MotorizedWindow;
+namespace HomeCompanion.Logics.MotorizedWindow;
 
 /// <summary>
 /// Operates motorized windows with or without integrated shutter based on each 2 control wires (up/down) and 1 feedback wire (command acknowledgement/position reached) per window/shutter.
@@ -12,7 +12,7 @@ namespace HomeCompanion.Base.Logics.MotorizedWindow;
 /// <remarks>
 /// <list type="bullet">
 /// <item>The logic is configured via the <see cref="MotorizedWindowsOptions"/> class, which is bound to the "Logics:MotorizedWindows" section of the configuration.</item>
-/// <item>This logic does not automate window/shutter operation. See <see cref="HomeCompanion.Logics.Shutters.ShuttersLogic"/> for shutter automation.</item>
+/// <item>This logic does not automate window/shutter operation. See <see cref="Shutters.ShuttersLogic"/> for shutter automation.</item>
 /// </list>
 /// </remarks>
 /// <typeparam name="MotorizedWindowsOptions"></typeparam>

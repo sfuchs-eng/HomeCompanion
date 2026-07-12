@@ -1,7 +1,6 @@
-using HomeCompanion.Base.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Base.Logics.MotorizedWindow;
+namespace HomeCompanion.Logics.MotorizedWindow;
 
 /// <summary>
 /// This is the state engine for either the window or the shutter, depending on the context.
