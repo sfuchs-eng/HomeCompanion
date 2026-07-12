@@ -226,9 +226,9 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         // activation: immediately when UV intensity is above threshold
         // deactivation: if the intensity remained below hysteresis threshold for the specified time
 
-        return uvIntensity
+        var uvHysteresisState = uvIntensity
 
-            // 1. Maintain hysteresis state: 
+            // 1. Maintain hysteresis state:
             // Only flip to TRUE if above upper, only flip to FALSE if below lower.
             .Scan(false, (currentState, intensity) =>
             {
@@ -236,13 +236,19 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
                 if (intensity < s.Configuration.UvIntensityRelaxationThresholdPU) return false;
                 return currentState;
             })
-            .DistinctUntilChanged()
+            .DistinctUntilChanged();
+
+        return Observable.CombineLatest(
+                uvHysteresisState,
+                sunAboveHorizon.StartWith(false),
+                (isBright, isSunAboveHorizon) => (isBright, isSunAboveHorizon)
+            )
 
             // 2. Handle the "delayed-off" logic
-            // We transform the boolean into a stream that dictates the state; we don't need the delayed-off while the sun is below horizon
-            .Select(isBright => isBright // only consider sun above horizon
-                ? (IsSunAboveHorizon ? Observable.Return(true) : Observable.Return(false))
-                : (IsSunAboveHorizon ? Observable.Return(false) : Observable.Return(false).Delay(s.Configuration.UvIntensityHysteresisDuration))
+            // We transform the boolean into a stream that dictates the state; we don't need the delayed-off while the sun is above horizon.
+            .Select(sample => sample.isBright
+                ? (sample.isSunAboveHorizon ? Observable.Return(true) : Observable.Return(false))
+                : (sample.isSunAboveHorizon ? Observable.Return(false) : Observable.Return(false).Delay(s.Configuration.UvIntensityHysteresisDuration))
             )
 
             // 3. Switch cancels any pending 'false' timer if we return to 'true'
@@ -269,15 +275,17 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         return sunObs;
     }
 
-    internal IObservable<double> GetEnergyBalanceObservable(ShadowingSpecial s)
+    internal IObservable<double> GetEnergyBalanceObservable(ShadowingSpecial s, TimeSpan? averagingWindow = null)
     {
         // Compute the daily net energy balance in p.u. (per unit)
         // This value is computed from the daily average temperature difference between indoor target room temp and outdoor temperature, normalized by a reference value.
+        var window = averagingWindow ?? TimeSpan.FromHours(24);
+
         var energyBalanceObs = (s.OutdoorTemperature?.AsObservable<float>().Select(f => (double)f) ?? Observable.Return(10.0))
             // energy balance = (target room temp - outdoor temp) * scaling factor
             .Select(outdoorTemp => (s.Configuration.DefaultRoomTemperatureTarget - outdoorTemp) * s.Configuration.EnergyBalanceTemperatureScalingFactor)
             // 24h average
-            .TimeWeightedAverage(TimeSpan.FromHours(24))
+            .TimeWeightedAverage(window)
             .DistinctUntilChangedWithHysteresis(0.01);
 
         return energyBalanceObs;

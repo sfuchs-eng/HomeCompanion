@@ -31,6 +31,8 @@ public class SphericVector : Vector2D
         set => Y = value;
     }
 
+    public static SphericVector SunDefaultPosition => FromDegrees(0.0, -10.0); // default sun position below horizon (azimuth 0, elevation -10 degrees)
+
     public static SphericVector FromRadians(double azimuthRadians, double elevationRadians) =>
         new(azimuthRadians, elevationRadians);
 

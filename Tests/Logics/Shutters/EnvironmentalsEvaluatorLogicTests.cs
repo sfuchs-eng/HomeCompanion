@@ -231,37 +231,171 @@ public class EnvironmentalsEvaluatorLogicTests
     }
 
     [Test]
+    public async Task GetUvIntensityAboveThresholdObservable_WhenSunAboveHorizon_ActivatesImmediately()
+    {
+        var ctx = CreateContext(cfg =>
+        {
+            cfg.UvIntensityThresholdPU = 0.2f;
+            cfg.UvIntensityRelaxationThresholdPU = 0.1f;
+            cfg.UvIntensityHysteresisDuration = TimeSpan.FromMilliseconds(100);
+        });
+
+        var uvSource = new Subject<float>();
+        var sunAboveHorizonSource = new Subject<bool>();
+        var emissions = new List<bool>();
+
+        using var subscription = ctx.Sut.GetUvIntensityAboveThresholdObservable(uvSource, sunAboveHorizonSource, ctx.Special)
+            .Subscribe(emissions.Add);
+
+        sunAboveHorizonSource.OnNext(true);
+        uvSource.OnNext(0.3f);
+
+        await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(120));
+
+        Assert.That(emissions[^1], Is.True);
+    }
+
+    [Test]
+    public async Task GetUvIntensityAboveThresholdObservable_WhenSunSets_EmitsFalseWithoutNewUvSample()
+    {
+        var ctx = CreateContext(cfg =>
+        {
+            cfg.UvIntensityThresholdPU = 0.2f;
+            cfg.UvIntensityRelaxationThresholdPU = 0.1f;
+            cfg.UvIntensityHysteresisDuration = TimeSpan.FromMilliseconds(100);
+        });
+
+        var uvSource = new Subject<float>();
+        var sunAboveHorizonSource = new Subject<bool>();
+        var emissions = new List<bool>();
+
+        using var subscription = ctx.Sut.GetUvIntensityAboveThresholdObservable(uvSource, sunAboveHorizonSource, ctx.Special)
+            .Subscribe(emissions.Add);
+
+        sunAboveHorizonSource.OnNext(true);
+        uvSource.OnNext(0.3f);
+        await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(120));
+        Assert.That(emissions[^1], Is.True);
+
+        sunAboveHorizonSource.OnNext(false);
+        await WaitUntilAsync(() => emissions.Count >= 2, TimeSpan.FromMilliseconds(120));
+
+        Assert.That(emissions[^1], Is.False);
+    }
+
+    [Test]
     public async Task GetSunPositionObservable_WithMissingInputs_EmitsDefaultFallbackVector()
     {
-        var allCtx = new List<SutContext>
-        {
-            CreateContext(cfg =>
-            {
-                cfg.SunPositionAzimuthReference = null;
-                cfg.SunPositionElevationReference = "Float:SunPositionElevation";
-            }),
-            CreateContext(cfg =>
-            {
-                cfg.SunPositionAzimuthReference = "Float:SunPositionAzimuth";
-                cfg.SunPositionElevationReference = null;
-            }),
-            CreateContext(cfg =>
-            {
-                cfg.SunPositionAzimuthReference = null;
-                cfg.SunPositionElevationReference = null;
-            })
-        };
+        const double defaultAzimuth = 0.0;
+        const double defaultElevation = -10.0;
 
-        foreach (var ctx in allCtx)
+        var missingAzimuthCtx = CreateContext(cfg =>
         {
-            var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(300));
+            cfg.SunPositionAzimuthReference = null;
+            cfg.SunPositionElevationReference = "Float:SunPositionElevation";
+        });
 
-            Assert.Multiple(() =>
-            {
-                Assert.That(vector.Azimuth, Is.EqualTo(0.0).Within(0.0001));
-                Assert.That(vector.Elevation, Is.EqualTo(-10.0).Within(0.0001));
-            });
-        }
+        var vectorMissingAzimuth = await WaitForNextValueAsync(
+            missingAzimuthCtx.Sut.GetSunPositionObservable(missingAzimuthCtx.Special),
+            TimeSpan.FromMilliseconds(300)
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vectorMissingAzimuth.Azimuth, Is.EqualTo(defaultAzimuth).Within(0.0001));
+            Assert.That(vectorMissingAzimuth.Elevation, Is.Not.EqualTo(defaultElevation).Within(0.0001));
+        });
+
+        var missingElevationCtx = CreateContext(cfg =>
+        {
+            cfg.SunPositionAzimuthReference = "Float:SunPositionAzimuth";
+            cfg.SunPositionElevationReference = null;
+        });
+
+        var vectorMissingElevation = await WaitForNextValueAsync(
+            missingElevationCtx.Sut.GetSunPositionObservable(missingElevationCtx.Special),
+            TimeSpan.FromMilliseconds(300)
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vectorMissingElevation.Azimuth, Is.Not.EqualTo(defaultAzimuth).Within(0.0001));
+            Assert.That(vectorMissingElevation.Elevation, Is.EqualTo(defaultElevation).Within(0.0001));
+        });
+
+        var allMissingCtx = CreateContext(cfg =>
+        {
+            cfg.SunPositionAzimuthReference = null;
+            cfg.SunPositionElevationReference = null;
+        });
+
+        var vectorAllMissing = await WaitForNextValueAsync(
+            allMissingCtx.Sut.GetSunPositionObservable(allMissingCtx.Special),
+            TimeSpan.FromMilliseconds(300)
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vectorAllMissing.Azimuth, Is.EqualTo(defaultAzimuth).Within(0.0001));
+            Assert.That(vectorAllMissing.Elevation, Is.EqualTo(defaultElevation).Within(0.0001));
+        });
+    }
+
+    [Test]
+    public async Task GetSunPositionObservable_WithBothInputs_EmitsConfiguredVector()
+    {
+        var ctx = CreateContext();
+
+        var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
+        var elevation = GetFloatValue(ctx.Values, "Float:SunPositionElevation");
+
+        azimuth.Write(1.23f);
+        elevation.Write(0.45f);
+
+        var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(250));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vector.Azimuth, Is.EqualTo(1.23).Within(0.0001));
+            Assert.That(vector.Elevation, Is.EqualTo(0.45).Within(0.0001));
+        });
+    }
+
+    [Test]
+    public async Task GetEnergyBalanceObservable_UsesOutdoorTemperatureAndScaling()
+    {
+        var ctx = CreateContext(cfg =>
+        {
+            cfg.DefaultRoomTemperatureTarget = 22.0;
+            cfg.EnergyBalanceTemperatureScalingFactor = 0.5;
+        });
+
+        GetFloatValue(ctx.Values, "Float:OutdoorTemperature").Write(18.0f);
+
+        var value = await WaitForNextValueAsync(
+            ctx.Sut.GetEnergyBalanceObservable(ctx.Special, TimeSpan.FromMilliseconds(60)),
+            TimeSpan.FromMilliseconds(500)
+        );
+
+        Assert.That(value, Is.EqualTo(2.0).Within(0.05));
+    }
+
+    [Test]
+    public async Task GetEnergyBalanceObservable_WithoutOutdoorTemperatureReference_UsesFallbackTemperature()
+    {
+        var ctx = CreateContext(cfg =>
+        {
+            cfg.OutdoorTemperatureReference = null;
+            cfg.DefaultRoomTemperatureTarget = 20.0;
+            cfg.EnergyBalanceTemperatureScalingFactor = 0.25;
+        });
+
+        var value = await WaitForNextValueAsync(
+            ctx.Sut.GetEnergyBalanceObservable(ctx.Special, TimeSpan.FromMilliseconds(60)),
+            TimeSpan.FromMilliseconds(500)
+        );
+
+        Assert.That(value, Is.EqualTo(2.5).Within(0.05));
     }
 
     [Test]
