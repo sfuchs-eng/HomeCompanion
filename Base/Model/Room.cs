@@ -38,10 +38,27 @@ public class CfgRoom : CfgEntity
     public string? TemperatureReference { get; set; }
 
     public double TargetRoomTemperature { get; set; } = 22.0;
-    
+
     public double DefaultRoomTemperature { get; set; } = 22.0;
 
-    public double AutoShadowTemperatureThreshold { get; set; } = 25.0;
+    /// <summary>
+    /// Enable automatic shadowing for this room if the temperature exceeds this threshold in degrees Celsius.
+    /// May trigger a change of the room scene to a shadowing scene if the temperature exceeds this threshold.
+    /// </summary>
+    public double AutoShadowTemperatureThreshold { get; set; } = 23.0;
+
+    /// <summary>
+    /// Avoid shadowing for this room if the temperature is below this threshold in degrees Celsius.
+    /// Acts on the shadowing policy evaluation, not on the room scene evaluation.
+    /// </summary>
+    /// <value></value>
+    public double PolicyAvoidShadowingTemperatureThreshold { get; set; } = 21.0;
+
+    /// <summary>
+    /// Aggressive shadowing for this room if the temperature exceeds this threshold in degrees Celsius.
+    /// Acts on the shadowing policy evaluation, not on the room scene evaluation.
+    /// </summary>
+    public double PolicyAggressiveShadowingTemperatureThreshold { get; set; } = 24.5;
 
     /// <summary>
     /// Optional room-level override for the facade incidence cut-over angle in degrees.

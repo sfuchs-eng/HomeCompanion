@@ -255,6 +255,12 @@ public enum ShutterConstraints
     /// Always permit manual operation of the shutter regardless of automation rules.
     /// </summary>
     ManualOverride = 32,
+
+    /// <summary>
+    /// UV Protection: the shutter should be closed whenever there is sun irradiation, even if shadowing is not desired or presence is detected in the house.
+    /// It may be reopened when sun exposure is over unless LeaveClosed is set. E.g. rooms where no people are present but interior must be protected from direct sunlight.
+    /// </summary>
+    UVProtection = 64,
 }
 
 /// <summary>

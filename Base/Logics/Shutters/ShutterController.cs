@@ -86,12 +86,6 @@ public partial class ShutterController : LogicBase
 
         // subscribe to the event bus to receive triggers for shutter automation computation, e.g. when a value changes that affects the desired shutter state, or when a manual override is performed on a shutter, so that the automation logic can adjust its behavior accordingly.
         eventSubscriber.Subscribe<ShutterAutomationComputationTriggerEvent>(new ComputationTriggerEventHandler(shutterAutomationTriggerCollector, loggerFactory.CreateLogger<ComputationTriggerEventHandler>()));
-
-        // register with shutter runtimes to handle external overrides, e.g. when a shutter is manually operated via a wall switch or remote control, to ensure that the automation logic is aware of the manual operation and can adjust its behavior accordingly, e.g. by temporarily pausing automation for the affected shutter
-        foreach (var shutterRuntime in shutterRuntimes.Values)
-        {
-            shutterRuntime.ShutterExternalOverride += HandleShutterExternalOverride;
-        }
     }
 
     private class ComputationTriggerEventHandler : IEventHandler<ShutterAutomationComputationTriggerEvent>
@@ -112,11 +106,7 @@ public partial class ShutterController : LogicBase
         }
     }
 
-    private void HandleShutterExternalOverride(object? sender, ShutterExternalOverrideEventArgs e)
-    {
-        logger.LogWarning("Not implemented yet: Shutter {ShutterKey} was externally overridden to position {OverridePosition}. The automation logic should adjust its behavior accordingly, e.g. by temporarily pausing automation for the affected shutter.", e.ShutterKey, e.ValueWrittenEventArgs.NewValue.Format());
-    }
-
+    #region 1:trig batching
     private async Task CollectShutterAutomationTriggersAsync(Channel<ShutterAutomationComputationTriggerContext> channel, CancellationToken token)
     {
         /// take triggers from the channel, in blocks of triggers that are processed together depending on their urgency and the remaining time until they need to be processed.
@@ -188,7 +178,69 @@ public partial class ShutterController : LogicBase
             }
         }
     }
+    #endregion
 
+    #region 2:trig processing
+    /// <summary>
+    /// The <b>shutter automation computation loop</b> processes the collected triggers and determines the desired target state for each shutter, e.g. based on time of day, weather conditions, user preferences, etc., and enqueues the resulting shutter targets into the <b>shutter target processing loop</b>.
+    /// There's no need for batching/debouncinng. Just process one trigger at a time and update the target state for the affected shutter(s) accordingly, as each trigger is expected to potentially change the target state of one or more shutters, and we want to react to changes as quickly as possible, e.g. when a trigger is indicating that a shutter was manually overridden via a wall switch or remote control, we want to immediately update the target state for that shutter in order to pause automation for it and avoid unwanted automatic movements.
+    /// </summary>
+    /// <param name="channel"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    private async Task ProcessShutterAutomationComputationAsync(Channel<ShutterAutomationComputationTriggerContext> channel, CancellationToken token)
+    {
+        while (await channel.Reader.WaitToReadAsync(token))
+        {
+            while (channel.Reader.TryRead(out var triggerContext))
+            {
+                try
+                {
+                    var shutterKeys = DetermineAffectedShutters(triggerContext);
+                    logger.LogTrace("Processing shutter automation computation trigger for shutter(s) {ShutterKeys} (batch of {BatchSize})", string.Join(", ", shutterKeys.Select(k => k.Key)), shutterKeys.Count());
+                    foreach (var shutterKey in shutterKeys)
+                    {
+                        try
+                        {
+                            logger.LogTrace("Processing shutter automation computation trigger for shutter {ShutterKey}", shutterKey.Key);
+                            var buildingRuntime = buildingRuntimes.GetValueOrDefault(shutterKey.RoomKey.BuildingKey) ?? throw new InvalidOperationException($"No runtime found for building {shutterKey.RoomKey.BuildingKey.Key} affected by automation computation trigger for shutter {shutterKey.Key}");
+                            var roomRuntime = roomRuntimes.GetValueOrDefault(shutterKey.RoomKey) ?? throw new InvalidOperationException($"No runtime found for room {shutterKey.RoomKey.Key} affected by automation computation trigger for shutter {shutterKey.Key}");
+                            var shutterRuntime = shutterRuntimes.GetValueOrDefault(shutterKey) ?? throw new InvalidOperationException($"No runtime found for shutter {shutterKey.Key} affected by automation computation trigger");
+                            var runtimeContext = new ShutterRuntimeContext(shutterKey, buildingRuntime, roomRuntime, shutterRuntime);
+                            await ComputeShutterTargetStateAsync(runtimeContext, triggerContext, token);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Error processing shutter automation computation trigger for shutter {ShutterKey}: {Message}",
+                                shutterKey.Key, ex.Message);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Error processing shutter automation computation trigger for shutter {ShutterKey} (batch of {BatchSize}): {Message}",
+                        triggerContext.ThingKeys.First().Key, triggerContext.ThingKeys.Count(), ex.Message);
+                }
+            }
+        }
+    }
+
+    private IEnumerable<ShutterKey> DetermineAffectedShutters(ShutterAutomationComputationTriggerContext triggerContext)
+    {
+        // determine which shutter(s) are affected by the given trigger context, e.g. if the trigger is related to a specific shutter input, then the affected shutter is the one associated with that input, but if the trigger is related to a time-based criterion, then the affected shutters might be all shutters that have a time-based criterion depending on the current time, and similarly for weather-based criteria, user preference criteria, etc.
+        switch (triggerContext.Scope)
+        {
+            case ShutterAutomationComputationScope.ShutterSpecific:
+                return triggerContext.ThingKeys.Where(k => k is ShutterKey).Cast<ShutterKey>();
+            case ShutterAutomationComputationScope.Global:
+            case ShutterAutomationComputationScope.Undefined:
+            default:
+                return shutterRuntimes.Keys; // if the scope is global or undefined, we conservatively assume that all shutters could potentially be affected and return all shutter keys, which ensures that we don't miss any updates but might result in some unnecessary computations for unaffected shutters, but that's an acceptable trade-off for simplicity and correctness
+        }
+    }
+    #endregion
+
+    #region 3:commanding
     /// <summary>
     /// Execute the shutter target processing loop, which reads shutter targets from the channel and executes the necessary actions to bring the shutters into the desired state, e.g. by sending commands to the actuators, while also implementing safety interlocks and movement rate limits as needed.
     /// Take 500ms of collecting time and aggregate commands by shutter prior execution, last one wins.
@@ -259,55 +311,5 @@ public partial class ShutterController : LogicBase
             }
         }
     }
-}
-
-/// <summary>
-/// Encapsulates the desired target state for a shutter, including the logic to determine the target position based on various inputs such as time of day, weather conditions, and user preferences.
-/// Serves as input for shutter actuation, allowing for a last gating possibility to e.g. limit movement rates, or implement safety interlocks at shutter level just prior actuator hardware.
-/// </summary>
-public class ShutterTarget(ShutterRuntimeContext shutterRuntimeContext, ShutterPosition targetPosition)
-{
-    public ShutterKey ShutterKey => ShutterRuntimeContext.ShutterKey;
-    public ShutterRuntimeContext ShutterRuntimeContext { get; } = shutterRuntimeContext;
-    public ShutterPosition TargetPosition { get; } = targetPosition;
-
-    public void Set(double liftPosition, double tiltAngle)
-    {
-        TargetPosition.LiftPosition = liftPosition;
-        TargetPosition.TiltAngle = tiltAngle;
-    }
-
-    public bool IsNoOp => TargetPosition.PreventPositionChange && TargetPosition.PreventTiltChange;
-}
-
-/// <summary>
-/// Represents the position of a shutter, including its current state and any relevant metadata.
-/// As venetian blinds are the most complex type of shutter implemented, the targets for other types are derived from the same model, e.g. roller shutters are either fully open or fully closed, but the logic can still use the same target position model and just limit the possible target positions accordingly.
-/// </summary>
-/// <param name="liftPosition">Lift position of the shutter, where 0.0 represents fully closed and 1.0 represents fully open. For roller shutters, this value is either 0.0 or 1.0, while for venetian blinds it can take any value in between to represent partial opening.</param>
-/// <param name="tiltAngle">Tilt angle of the shutter slats in p.u., where 0 degrees represents fully open = horizontal slats, 1.0 represents slats fully closed = vertical</param>
-public class ShutterPosition(double liftPosition, double tiltAngle)
-{
-    public static ShutterPosition NoOp => new(-1.0, -1.0);
-
-    public bool IsNoOp => PreventPositionChange && PreventTiltChange;
-
-    /// <summary>
-    /// Lift position of the shutter, where 0.0 represents fully closed and 1.0 represents fully open. For roller shutters, this value is either 0.0 or 1.0, while for venetian blinds it can take any value in between to represent partial opening.
-    /// </summary>
-    public double LiftPosition { get; set; } = liftPosition;
-
-    public bool PreventPositionChange => LiftPosition < 0.0;
-
-    /// <summary>
-    /// Tilt angle of the shutter slats in p.u., where 0 degrees represents fully open = horizontal slats, 1.0 represents slats fully closed = vertical.
-    /// </summary>
-    public double TiltAngle { get; set; } = tiltAngle;
-
-    public bool PreventTiltChange => TiltAngle < 0.0;
-
-    public override string ToString()
-    {
-        return $"{{ Lift: {(PreventPositionChange ? "NoOp" : LiftPosition.ToString("0.00"))}, Tilt: {(PreventTiltChange ? "NoOp" : TiltAngle.ToString("0.00"))} }}";
-    }
+    #endregion
 }

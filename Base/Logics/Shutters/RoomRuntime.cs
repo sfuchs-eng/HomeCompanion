@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Base.Model;
+using HomeCompanion.Base.SignalProcessing;
+using System.Reactive.Linq;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -17,33 +19,131 @@ namespace HomeCompanion.Logics.Shutters;
 /// <param name="logger"></param> <summary>
 /// </summary>
 /// <typeparam name="ShutterAutomationComputationTriggerContext"></typeparam>
-public class RoomRuntime(
-    RoomContext roomContext,
-    IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
-    TimeProvider timeProvider,
-    ILogger<RoomRuntime> logger
-) : RuntimeBase(logger)
+public class RoomRuntime : RuntimeBase, IDisposable
 {
-    public RoomContext RoomContext { get; } = roomContext;
+    public RoomContext RoomContext { get; }
     public RoomKey RoomKey => RoomContext.RoomKey;
-    private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
-    private readonly TimeProvider timeProvider = timeProvider;
-    private readonly ILogger<RoomRuntime> logger = logger;
+
+    private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder;
+    private readonly TimeProvider timeProvider;
+    private readonly ILogger<RoomRuntime> logger;
 
     public virtual required RoomSceneConditionsAssessor SceneConditionsAssessor { get; init; }
     public virtual required RoomSceneResolver SceneResolver { get; init; }
 
     public virtual byte LastSceneCommanded { get; protected set; } = (byte)RoomShutterScene.Undefined;
 
+    public RoomRuntime(RoomContext roomContext, IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder, TimeProvider timeProvider, ILogger<RoomRuntime> logger)
+        : base(logger)
+    {
+        RoomContext = roomContext;
+        this.queueFeeder = queueFeeder;
+        this.timeProvider = timeProvider;
+        this.logger = logger;
+        filteredRoomTemperatureObservableCached = new CachedValue<IObservable<float>>(Observable.Empty<float>(), () => {
+            return GetFilteredRoomTemperatureObservable() ?? Observable.Return<float>(20.0f);
+        });
+    }
+
     public override async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await StartAsync(cancellationToken);
+    }
+
+    public override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            roomTemperatureAboveAutoShadowThresholdObservableSubscription?.Dispose();
+            filteredRoomTemperatureSubscription?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
+    IDisposable? roomTemperatureAboveAutoShadowThresholdObservableSubscription = null;
+    public bool IsRoomTemperatureAboveAutoShadowThreshold { get; private set; } = false;
+
+    IDisposable? filteredRoomTemperatureSubscription = null;
+    public float FilteredRoomTemperature { get; protected set; } = 20.0f;
+
+    protected CachedValue<IObservable<float>> filteredRoomTemperatureObservableCached;
+
+    protected virtual IObservable<float>? GetFilteredRoomTemperatureObservable()
+    {
+        // throttle to max 15 min and put a hysteresis of 0.2°C to avoid rapid toggling of the above/below threshold state due to small fluctuations around the threshold value
+        var filteredRoomTemperatureObservable = RoomContext.Room.Temperature?.AsObservable<float>()
+            .DistinctUntilChangedWithHysteresis(0.2f)
+            .Throttle(TimeSpan.FromMinutes(15))
+            .Publish()
+            .RefCount();
+        return filteredRoomTemperatureObservable;
+    }
+
+    protected virtual IDisposable? ObserveFilteredRoomTemperature()
+    {
+        var filteredRoomTemperatureObservable = filteredRoomTemperatureObservableCached.Value;
+
+        if (filteredRoomTemperatureObservable == null)
+        {
+            logger.LogWarning("Filtered room temperature observable is null for room {RoomKey}. Cannot monitor filtered temperature changes.", RoomKey.Key);
+            filteredRoomTemperatureObservable = Observable.Return<float>((float)RoomContext.Room.Configuration.TargetRoomTemperature); // fallback to an empty observable to avoid null reference exceptions
+        }
+
+        return filteredRoomTemperatureObservable?
+            .Subscribe(filteredTemp =>
+            {
+                FilteredRoomTemperature = filteredTemp;
+                // enqueue a recomputation trigger for the room shutter scene state machine to evaluate the new filtered temperature and determine whether to accept it or not
+                IEnumerable<IThingKey> thingKeys = [RoomKey, .. this.RoomContext.Room.Shutters.Values.Select(shutter => new ShutterKey(RoomKey, shutter))];
+                queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
+                    thingKeys: thingKeys,
+                    scope: ShutterAutomationComputationScope.RoomSpecific | ShutterAutomationComputationScope.ShutterSpecific,
+                    triggeringValue: RoomContext.Room.Temperature != null ? [RoomContext.Room.Temperature] : [],
+                    valueEventArgs: [],
+                    timestamp: timeProvider.GetLocalNow(),
+                    urgency: ShutterAutomationComputationTriggerUrgency.Slow
+                ), CancellationToken.None).ConfigureAwait(false);
+            });
+    }
+
+    protected virtual IDisposable? ObserveRoomTemperatureAboveAutoShadowThreshold()
+    {
+        // threshold with relaxation hysteresis to avoid rapid toggling of the above/below threshold state due to small fluctuations around the threshold value
+        var roomTemperatureAboveAutoShadowThresholdObservable = filteredRoomTemperatureObservableCached.Value?
+            .Select(temp => temp >= RoomContext.Room.Configuration.AutoShadowTemperatureThreshold)
+            .DistinctUntilChanged();
+
+        if (roomTemperatureAboveAutoShadowThresholdObservable == null)
+        {
+            logger.LogWarning("Room temperature observable is null for room {RoomKey}. Cannot monitor temperature threshold crossings.", RoomKey.Key);
+            roomTemperatureAboveAutoShadowThresholdObservable = Observable.Return<bool>(false); // fallback to an empty observable to avoid null reference exceptions
+        }
+
+        return roomTemperatureAboveAutoShadowThresholdObservable?
+            .Subscribe(isAboveThreshold =>
+            {
+                // update the property
+                IsRoomTemperatureAboveAutoShadowThreshold = isAboveThreshold;
+                // enqueue a recomputation trigger for the room shutter scene state machine to evaluate the new temperature condition and determine whether to accept it or not
+                IEnumerable<IThingKey> thingKeys = [RoomKey, .. this.RoomContext.Room.Shutters.Values.Select(shutter => new ShutterKey(RoomKey, shutter))];
+                queueFeeder.EnqueueAsync(new ShutterAutomationComputationTriggerContext(
+                    thingKeys: thingKeys,
+                    scope: ShutterAutomationComputationScope.RoomSpecific,
+                    triggeringValue: RoomContext.Room.Temperature != null ? [RoomContext.Room.Temperature] : [],
+                    valueEventArgs: [],
+                    timestamp: timeProvider.GetLocalNow(),
+                    urgency: ShutterAutomationComputationTriggerUrgency.Slow
+                ), CancellationToken.None).ConfigureAwait(false);
+            });
     }
 
     public override Task StartAsync(CancellationToken cancellationToken = default)
     {
         RoomContext.Room.Temperature?.Changed += HandleRoomTemperatureChanged;
         RoomContext.Room.ShutterScene?.Changed += HandleRoomShutterSceneChanged;
+        roomTemperatureAboveAutoShadowThresholdObservableSubscription = ObserveRoomTemperatureAboveAutoShadowThreshold();
+        filteredRoomTemperatureSubscription = ObserveFilteredRoomTemperature();
+
         return Task.CompletedTask;
     }
 
@@ -186,10 +286,6 @@ public class RoomRuntime(
     {
         try
         {
-            // must not handle our own changes to the room temperature, otherwise we would get into an infinite loop of handling our own changes
-            if (sender == this)
-                return;
-
             // handle changes in the room temperature originating from sensors
             logger.LogTrace("Room temperature changed for room {RoomKey} from {OldValue} to {NewValue} by {Sender}. LastCommanded: {LastCommanded}", RoomKey.Key, e.PreviousValue, e.NewValue, sender?.GetType().Name ?? "null", LastSceneCommanded);
             IEnumerable<IThingKey> thingKeys = [RoomKey];
@@ -251,10 +347,6 @@ public class RoomRuntime(
     /// Runs the full room shutter scene automation loop: from assessing the room scene conditions, to resolving the room scene, to setting the room shutter scene.
     /// Is typically called by an external logic that handles the recomputation triggers for the room shutter scene state machine, e.g. the RoomShutterSceneLogic.
     /// </summary>
-    /// <remarks>
-    /// Instead of handling the event directly, it enqueues a recomputation trigger for the room shutter scene state machine to evaluate the new inputs and determine whether to accept the requested scene or not.
-    /// The recomputation trigger is enqueued with the provided urgency and timestamp, which allows for delaying the processing of the triggers to allow for more triggers to arrive and be processed together.
-    /// </remarks>
     /// <param name="context"></param>
     /// <param name="cancellationToken"></param>
     internal async Task HandleShutterAutomationComputationTriggerEvent(ShutterAutomationComputationTriggerContext context, CancellationToken cancellationToken)

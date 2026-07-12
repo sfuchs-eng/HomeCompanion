@@ -90,6 +90,25 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     public string? AutoShadowStatusReference { get; set; }
 
     /// <summary>
+    /// Default room temperature control target used for auto shadowing when no room-specific value is configured.
+    /// </summary>
+    public double DefaultRoomTemperatureTarget { get; set; } = 22.0;
+
+    /// <summary>
+    /// Factor by which the daily average difference between indoor and outdoor temperature is scaled to compute the daily net energy balance in p.u. (per unit).
+    /// As it's merely about deciding whether to leave shutters open for daylight or to have them cast shadows, the scaling factor is set to 1/10 by default, meaning that a 10°C difference corresponds to 1.0 p.u. energy balance.
+    /// </summary>
+    public double EnergyBalanceTemperatureScalingFactor { get; set; } = 1.0/10.0; // 10°C difference corresponds to 1.0 p.u. energy balance
+
+    /// <summary>
+    /// If we're in cautious shadowing mode, this threshold defines wether to leave shutters open for daylight or to have them cast shadows.
+    /// </summary>
+    /// <value></value>
+    public double CautiousShadowingEnergyBalanceThresholdPU { get; set; } = 0.5;
+    
+    public double CautiousShadowingEnergyBalanceThresholdHysteresisPU { get; set; } = 0.2;
+
+    /// <summary>
     /// Reference to the global absence status value.
     /// </summary>
     public string? AbsenceReference { get; set; }
@@ -154,6 +173,8 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     public float UvIntensityPUNorm { get; set; } = 100000.0f;
 
     public float UvIntensityThresholdPU { get; set; } = 0.1f;
+    public float UvIntensityRelaxationThresholdPU { get; set; } = 0.001f;
+    public TimeSpan UvIntensityHysteresisDuration { get; set; } = TimeSpan.FromHours(3.0);
 
     /// <summary>
     /// Optional room-level dynamic cut-over angle rules.

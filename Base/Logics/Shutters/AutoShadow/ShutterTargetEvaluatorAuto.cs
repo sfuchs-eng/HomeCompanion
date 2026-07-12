@@ -24,87 +24,211 @@ public class ShutterTargetEvaluatorAuto : ShutterTargetEvaluator
     }
 
     /// <summary>
-    /// Whether the sun position, irrespective of irradiation intensity, is in shuttter exposure range.
-    /// The cut over angle is considered if > 0, narrowing the exposure range below +/-90° to the shutter's normal vector.
+    /// Gets the shutter and sun position specific shadow position, if available, or null if not available.
+    /// Max closure and dynamic slat angle are considered, incl. max movements over the day.
+    /// The prevent instabilities this should be independent of the current shutter position, and only depend on the sun position and the shutter configuration.
     /// </summary>
     /// <remarks>
-    /// The Cut-Over Angle is only relevant if > 0 and defines the maximum angle between the shutter's plane (not the normal vector) and the sun's position.
-    /// If that the angle between the sun's position and the shutter's normal vector is less than or equal to (90° - cut-over-angle), then the sun is considered to be in exposure range.
+    /// Realized in <see cref="ShutterTargetEvaluatorAuto"/> instead of <see cref="ShutterRuntime"/> because it's a deliberate automation choice, not a runtime state and neither a model property.
     /// </remarks>
-    /// <returns></returns>
-    protected virtual bool IsInSunExposureRange()
+    protected virtual ShutterPosition? GetShadowPosition()
     {
-        var sunPosition = cond.ShadowingSpecial.SunPosition;
-        var shutterOrientation = cond.RuntimeContext.Shutter?.GetOrientationRad();
-
-        var angleToSun = shutterOrientation is not null && sunPosition is not null
-            ? SphericVector.AngleBetween(shutterOrientation, sunPosition)
-            : throw new InvalidOperationException($"Cannot compute angle to sun for shutter {cond.RuntimeContext.ShutterKey} because either the shutter orientation or the sun position is not available.");
-
-        var shutter = cond.RuntimeContext.Shutter ?? throw new InvalidOperationException($"Cannot compute angle to sun for shutter {cond.RuntimeContext.ShutterKey} because the shutter is not available in the runtime context.");
-        var building = cond.RuntimeContext.Building ?? throw new InvalidOperationException($"Cannot compute angle to sun for shutter {cond.RuntimeContext.ShutterKey} because the building is not available in the runtime context.");
-        var room = cond.RuntimeContext.Room ?? throw new InvalidOperationException($"Cannot compute angle to sun for shutter {cond.RuntimeContext.ShutterKey} because the room is not available in the runtime context.");
-
-        // resolve the applicable cut over angle rule, if any
-        var cutOverAngleRule = shutter.ResolveEffectiveCutoverAngleRule(building, room);
-        var cutOverAngle = cutOverAngleRule?.GetCutoverAngle(room.GetRoomTemperatureOrDefault()) ?? 0.0;
-
-        var isInExposureRange = angleToSun <= (Math.PI / 2.0 - cutOverAngle);
-
-        if (!isInExposureRange)
+        var shutterRuntime = cond.RuntimeContext.ShutterRuntime;
+        if (shutterRuntime is null)
         {
-            return false;
+            logger.LogWarning("Cannot determine present shadow position for shutter {ShutterKey} in room {RoomKey} because the shutter runtime is not available.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+            return null;
         }
 
-        // what about the shadowing zones?
-        if ( ShutterCfg.ShadowingZones is null || ShutterCfg.ShadowingZones.Count == 0 )
+        var shutterCfg = shutterRuntime.ShutterContext.Shutter.Configuration;
+
+        var defaultShadowSlat = shutterCfg.DefaultShadowSlat;
+        var close = shutterCfg.MaxClose;
+        var slatAngle = defaultShadowSlat;
+
+        if (new[] { ShadowingPolicy.AvoidShadowing, ShadowingPolicy.CautiousShadowing }.Any(p => p == cond.ShadowingPolicy))
         {
-            return true; // no shadowing zones defined, so we are in exposure range
+            // soft shadowers get an extra relaxation in terms of more open slat angle
+            if ( cond.ShadowingSpecial.SunPosition is not null && cond.ShadowingSpecial.SunPosition.Elevation >= 0.53)
+            {
+                // if the sun is above the horizon, we can relax the slat angle to allow more light in
+                slatAngle = 0.0;
+            }
         }
 
-        var matchingZones = ShutterCfg.ShadowingZones.Values.Where(zone => zone.IsMatchWithSunPosition(sunPosition)).ToList();
-        if (matchingZones.Count == 0)
+        return new ShutterPosition(close, slatAngle);
+    }
+
+    /// <summary>
+    /// Can we open the shuttter because there is no sun exposure?
+    /// </summary>
+    protected virtual ShutterPosition? AssessOpenNoSunExposure()
+    {
+        bool IsInSunExposureRange = cond.IsInSunExposureRange;
+        bool IsAutoReopenEnabled =
+                cond.RoomShutterScene == RoomShutterScene.AutoReopen
+                && !cond.EffectiveShutterConstraints.HasFlag(ShutterConstraints.LeaveClosed)
+                ;
+
+        if (!IsInSunExposureRange)
         {
-            return false; // no matching shadowing zones, so we are not in exposure range
+            if (IsAutoReopenEnabled)
+            {
+                logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is opening due to favorable conditions (no sun exposure or brightness below threshold, auto-reopen enabled).", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                return ShutterPosition.Open; // fully open, no slat adjustment
+            }
+            else
+            {
+                // no-op
+                return ShutterPosition.NoOp;
+            }
         }
 
-        // is there a mixed match of inside and outside zones? If so, we have a configuration error and should log a warning
-        if (matchingZones.Count > 1 && matchingZones.Any(zone => zone.Mode == ShadowingZoneMode.Inside) && matchingZones.Any(zone => zone.Mode == ShadowingZoneMode.Outside))
+        return null; // no decision made
+    }
+
+    /// <summary>
+    /// Can we open the shutter because there is low sunlight?
+    /// </summary>
+    protected virtual ShutterPosition? AssessOpenLowSunlight()
+    {
+        var shutterConstraints = cond.EffectiveShutterConstraints;
+        bool IsBrightnessAboveThreshold = environmentalsProvider.SunIntensityAboveThreshold;
+        bool IsAutoReopenEnabled =
+                cond.RoomShutterScene == RoomShutterScene.AutoReopen
+                && !shutterConstraints.HasFlag(ShutterConstraints.LeaveClosed)
+                ;
+
+
+        // if sun not intensive enough, open?
+        if (!IsBrightnessAboveThreshold)
         {
-            logger.LogWarning("Multiple matching shadowing zones found for shutter {ShutterKey} in room {RoomKey}. Using the first matching zone.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
-            return matchingZones.First().Mode == ShadowingZoneMode.Inside; // use the first matching zone
+            if (IsAutoReopenEnabled)
+            {
+                logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is opening due to favorable conditions (brightness below threshold, auto-reopen enabled).", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                return ShutterPosition.Open; // fully open, no slat adjustment
+            }
+            else
+            {
+                // no-op
+                return ShutterPosition.NoOp; // no-op
+            }
+        }
+        return null; // no decision made
+    }
+
+    /// <summary>
+    /// Can we open the shutter because the shadowing policy allows sunlight under present conditions despite sun exposure?
+    /// </summary>
+    protected virtual ShutterPosition? AssessOpenAsPolicyAllowsSunlight()
+    {
+        bool sceneIsReopen = cond.RoomShutterScene == RoomShutterScene.AutoReopen || cond.RoomShutterScene == RoomShutterScene.AutoMaxLight;
+        bool sceneIsMaxLight = cond.RoomShutterScene == RoomShutterScene.AutoMaxLight;
+
+        switch (cond.ShadowingPolicy)
+        {
+            case ShadowingPolicy.NoShadowing:
+                // open if auto-reopen enabled
+                if (sceneIsReopen && !cond.EffectiveShutterConstraints.HasFlag(ShutterConstraints.LeaveClosed))
+                {
+                    logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is opening due to NoShadowing policy and favorable conditions (auto-reopen enabled).", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                    return ShutterPosition.Open; // fully open, no slat adjustment
+                }
+                break;
+            case ShadowingPolicy.AvoidShadowing:
+            case ShadowingPolicy.CautiousShadowing:
+                // open if auto-reopen enabled and energy balance limit not exceeded
+                if (sceneIsReopen && !cond.EffectiveShutterConstraints.HasFlag(ShutterConstraints.LeaveClosed) && !environmentalsProvider.CautiousShadowingEnergyBalanceLimitExceeded)
+                {
+                    logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is opening due to AvoidShadowing/CautiousShadowing policy and favorable conditions (auto-reopen enabled).", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                    return ShutterPosition.Open; // fully open, no slat adjustment
+                }
+                break;
+            case ShadowingPolicy.PolicyIrrelevant:
+            case ShadowingPolicy.AggressiveShadowing:
+                // do not open, aggressive shadowing policy requires shutters to be closed
+                break;
+            default:
+                logger.LogWarning("No shadowing policy found for shutter {ShutterKey} in room {RoomKey}. Using default scene.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                break;
+        }
+        return null; // no decision made
+    }
+
+    protected virtual ShutterPosition? AssessRequireUVProtection()
+    {
+        if ( cond.EffectiveShutterConstraints.HasFlag(ShutterConstraints.UVProtection) && environmentalsProvider.UvIntensityAboveThreshold && cond.IsInSunExposureRange )
+        {
+            logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is closing due to UV protection requirement.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+            return GetShadowPosition(); // fully closed, default slat position
+        }
+        return null; // no decision made
+    }
+
+    /// <summary>
+    /// Performs only closures and no openings, based on the shadowing policy and other conditions.
+    /// </summary>
+    protected virtual ShutterPosition? AssessShadowingBasedOnPolicy()
+    {
+        if (!cond.IsInSunExposureRange)
+        {
+            return null; // no decision made, because we are not in sun exposure range
         }
         
-        // if we have a single matching zone, we can determine the exposure range based on the zone's mode
-        var matchingZone = matchingZones.First();
-        if (matchingZone.Mode == ShadowingZoneMode.Inside)
+        switch (cond.ShadowingPolicy)
         {
-            return true; // we are in exposure range if the sun is inside the zone
+            case ShadowingPolicy.AvoidShadowing:
+                // shadow only in case room temperature is above threshold
+                if (cond.RuntimeContext.RoomRuntime?.IsRoomTemperatureAboveAutoShadowThreshold ?? false)
+                {
+                    logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is closing due to AvoidShadowing policy and room temperature above threshold.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                    return GetShadowPosition(); // fully closed, default slat position
+                }
+                break;
+            case ShadowingPolicy.NoShadowing:
+                // no shadowing policy, so we do not close the shutter based on shadowing policy
+                break;
+            case ShadowingPolicy.CautiousShadowing:
+                // close if energy balance limit exceeded or room temperature is above threshold
+                if (environmentalsProvider.CautiousShadowingEnergyBalanceLimitExceeded || (cond.RuntimeContext.RoomRuntime?.IsRoomTemperatureAboveAutoShadowThreshold ?? false))
+                {
+                    logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is closing due to CautiousShadowing policy and energy balance limit exceeded or room temperature above threshold.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                    return GetShadowPosition(); // fully closed, default slat position
+                }
+                break;
+            case ShadowingPolicy.AggressiveShadowing:
+                // aggressive shadowing policy requires shutters to be closed
+                logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} is closing due to AggressiveShadowing policy.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                return GetShadowPosition(); // fully closed, default slat position
+            case ShadowingPolicy.PolicyIrrelevant:
+            default:
+                logger.LogWarning("No shadowing policy found for shutter {ShutterKey} in room {RoomKey}. Using default scene.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+                break;
         }
-        if (matchingZone.Mode == ShadowingZoneMode.Outside)
-        {
-            return false; // we are not in exposure range if the sun is inside the zone
-        }
-
-        // if we have a default zone, we can determine the exposure range based on the cut over angle - but that was already checked above, so we can just return true here
-        return true;
+        return null; // no decision made
     }
 
     protected override ShutterPosition? EvaluateShutterTargetInternal()
     {
-        // the room is in an automation scene, the policy considers buliding and room thermals as well as user preferences
-        // the target position is determined dominantly based on the shadowing policy and present sun position and intensity
-        bool IsInSunExposureRange = this.IsInSunExposureRange();
-        bool IsBrightnessAboveThreshold = environmentalsProvider.SunIntensityAboveThreshold;
+        Func<ShutterPosition?>[] stepAssessments = new Func<ShutterPosition?>[]
+        {
+            AssessRequireUVProtection,
+            AssessOpenNoSunExposure,
+            AssessOpenLowSunlight,
+            AssessOpenAsPolicyAllowsSunlight,
+            AssessShadowingBasedOnPolicy,
+        };
 
-        if (IsInSunExposureRange && IsBrightnessAboveThreshold)
+        var stepResult = stepAssessments
+            .Select(step => new { Name = step.Method.Name, Result = step() })
+            .FirstOrDefault(x => x.Result is not null);
+        if (stepResult is not null)
         {
-            return new ShutterPosition(ShutterCfg.MaxClose, ShutterCfg.DefaultShadowSlat);
+            logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} target position determined by step {StepName}: {TargetPosition}.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey, stepResult.Name, stepResult.Result);
+            return stepResult.Result;
         }
-        else
-        {
-            return new ShutterPosition(0.0, -1.0); // fully open, no slat adjustment
-        }
+
+        throw new NotImplementedException("Conditional closure triggers to be added here or above");
     }
 
     protected override ShutterPosition? FilterShutterTargetByConstraints(ShutterPosition? targetPosition)

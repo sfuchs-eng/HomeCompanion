@@ -41,15 +41,35 @@ public class BuildingRuntime(
     {
         // Enqueue a shutter automation computation trigger for all rooms and shuttters in the building, as environmental changes may affect all rooms and their shutters.
         // issue a normal one for the rooms, followed by a slow one for the shutters. Like this the shuttters will be handled after the rooms have been handled, preventing double shutter evaluation.
+        HandleValueWrittenEvent(sender, e.Timestamp, [e.NewValue], [e], ShutterAutomationComputationTriggerUrgency.Normal, ShutterAutomationComputationTriggerUrgency.Slow);
+    }
 
+    private void HandleValueChangedEvent_NormalAllRooms(object? sender, ValueChangedEventArgs e)
+    {
+        // Enqueue a shutter automation computation trigger for all rooms in the building, as changes to absence or thermal control mode may affect all rooms and their shutters.
+        HandleValueWrittenEvent(sender, e.Timestamp, [e.NewValue], [e], ShutterAutomationComputationTriggerUrgency.Normal, ShutterAutomationComputationTriggerUrgency.Slow);
+    }
+
+    private void HandleValueChangedEvent_FastAllRooms(object? sender, ValueChangedEventArgs e)
+    {
+        HandleValueWrittenEvent(sender, e.Timestamp, [e.NewValue], [e], ShutterAutomationComputationTriggerUrgency.Immediate, ShutterAutomationComputationTriggerUrgency.Immediate);
+    }
+
+    private void HandleValueWrittenEvent_FastAllRooms(object? sender, ValueWrittenEventArgs e)
+    {
+        HandleValueWrittenEvent(sender, e.Timestamp, [e.NewValue], [e], ShutterAutomationComputationTriggerUrgency.Immediate, ShutterAutomationComputationTriggerUrgency.Immediate);
+    }
+
+    private void HandleValueWrittenEvent(object? sender, DateTimeOffset timeStamp, IEnumerable<IValue> values, IEnumerable<ValueEventArgs> valueEventArgs, ShutterAutomationComputationTriggerUrgency roomUrgency, ShutterAutomationComputationTriggerUrgency shutterUrgency)
+    {
         // trigger rooms
         var triggerContext = new ShutterAutomationComputationTriggerContext(
             thingKeys: BuildingContext.EnumerateRoomKeys(),
             scope: ShutterAutomationComputationScope.RoomSpecific,
-            triggeringValue: [e.NewValue],
-            valueEventArgs: [e],
-            timestamp: e.Timestamp,
-            urgency: ShutterAutomationComputationTriggerUrgency.Normal
+            triggeringValue: values,
+            valueEventArgs: valueEventArgs,
+            timestamp: timeStamp,
+            urgency: roomUrgency
         );
         queueFeeder.Enqueue(triggerContext);
 
@@ -57,27 +77,12 @@ public class BuildingRuntime(
         var triggerContextShutters = new ShutterAutomationComputationTriggerContext(
             thingKeys: BuildingContext.EnumerateShutterKeys(),
             scope: ShutterAutomationComputationScope.ShutterSpecific,
-            triggeringValue: [e.NewValue],
-            valueEventArgs: [e],
-            timestamp: e.Timestamp,
-            urgency: ShutterAutomationComputationTriggerUrgency.Slow
+            triggeringValue: values,
+            valueEventArgs: valueEventArgs,
+            timestamp: timeStamp,
+            urgency: shutterUrgency
         );
         queueFeeder.Enqueue(triggerContextShutters);
-    }
-
-    private void HandleValueChangedEvent_NormalAllRooms(object? sender, ValueChangedEventArgs e)
-    {
-        throw new NotImplementedException();
-    }
-
-    private void HandleValueChangedEvent_FastAllRooms(object? sender, ValueChangedEventArgs e)
-    {
-        throw new NotImplementedException();
-    }
-
-    private void HandleValueWrittenEvent_FastAllRooms(object? sender, ValueWrittenEventArgs e)
-    {
-        throw new NotImplementedException();
     }
 
     public override Task StopAsync(CancellationToken cancellationToken = default)
@@ -92,14 +97,7 @@ public class BuildingRuntime(
         bs.Absence?.Changed -= HandleValueChangedEvent_NormalAllRooms;
         bs.DisableAutoShadowAssessment?.Changed -= HandleValueChangedEvent_FastAllRooms;
         bs.GlobalShutterScene?.Written -= HandleValueWrittenEvent_FastAllRooms;
-        bs.OutdoorTemperature?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensityEast?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensitySouth?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunIntensityWest?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunPositionAzimuth?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
-        bs.SunPositionElevation?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
         bs.ThermalControlMode?.Changed -= HandleValueChangedEvent_NormalAllRooms;
-        bs.UvIntensity?.Changed -= HandleValueChangedEvent_SlowEnvironmentalAll;
 
         return Task.CompletedTask;
     }

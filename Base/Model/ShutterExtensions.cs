@@ -113,10 +113,11 @@ public static class ShutterExtensions
             // No matching rule found, return a default rule with the shutter's configured cut-over angle
             return new CfgDynamicCutoverAngleRule
             {
-                CutoverAngle = shutter.Configuration.FacadeSunCutoverAngleOverride ?? 0.0,
+                CutoverAngle = shutter.Configuration.FacadeSunCutoverAngleOverride ?? 15.0,
+                CutoverAngleMax = 45.0,
                 ThermalControlMode = thermalControlMode,
-                RoomTemperatureMin = null,
-                RoomTemperatureMax = null
+                RoomTemperatureMin = 20.0,
+                RoomTemperatureMax = 23.0
             };
         }
 

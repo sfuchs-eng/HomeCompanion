@@ -69,12 +69,16 @@ public abstract class ShutterTargetEvaluator(
         {
             return targetPosition; // No-op or null, no filtering needed
         }
-        
-        var effectiveConstraints = cond.EffectiveShutterConstraints;
-        
-        throw new NotImplementedException("Ensure e.g. no opening constraint, ... --> must be shutter type and current position aware");
+
+        // filtering?
+
+        return targetPosition; // return the original target position if no filtering was applied
     }
 
+    /// <summary>
+    /// Evaluates preconditional cases for the shutter, such as manual override, force open, and anti-burglar prevention.
+    /// </summary>
+    /// <returns>The target shutter position if a preconditional case applies; otherwise, null.</returns>
     protected virtual async Task<ShutterPosition?> EvaluatePreconditionalCasesAsync()
     {
         var runtimeContext = cond.RuntimeContext;
@@ -89,25 +93,25 @@ public abstract class ShutterTargetEvaluator(
         }
 
         // Force Open deserves priority, also for cases where anti-burglar is not set.
-        if ( cond.ForceOpenForPassingThrough )
+        if (cond.ForceOpenForPassingThrough)
         {
             logger.LogTrace("Shutter {ShutterKey} is forced open for passing through. Opening it.", runtimeContext.ShutterKey);
             return new ShutterPosition(0.0, -1); // fully open
         }
 
         // Anti-burglar prevention deserves priority over noise minimization, but not over force open for passing through.
-        if ( cond.AntiBurglarActive )
+        if (cond.AntiBurglarActive)
         {
             logger.LogTrace("Anti-burglar prevention is active for shutter {ShutterKey}. Closing it.", runtimeContext.ShutterKey);
             return new ShutterPosition(shutter.Configuration.MaxClose, 1.0); // fully closed
         }
-        else if ( cond.AntiBurglarTransitionIndicatesOpening && !cond.AutomationMustNotOpenShutter)
+        else if (cond.AntiBurglarTransitionIndicatesOpening && !cond.AutomationMustNotOpenShutter)
         {
             logger.LogTrace("Anti-burglar prevention has transitioned to inactive and indicates opening for shutter {ShutterKey}. Opening it.", runtimeContext.ShutterKey);
             // a subsequent closure command in the same processing chain should (normally, if timing isn't odd) override this opening command, so we don't need to check for that here (queue handling ok?).
             return new ShutterPosition(0.0, -1); // fully open
         }
-        
+
         return null;
     }
 }

@@ -41,12 +41,30 @@ public interface IEnvironmentalsProvider
     /// </summary>
     bool SunIntensityAboveThreshold { get; }
 
+    bool IsSunAboveHorizon { get; }
+
     /// <summary>
     /// Ultraviolet (UV) intensity in p.u. (per unit) scaled to the configured reference value of the <see cref="CfgShadowingSpecial"/>.
     /// The reference value is typically the maximum expected UV intensity for the location and sensor type.
     /// It's configured in the <see cref="CfgShadowingSpecial"/> as <see cref="CfgShadowingSpecial.UvIntensityPUNorm"/>.
     /// </summary>
     double UvIntensityPU { get; }
+
+    bool UvIntensityAboveThreshold { get; }
+
+    /// <summary>
+    /// Gets the daily net energy balance in p.u. (per unit). The p.u. normalization must be chosen to land a suitable range for shadowing thresholds and decisions.
+    /// This value is computed from the daily average temperature difference between indoor target and outdoor actual temperature.
+    /// </summary>
+    /// <param name="index">Optional index to specify the day (e.g., 0 for today, -1 for past, 1 for forecast).</param>
+    /// <returns>The estimated daily net energy balance in p.u. for the specified day, ignoring shutter/sunlight impact, or null if not available.</returns>
+    double EnergyBalancePU24hActual { get; }
+
+    /// <summary>
+    /// Indicates whether the cautious shadowing energy balance limit has been exceeded and shutters should be closed to prevent excessive heating.
+    /// </summary>
+    /// <value><c>true</c> if the limit has been exceeded; otherwise, <c>false</c>.</value>
+    bool CautiousShadowingEnergyBalanceLimitExceeded { get; }
 
     SphericVector SunPosition { get; }
 }
@@ -101,6 +119,13 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
     public double UvIntensityPU { get; private set; } = double.NaN;
     public SphericVector SunPosition { get; private set; } = new(0.0, -10.0); // below horizon by default
 
+    public double EnergyBalancePU24hActual { get; private set; } = 0.0;
+    public bool CautiousShadowingEnergyBalanceLimitExceeded { get; private set; } = false;
+
+    public bool UvIntensityAboveThreshold { get; private set; } = false;
+
+    public bool IsSunAboveHorizon { get; private set; } = false;
+
     TimeSpan temperatureAveragingWindow = TimeSpan.FromMinutes(15);
     float temperatureHysteresis = 0.5f;
 
@@ -113,6 +138,12 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             return;
         }
         subscriptions.Add(subscription);
+    }
+
+    internal IObservable<bool> GetSunAboveHorizonObservable(IObservable<SphericVector> sunPosition, ShadowingSpecial s)
+    {
+        return sunPosition.Select(sv => sv.Elevation > 0.0)
+            .DistinctUntilChanged();
     }
 
     internal IObservable<float> GetSunIntensityObservable(ShadowingSpecial s)
@@ -190,6 +221,35 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             .DistinctUntilChanged();
     }
 
+    internal IObservable<bool> GetUvIntensityAboveThresholdObservable(IObservable<float> uvIntensity, IObservable<bool> sunAboveHorizon, ShadowingSpecial s)
+    {
+        // activation: immediately when UV intensity is above threshold
+        // deactivation: if the intensity remained below hysteresis threshold for the specified time
+
+        return uvIntensity
+
+            // 1. Maintain hysteresis state: 
+            // Only flip to TRUE if above upper, only flip to FALSE if below lower.
+            .Scan(false, (currentState, intensity) =>
+            {
+                if (intensity >= s.Configuration.UvIntensityThresholdPU) return true;
+                if (intensity < s.Configuration.UvIntensityRelaxationThresholdPU) return false;
+                return currentState;
+            })
+            .DistinctUntilChanged()
+
+            // 2. Handle the "delayed-off" logic
+            // We transform the boolean into a stream that dictates the state; we don't need the delayed-off while the sun is below horizon
+            .Select(isBright => isBright // only consider sun above horizon
+                ? (IsSunAboveHorizon ? Observable.Return(true) : Observable.Return(false))
+                : (IsSunAboveHorizon ? Observable.Return(false) : Observable.Return(false).Delay(s.Configuration.UvIntensityHysteresisDuration))
+            )
+
+            // 3. Switch cancels any pending 'false' timer if we return to 'true'
+            .Switch()
+            .DistinctUntilChanged();
+    }
+
     internal IObservable<SphericVector> GetSunPositionObservable(ShadowingSpecial s)
     {
         var subAziObs = s.SunPositionAzimuth?.AsObservable<float>() ?? Observable.Return(0.0f);
@@ -207,6 +267,20 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             );
 
         return sunObs;
+    }
+
+    internal IObservable<double> GetEnergyBalanceObservable(ShadowingSpecial s)
+    {
+        // Compute the daily net energy balance in p.u. (per unit)
+        // This value is computed from the daily average temperature difference between indoor target room temp and outdoor temperature, normalized by a reference value.
+        var energyBalanceObs = (s.OutdoorTemperature?.AsObservable<float>().Select(f => (double)f) ?? Observable.Return(10.0))
+            // energy balance = (target room temp - outdoor temp) * scaling factor
+            .Select(outdoorTemp => (s.Configuration.DefaultRoomTemperatureTarget - outdoorTemp) * s.Configuration.EnergyBalanceTemperatureScalingFactor)
+            // 24h average
+            .TimeWeightedAverage(TimeSpan.FromHours(24))
+            .DistinctUntilChangedWithHysteresis(0.01);
+
+        return energyBalanceObs;
     }
 
     protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
@@ -248,6 +322,33 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
         RegisterSubscriptions(
             sunObs.Subscribe(sv => { SunPosition = sv; PublishGlobalShutterAutomationComputationTrigger(s, s.SunPositionAzimuth ?? s.SunPositionElevation); })
+        );
+        RegisterSubscriptions(
+            GetSunAboveHorizonObservable(sunObs, s)
+                .Subscribe(aboveHorizon => { IsSunAboveHorizon = aboveHorizon; PublishGlobalShutterAutomationComputationTrigger(s, s.SunPositionAzimuth ?? s.SunPositionElevation); })
+        );
+
+        // energy balance from daily average indoor target vs. outdoor actual temperature difference
+        var energyBalanceObs = GetEnergyBalanceObservable(s)
+            .Publish() // Hot instead of cold observable, so that multiple subscribers share the same source and don't trigger multiple subscriptions to the underlying observables.
+            .RefCount(); // Automatically connects when the first subscriber subscribes and disconnects when the last subscriber unsubscribes.
+        RegisterSubscriptions(
+            energyBalanceObs.Subscribe(eb => { EnergyBalancePU24hActual = eb; PublishGlobalShutterAutomationComputationTrigger(s, s.OutdoorTemperature); })
+        );
+        // the energy balance with threshold on cautious shadowing we're handling here too for global consistency.
+        RegisterSubscriptions(
+            energyBalanceObs
+                // threshold and hysteresis for cautious shadowing: CautiousShadowingEnergyBalanceThresholdPU, CautiousShadowingEnergyBalanceThresholdHysteresisPU
+                .Select(eb => eb >= s.Configuration.CautiousShadowingEnergyBalanceThresholdPU
+                    ? true
+                    : eb <= s.Configuration.CautiousShadowingEnergyBalanceThresholdPU - s.Configuration.CautiousShadowingEnergyBalanceThresholdHysteresisPU
+                        ? false
+                        : (bool?)null // no change
+                )
+                .Where(eb => eb.HasValue)
+                .Select(eb => eb!.Value)
+                .DistinctUntilChanged()
+                .Subscribe(eb => { CautiousShadowingEnergyBalanceLimitExceeded = eb; PublishGlobalShutterAutomationComputationTrigger(s, s.OutdoorTemperature); })
         );
 
         // UV intensity, or if not available, route from sun intensity
@@ -365,5 +466,27 @@ azimuth = from(bucket: "OpenHabItems")
 
 union(tables: [sensors, azimuth, sensRms])
 
+*/
+
+/*
+// same story for the difference between daily average indoor and outdoor temperature.
+
+import "math"
+
+temps = from(bucket: "OpenHabItems")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "gAussentempMin" or r["_measurement"] == "Raumtemperatur.OG.Zimmer.III")
+  |> aggregateWindow(every: 1d, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+tempDiff = temps
+  |> group()
+  |> pivot(columnKey: ["item"], rowKey: ["_time"], valueColumn: "_value")
+  |> filter(fn: (r) => exists r.gAussentempMin and exists r.Raumtemperatur_OG_Zimmer_III)
+  |> map(fn: (r) => ({ r with
+      _value: r.Raumtemperatur_OG_Zimmer_III - r.gAussentempMin
+  }))
+
+tempDiff
 
 */
