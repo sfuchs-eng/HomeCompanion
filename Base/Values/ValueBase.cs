@@ -1,4 +1,5 @@
 using HomeCompanion.Abstractions;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 using System.Globalization;

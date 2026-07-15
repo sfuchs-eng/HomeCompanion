@@ -18,6 +18,7 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Persistence;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
+using HomeCompanion.Diagnostics;
 
 namespace HomeCompanion.Core;
 
@@ -38,6 +39,7 @@ public static class HostingExtensions
 
         // Core services
         builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Services.TryAddSingleton<IDiagnosticBrowser, Diagnostics.DiagnosticBrowser>();
         builder.Services.AddEventBus();
         builder.Services.TryAddSingleton<ValuesManager>();
         builder.Services.TryAddSingleton<IValuesManager>(sp => sp.GetRequiredService<ValuesManager>());
