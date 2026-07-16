@@ -1,0 +1,82 @@
+@implements IDisposable
+@using HomeCompanion.Diagnostics
+
+<div class="diagnostic-node" style="margin-left: 20px;">
+    <div class="node-header" @onclick="ToggleExpand" style="cursor: pointer; font-weight: bold;">
+        <span>@(isExpanded ? "▼" : "▶") @Node.Name</span>
+    </div>
+
+    @if (isExpanded)
+    {
+        <div class="node-content">
+            <!-- Render Records as a Grid/Table -->
+            @if (Node.Records.Any())
+            {
+                <table class="table table-sm" style="margin: 10px 0; border: 1px solid #ddd;">
+                    <thead>
+                        <tr><th>Record</th><th>Message</th><th>Value</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in Node.Records)
+                        {
+                            <tr>
+                                <td>@record.Name</td>
+                                <td>@record.Message</td>
+                                <td>@record.Value?.FormattedValue</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <!-- Render Children Recursively -->
+            @foreach (var child in Node.Children)
+            {
+                <DiagnosticNode Node="child" />
+            }
+        </div>
+    }
+</div>
+
+@foreach (var record in Node.Records)
+{
+    <tr>
+        <td>@record.Name</td>
+        <td>@GetRecordValue(record)</td>
+    </tr>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required IDiagnosticResultNode Node { get; set; }
+
+    private bool isExpanded;
+
+    private void ToggleExpand() => isExpanded = !isExpanded;
+
+    protected override void OnInitialized()
+    {
+        foreach (var record in Node.Records.OfType<IDynamicDiagnosticRecord>())
+        {
+            record.Changed += OnRecordChanged;
+        }
+    }
+
+    private string GetRecordValue(IDiagnosticRecord record) => 
+        record.Value?.FormattedValue ?? "N/A";
+
+    private void OnRecordChanged(object? sender, DiagnosticRecordChangedEventArgs e)
+    {
+        // Trigger UI update when a dynamic record changes
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe to prevent memory leaks
+        foreach (var record in Node.Records.OfType<IDynamicDiagnosticRecord>())
+        {
+            record.Changed -= OnRecordChanged;
+        }
+    }
+}

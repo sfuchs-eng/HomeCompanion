@@ -9,7 +9,7 @@ internal class MotorizedWindow
 
     ILogger<MotorizedWindow> Logger { get; }
 
-    public MotorizedWindow(MotorizedWindowSpecial model, ILoggerFactory loggerFactory)
+    public MotorizedWindow(MotorizedWindowSpecial model, ILoggerFactory loggerFactory) : base()
     {
         Logger = loggerFactory.CreateLogger<MotorizedWindow>();
 

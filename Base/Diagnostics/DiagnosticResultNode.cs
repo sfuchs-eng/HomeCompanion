@@ -17,8 +17,33 @@ public class DiagnosticResultNode : IDiagnosticResultNode
         return new DiagnosticResultNode
         {
             Name = name,
-            Records = [ new DiagnosticRecord(name, singleMessage) ],
+            Records = [new DiagnosticRecord(name, singleMessage)],
             Children = []
         };
+    }
+
+    /// <summary>
+    /// Craetes and adds a child node to the current node and returns it.
+    /// </summary>
+    /// <param name="name"></param>
+    /// <returns>The new child node.</returns>
+    public DiagnosticResultNode AddChild(string name)
+    {
+        var child = new DiagnosticResultNode { Name = name };
+        Children.Add(child);
+        return child;
+    }
+    
+    /// <summary>
+    /// Creates and adds a diagnostic record to the current node and returns the node (not the new record).
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="message"></param>
+    /// <param name="value"></param>
+    /// <returns>The current node (not the new record).</returns>
+    public DiagnosticResultNode AddRecord(string name, string message, IDiagnosticValue? value = null)
+    {
+        Records.Add(new DiagnosticRecord(name, message, value));
+        return this;
     }
 }

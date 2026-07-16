@@ -2,7 +2,7 @@ using HomeCompanion.Base.Model;
 
 namespace HomeCompanion.Logics.MotorizedWindow;
 
-public class CfgMotorizedWindowSpecial : CfgSpecial
+public class CfgMotorizedWindowSpecial : CfgBuildingSpecial
 {
     public bool HasShutter => !string.IsNullOrEmpty(ShutterPositionReference) && !string.IsNullOrEmpty(ShutterCloseCommandReference) && !string.IsNullOrEmpty(ShutterOpenCommandReference) && !string.IsNullOrEmpty(ShutterCommandAcknowledgmentReference);
     public bool HasWindow => !string.IsNullOrEmpty(WindowPositionReference) && !string.IsNullOrEmpty(WindowCloseCommandReference) && !string.IsNullOrEmpty(WindowOpenCommandReference) && !string.IsNullOrEmpty(WindowCommandAcknowledgmentReference);

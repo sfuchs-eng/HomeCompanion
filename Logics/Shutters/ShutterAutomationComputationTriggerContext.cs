@@ -61,11 +61,18 @@ public static class ShutterAutomationComputationTriggerContextExtensions
             var urgency = tc.Urgency;
             var maxWaitingTime = MaximumTriggerWaitingTimes[urgency];
             var timeSinceTriggering = currentTime - tc.Timestamp;
-            if ( timeSinceTriggering >= maxWaitingTime)
+            if (timeSinceTriggering >= maxWaitingTime)
                 return TimeSpan.Zero; // trigger is already overdue for processing, so we should process immediately
             var remainingTime = maxWaitingTime - timeSinceTriggering;
             return remainingTime;
         });
+
+        // handle sequence without elements
+        if (!remainingTimes.Any())
+        {
+            //TODO / FIXME: does this cause a polled loop?
+            return TimeSpan.FromSeconds(1); // default to 1 second if there are no triggers, to avoid immediate processing in case of an empty collection
+        }
 
         var minRemainingTime = remainingTimes.Min();
         return minRemainingTime > TimeSpan.Zero ? minRemainingTime : TimeSpan.Zero;

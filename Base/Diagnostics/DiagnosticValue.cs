@@ -1,3 +1,5 @@
+using HomeCompanion.Diagnostics;
+
 namespace HomeCompanion.Base.Diagnostics;
 
 /// <summary>
@@ -8,16 +10,16 @@ public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 {
     private readonly T value;
 
-    public DiagnosticIValue(IDiagnostic owner, string scope, T value)
+    public DiagnosticIValue(IDiagnosable owner, string scope, T value)
     {
         this.value = value;
         Owner = owner;
         Scope = scope;
-        Value = value;
-        Value.Changed += (s, e) => OnChanged();
+        this.value = value;
+        this.value.Changed += HandleValueChanged;
     }
 
-    public required IDiagnostic Owner { get; init; }
+    public required IDiagnosable Owner { get; init; }
     public required string Scope { get; init; }
     public required string Message { get => value?.ToString() ?? string.Empty; set => throw new NotSupportedException($"Setting the message is not supported. {nameof(DiagnosticIValue<T>)} uses the wrapped IValue's ToString() method."); }
 
@@ -25,14 +27,31 @@ public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 
     public string FormattedValue => Value?.Format() ?? string.Empty;
 
+    public string Name => Value?.Name ?? string.Empty;
+
+    IDiagnosticValue? IDiagnosticRecord.Value => new DiagnosticValue(() => FormattedValue);
+
     public event EventHandler<DiagnosticRecordChangedEventArgs>? Changed;
 
-    protected void OnChanged()
+    private void HandleValueChanged(object? sender, ValueChangedEventArgs e)
     {
         Changed?.Invoke(this, new DiagnosticRecordChangedEventArgs
         {
             Owner = Owner,
-            Record = this
+            Record = this,
+            TimeStamp = e.Timestamp
         });
     }
+}
+
+public class DiagnosticValue : IDiagnosticValue
+{
+    private readonly Func<string> valueProvider;
+
+    public DiagnosticValue(Func<string> valueProvider)
+    {
+        this.valueProvider = valueProvider;
+    }
+
+    public string FormattedValue => valueProvider();
 }

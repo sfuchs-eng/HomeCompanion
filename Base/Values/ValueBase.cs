@@ -56,7 +56,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
             catch (Exception ex)
             {
                 // log the exception and continue with the next handler
-                logger.LogWarning(ex, "Exception in ValueChanged event handler");
+                logger.LogWarning(ex, "Exception in ValueChanged event handler {HandlerType}", handler.GetType().FullName);
             }
         }
     }

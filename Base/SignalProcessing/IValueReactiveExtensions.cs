@@ -14,14 +14,14 @@ public static class IValueReactiveExtensions
     /// Converts the IValue to an IObservable&lt;T&gt; that applies a time-weighted average and hysteresis filtering.
     /// E.g. for a light intensity sensor, this can be used to smooth out the readings and avoid triggering logic or actuators for insignificant changes.
     /// </summary>
-    public static IObservable<T> AsFilteredObservable<T>(this IValue<T> value, TimeSpan timeWeightedAverageWindow, double hysteresisThreshold) where T : struct, INumber<T>
+    public static IObservable<T> AsFilteredObservable<T>(this IValue<T> value, TimeSpan timeWeightedAverageWindow, double hysteresisThreshold) where T : struct, INumber<T>, IConvertible
     {
         return value.AsObservable<T>()
             .TimeWeightedAverage(timeWeightedAverageWindow)
             .DistinctUntilChangedWithHysteresis(hysteresisThreshold);
     }
 
-    public static IObservable<T> AsObservable<T>(this IValue value) where T : struct, INumber<T>
+    public static IObservable<T> AsObservable<T>(this IValue value) where T : struct, INumber<T>, IConvertible
     {
         if (value is not IValue<T> typedValue)
         {
@@ -38,7 +38,7 @@ public static class IValueReactiveExtensions
             h => value.Changed -= h
         )
         // Extract the value and cast it to the expected type
-        .Select(e => (T)e.EventArgs.NewValue)
+        .Select(e => (T)(e.EventArgs.NewValue.GetNumericValue<T>() ?? throw new InvalidOperationException($"Cannot convert IValue of type {value.GetType().Name} to IObservable<{typeof(T).Name}>. The value is null.")))
         .StartWith((T)value.OValue); // Ensure the stream starts with current state
     }
 

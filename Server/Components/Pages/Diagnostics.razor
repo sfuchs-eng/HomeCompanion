@@ -1,0 +1,54 @@
+@page "/diagnostics"
+@rendermode InteractiveServer
+
+@using HomeCompanion.Diagnostics
+@using HomeCompanion.Server.Components.Widgets
+
+@inject IDiagnosticBrowser Browser
+
+<div class="diagnostics-dashboard">
+    <h3>System Diagnostics</h3>
+
+    <!-- Select a diagnosable component -->
+    <select class="form-control" @onchange="OnDiagnosableSelected">
+        <option value="">-- Select a diagnostic source --</option>
+        @foreach (var item in Browser.GetDiagnosables())
+        {
+            <option value="@item.Name">@item.Name</option>
+        }
+    </select>
+
+    @if (isLoading)
+    {
+        <p>Fetching diagnosis...</p>
+    }
+    else if (rootNode != null)
+    {
+        <div class="mt-4">
+            <DiagnosticNode Node="rootNode" />
+        </div>
+    }
+</div>
+
+@code {
+    private IDiagnosticResultNode? rootNode;
+    private bool isLoading;
+
+    private async Task OnDiagnosableSelected(ChangeEventArgs e)
+    {
+        var selectedName = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(selectedName)) return;
+
+        isLoading = true;
+        
+        try
+        {
+            // Use the Browser to fetch the root node by name
+            rootNode = await Browser.GetDiagnosisAsync(selectedName, CancellationToken.None);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
