@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using HomeCompanion.Logics.ThermalControl;
 using HomeCompanion.Base.Model;
+using HomeCompanion.Diagnostics;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -70,5 +71,10 @@ public class RoomSceneConditionsAssessor
             RoomObjectiveProfile.NoisePrevention => RoomShutterScene.Deactivated,
             _ => RoomShutterScene.AutoReopen
         };
+    }
+
+    internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        return DiagnosticResultNode.Create(nameof(RoomSceneConditionsAssessor), "Not implemented yet: capture previous computation or run life upon diag request?");
     }
 }

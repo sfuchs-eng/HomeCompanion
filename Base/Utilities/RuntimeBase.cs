@@ -12,7 +12,7 @@ public abstract class RuntimeBase : IThingRuntime, IDiagnosable
         this.logger = logger;
     }
 
-    public virtual string Name => $"{nameof(IThingRuntime)}/{nameof(RuntimeBase)} {GetType().Name}";
+    public virtual string Name => $"{nameof(IThingRuntime)}/{nameof(RuntimeBase)} {GetType().Name} should override the Name property to provide a more meaningful name.";
 
     bool IsDisposed { get; set; }
 

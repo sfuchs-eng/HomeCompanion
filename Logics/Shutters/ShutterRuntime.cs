@@ -1,5 +1,6 @@
 using HomeCompanion.Base.Quartz;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
@@ -23,6 +24,8 @@ public class ShutterRuntime(
     /// </summary>
     public bool IsExternalOverrideActive { get; private set; } = false;
     public DateTimeOffset? ExternalOverrideStartTime { get; private set; } = null;
+
+    override public string Name => ShutterKey.ToString();
 
     public override Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -376,7 +379,7 @@ public class ShutterRuntime(
 
         return isOpening;
     }
-    
+
     public bool IsClosing(ShutterPosition targetPosition, double tolerances = 0.01)
     {
         var shutter = ShutterContext.Shutter;
@@ -410,6 +413,31 @@ public class ShutterRuntime(
         }
 
         return isClosing;
+    }
+
+    /// <summary>
+    /// Provide a comprehensive diagnostic result for this shutter runtime, including its current state, external override status, and any relevant information for troubleshooting.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public override Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken = default)
+    {
+        var shutter = ShutterContext.Shutter;
+        var shutterType = shutter.Configuration.Type;
+
+        var rootNode = DiagnosticResultNode.Create($"{ShutterKey}");
+        rootNode.Records =
+        [
+            new DiagnosticRecord("Shutter Key", ShutterKey.ToString()),
+            new DiagnosticRecord("Shutter Type", shutterType.ToString()),
+            new DiagnosticRecord("Current Position", CurrentPosition.ToString()),
+            new DiagnosticRecord("Is External Override Active", IsExternalOverrideActive.ToString()),
+            new DiagnosticRecord("External Override Start Time", ExternalOverrideStartTime?.ToString("o") ?? "N/A"),
+            new DiagnosticRecord("Last Anti-Burglar Closure Time", lastAntiBurglarClosureTime?.ToString("o") ?? "N/A"),
+            new DiagnosticRecord("Is Anti-Burglar Closure Active", isAntiBurglarClosureActive.ToString()),
+        ];
+
+        return Task.FromResult<IDiagnosticResultNode>(rootNode);
     }
 }
 

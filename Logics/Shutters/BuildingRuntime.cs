@@ -15,6 +15,8 @@ public class BuildingRuntime(
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
     private readonly ILogger<BuildingRuntime> logger = logger;
 
+    public override string Name => BuildingKey.ToString();
+
     public override Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;

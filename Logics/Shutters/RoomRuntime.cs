@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -29,6 +31,8 @@ public class RoomRuntime : RuntimeBase, IDisposable
 
     public virtual byte LastSceneCommanded { get; protected set; } = (byte)RoomShutterScene.Undefined;
 
+    public override string Name => RoomKey.ToString();
+
     public RoomRuntime(RoomContext roomContext, IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder, TimeProvider timeProvider, ILogger<RoomRuntime> logger)
         : base(logger)
     {
@@ -36,7 +40,8 @@ public class RoomRuntime : RuntimeBase, IDisposable
         this.queueFeeder = queueFeeder;
         this.timeProvider = timeProvider;
         this.logger = logger;
-        filteredRoomTemperatureObservableCached = new CachedValue<IObservable<float>>(Observable.Empty<float>(), () => {
+        filteredRoomTemperatureObservableCached = new CachedValue<IObservable<float>>(Observable.Empty<float>(), () =>
+        {
             return GetFilteredRoomTemperatureObservable() ?? Observable.Return<float>(20.0f);
         });
     }
@@ -348,11 +353,34 @@ public class RoomRuntime : RuntimeBase, IDisposable
     internal async Task HandleShutterAutomationComputationTriggerEvent(ShutterAutomationComputationTriggerContext context, CancellationToken cancellationToken)
     {
         var targetScene = SceneResolver.ResolveTargetRoomShutterScene(SceneConditionsAssessor);
-        if ( targetScene == null || targetScene == (byte)RoomShutterScene.Undefined)
+        if (targetScene == null || targetScene == (byte)RoomShutterScene.Undefined)
         {
             logger.LogWarning("Room shutter scene resolver returned {targetScene} for room {RoomKey}. LastCommanded: {LastCommanded}", targetScene, RoomKey.Key, LastSceneCommanded);
             return;
         }
         SetRoomShutterScene(targetScene.Value);
+    }
+
+    /// <summary>
+    /// Provides a comprehensive diagnostic result for this room runtime, including its current state and any relevant information for troubleshooting.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public override Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken = default)
+    {
+        var node = DiagnosticResultNode.Create(Name);
+        node.Records = [
+            new DiagnosticRecord("RoomKey", RoomKey.Key),
+            new DiagnosticRecord("LastSceneCommanded", LastSceneCommanded.ToString()),
+            new DiagnosticRecord("IsRoomTemperatureAboveAutoShadowThreshold", IsRoomTemperatureAboveAutoShadowThreshold.ToString()),
+            new DiagnosticRecord("FilteredRoomTemperature", FilteredRoomTemperature.ToString("F1"))
+        ];
+        var tasks = new Task<IDiagnosticResultNode>[]
+        {
+            SceneConditionsAssessor.GetDiagnosisAsync(cancellationToken),
+            SceneResolver.GetDiagnosisAsync(cancellationToken)
+        };
+        node.Children = Task.WhenAll(tasks).Result.ToList();
+        return Task.FromResult<IDiagnosticResultNode>(node);
     }
 }

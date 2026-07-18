@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using HomeCompanion.Base.Model;
+using HomeCompanion.Diagnostics;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -155,4 +156,9 @@ public class RoomSceneResolver
 
         return permit(currentSceneRequest);
      }
+
+    internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        return DiagnosticResultNode.Create(nameof(RoomSceneResolver), "Not implemented yet: capture previous computation or run life upon diag request?");
+    }
 }
