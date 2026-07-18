@@ -7,7 +7,7 @@
 @inject IDiagnosticBrowser Browser
 
 <div class="diagnostics-dashboard">
-    <h3>System Diagnostics</h3>
+    <h1>System Diagnostics</h1>
 
     <!-- Select a diagnosable component -->
     <select class="form-control" @onchange="OnDiagnosableSelected">
@@ -25,8 +25,12 @@
     else if (rootNode != null)
     {
         <div class="mt-4">
-            <DiagnosticNode Node="rootNode" />
+            <DiagnosticNode Node="rootNode" IsExpanded="true" />
         </div>
+    }
+    else
+    {
+        <p class="mt-4">Select a component to view its diagnostics.</p>
     }
 </div>
 

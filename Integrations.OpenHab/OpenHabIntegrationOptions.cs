@@ -5,6 +5,8 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// </summary>
 public sealed class OpenHabIntegrationOptions
 {
+    public bool Enable { get; set; } = true;
+    
     /// <summary>
     /// Configuration section name.
     /// </summary>

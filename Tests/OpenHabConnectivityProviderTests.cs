@@ -124,7 +124,7 @@ public class OpenHabConnectivityProviderTests
     public async Task StartAsync_WaitsForInitValuesRegisteredStage()
     {
         var bus = CreateBus();
-        var eventBusClient = new StubEventBusClient();
+        var eventBusClient = new StubEventBusClient { IsActive = true };
         var restApiClient = new StubRestApiClient();
         var lifecycle = new GateLifecycleSync();
         var provider = CreateProvider(bus, bus, eventBusClient, restApiClient, null, lifecycle);
@@ -214,7 +214,7 @@ public class OpenHabConnectivityProviderTests
 
     private sealed class StubEventBusClient : IEventBusClient
     {
-        public bool IsActive => true;
+        public bool IsActive { get; set; }
         public IEventFactory EventFactory => throw new NotSupportedException();
         public event EventHandler<EventReceivedEventArgs>? EventReceived;
 
@@ -403,10 +403,10 @@ public class OpenHabConnectivityProviderTests
     }
 
     [Test]
-    public async Task Lifecycle_StartAndStop_UpdatesConnectionFlags()
+    public async Task Lifecycle_StartAndStop_ReflectsConnectionFlags()
     {
         var bus = CreateBus();
-        var eventBusClient = new StubEventBusClient();
+        var eventBusClient = new StubEventBusClient { IsActive = false };
         var restApi = new StubRestApiClient();
         var provider = CreateProvider(bus, bus, eventBusClient, restApi);
 
@@ -416,13 +416,32 @@ public class OpenHabConnectivityProviderTests
         await RunWithBusAsync(bus, async () =>
         {
             await provider.StartAsync(CancellationToken.None);
+
+            eventBusClient.IsActive = true;
             Assert.That(provider.IsConnected, Is.True);
             Assert.That(provider.IsInitializationFinished, Is.True);
+
+            eventBusClient.IsActive = false;
             await provider.StopAsync(CancellationToken.None);
         });
 
         Assert.That(provider.IsConnected, Is.False);
         Assert.That(provider.IsEnabled, Is.True);
+    }
+
+    [Test]
+    public async Task StartAsync_WithInactiveEventBusClient_RemainsDisconnected()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient { IsActive = false };
+        var restApi = new StubRestApiClient();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+            Assert.That(provider.IsConnected, Is.False);
+        });
     }
 
     private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : HomeCompanion.Events.IEvent

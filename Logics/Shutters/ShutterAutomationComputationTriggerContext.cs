@@ -53,7 +53,8 @@ public static class ShutterAutomationComputationTriggerContextExtensions
     /// and be processed together, e.g. to avoid excessive shutter movements in case of rapidly changing input conditions; if the returned TimeSpan is used for delaying the processing, the method should be called again after the delay to reassess the remaining time until processing, as new triggers might have arrived in the meantime or the urgency of existing triggers might have changed.
     /// </summary>
     /// <param name="currentTime"></param>
-    /// <returns></returns>
+    /// <returns>If there are triggers: the remaining time until the earliest trigger is due for processing; otherwise, if there are no triggers, a default longest wait time for triggers prior looping again is returned.</returns>
+    /// </returns>
     public static TimeSpan GetRemainingTimeUntilProcessing(this IEnumerable<ShutterAutomationComputationTriggerContext> triggerContexts, DateTimeOffset currentTime)
     {
         var remainingTimes = triggerContexts.Select(tc =>
@@ -70,8 +71,7 @@ public static class ShutterAutomationComputationTriggerContextExtensions
         // handle sequence without elements
         if (!remainingTimes.Any())
         {
-            //TODO / FIXME: does this cause a polled loop?
-            return TimeSpan.FromSeconds(1); // default to 1 second if there are no triggers, to avoid immediate processing in case of an empty collection
+            return TimeSpan.FromSeconds(30); // default to 30 seconds if there are no triggers, to avoid immediate processing in case of an empty collection
         }
 
         var minRemainingTime = remainingTimes.Min();

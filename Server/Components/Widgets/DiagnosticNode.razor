@@ -3,10 +3,10 @@
 
 <div class="diagnostic-node" style="margin-left: 20px;">
     <div class="node-header" @onclick="ToggleExpand" style="cursor: pointer; font-weight: bold;">
-        <span>@(isExpanded ? "▼" : "▶") @Node.Name</span>
+        <span>@(IsExpanded ? "▼" : "▶") @Node.Name</span>
     </div>
 
-    @if (isExpanded)
+    @if (IsExpanded)
     {
         <div class="node-content">
             <!-- Render Records as a Grid/Table -->
@@ -38,21 +38,14 @@
     }
 </div>
 
-@foreach (var record in Node.Records)
-{
-    <tr>
-        <td>@record.Name</td>
-        <td>@GetRecordValue(record)</td>
-    </tr>
-}
-
 @code {
     [Parameter, EditorRequired]
     public required IDiagnosticResultNode Node { get; set; }
 
-    private bool isExpanded;
+    [Parameter]
+    public bool IsExpanded { get; set; } = false;
 
-    private void ToggleExpand() => isExpanded = !isExpanded;
+    private void ToggleExpand() => IsExpanded = !IsExpanded;
 
     protected override void OnInitialized()
     {

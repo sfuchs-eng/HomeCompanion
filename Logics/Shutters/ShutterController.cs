@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Logics.Shutters.AutoShadow;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ namespace HomeCompanion.Logics.Shutters;
 /// </list>
 /// </summary>
 /// <typeparam name="ShutterController"></typeparam>
-public partial class ShutterController : LogicBase
+public partial class ShutterController : LogicBase, IDiagnosable
 {
     private readonly IValueProvider valuesProvider;
     private readonly IEventPublisher eventPublisher;
@@ -309,6 +310,14 @@ public partial class ShutterController : LogicBase
                 logger.LogWarning(ex, "Error processing shutter target for shutter {ShutterKey}. Exception details: {ExceptionMessage}", ex is ShutterTargetProcessingException stpe ? stpe.ShutterKey : "<unknown>", ex.Message);
             }
         }
+    }
+    #endregion
+
+    #region Diagnostics
+    protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        var node = await base.PopulateDiagnosticResultsAsync(parentNode, cancellationToken);
+        return node;
     }
     #endregion
 }

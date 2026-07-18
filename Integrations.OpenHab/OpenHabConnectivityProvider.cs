@@ -7,6 +7,7 @@ using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus.Events;
 using System.Globalization;
+using Microsoft.Extensions.Options;
 
 namespace HomeCompanion.Integrations.OpenHab;
 
@@ -36,7 +37,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 {
     private const string ProviderName = nameof(OpenHabConnectivityProvider);
     private static readonly TimeSpan ValuesReadyWaitTimeout = TimeSpan.FromSeconds(30);
-
+    private readonly IOptions<OpenHabIntegrationOptions> options;
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;
     private readonly IEventBusClient _eventBusClient;
@@ -47,13 +48,12 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
     private volatile bool _isInitializationFinished;
-    private volatile bool _isConnected;
 
     /// <inheritdoc/>
-    public override bool IsEnabled => true; // OpenHab is always enabled if the provider is instantiated
+    public override bool IsEnabled => options.Value.Enable; // OpenHab is enabled based on the configuration
 
     /// <inheritdoc/>
-    public override bool IsConnected => _isConnected;
+    public override bool IsConnected => _eventBusClient.IsActive;
 
     /// <inheritdoc/>
     public override bool IsInitializationFinished => _isInitializationFinished;
@@ -62,6 +62,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     /// Initializes a new <see cref="OpenHabConnectivityProvider"/>.
     /// </summary>
     public OpenHabConnectivityProvider(
+        IOptions<OpenHabIntegrationOptions> options,
         IEventPublisher publisher,
         IEventSubscriber subscriber,
         IEventBusClient eventBusClient,
@@ -71,6 +72,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         OpenHabStateConverter stateConverter,
         ILogger<OpenHabConnectivityProvider> logger)
     {
+        this.options = options;
         _publisher = publisher;
         _subscriber = subscriber;
         _eventBusClient = eventBusClient;
@@ -84,6 +86,12 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     /// <inheritdoc/>
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        if ( !IsEnabled )
+        {
+            _logger.LogInformation("OpenHabConnectivityProvider is disabled via configuration. Skipping startup.");
+            return;
+        }
+
         await WaitForStartupGateAsync(
             _lifeCycleSynchronization,
             _logger,
@@ -101,8 +109,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         // Subscribe to incoming events from OpenHab
         _eventBusClient.EventReceived += OnEventBusClientEventReceived;
 
-        // Mark as connected (OpenHab connectivity is managed by OpenHabConnector)
-        _isConnected = true;
         _logger.LogInformation("OpenHabConnectivityProvider started and listening to event bus.");
 
         // Mark initialization as finished (no initial reads needed; values will be populated by incoming events)
@@ -115,7 +121,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _eventBusClient.EventReceived -= OnEventBusClientEventReceived;
-        _isConnected = false;
         _logger.LogInformation("OpenHabConnectivityProvider stopped.");
         await Task.CompletedTask;
     }

@@ -22,6 +22,16 @@ public class DiagnosticResultNode : IDiagnosticResultNode
         };
     }
 
+    public static DiagnosticResultNode Create(string name)
+    {
+        return new DiagnosticResultNode
+        {
+            Name = name,
+            Records = [],
+            Children = []
+        };
+    }
+
     /// <summary>
     /// Craetes and adds a child node to the current node and returns it.
     /// </summary>
@@ -34,6 +44,14 @@ public class DiagnosticResultNode : IDiagnosticResultNode
         return child;
     }
     
+    public DiagnosticResultNode AddChilds(string name, IEnumerable<IDiagnosticResultNode> childNodes)
+    {
+        var child = new DiagnosticResultNode { Name = name };
+        child.Children.AddRange(childNodes);
+        Children.Add(child);
+        return child;
+    }
+
     /// <summary>
     /// Creates and adds a diagnostic record to the current node and returns the node (not the new record).
     /// </summary>

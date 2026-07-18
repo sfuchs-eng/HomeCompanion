@@ -1,15 +1,20 @@
+using HomeCompanion.Diagnostics;
+
 namespace HomeCompanion.Logics;
 
 /// <summary>
 /// Base class for all logic modules. Provides access to the event bus for publishing and subscribing to events.
 /// </summary>
 /// <remarks>
-/// Subclasses should call <see cref="Subscribe{T}"/> from their constructor to register event handlers.
-/// Use <see cref="Publisher"/> to publish events.
+/// <para>Subclasses should call <see cref="Subscribe{T}"/> from their constructor to register event handlers.</para>
+/// <para>Use <see cref="Publisher"/> to publish events.</para>
+/// <para>Inherit <see cref="IDiagnosable"/> in deriving classes and override <see cref="PopulateDiagnosticResultsAsync"/> to provide diagnostic information about the logic module.</para>
 /// </remarks>
 public abstract class LogicBase : ILogic
 {
     private readonly IEventSubscriber _subscriber;
+
+    public virtual string Name => $"Logic {GetType().Name}";
 
     /// <summary>The event publisher for dispatching events onto the event bus.</summary>
     protected IEventPublisher Publisher { get; }
@@ -82,4 +87,17 @@ public abstract class LogicBase : ILogic
 
     /// <inheritdoc/>
     public bool IsEnabled { get; private set; }
+
+    protected virtual Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        var node = parentNode;
+        node.AddRecord("IsInitialized", _isInitialized.ToString());
+        node.AddRecord("IsEnabled", IsEnabled.ToString());
+        return Task.FromResult(node);
+    }
+
+    public virtual async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        return await PopulateDiagnosticResultsAsync(DiagnosticResultNode.Create(Name), cancellationToken);
+    }
 }

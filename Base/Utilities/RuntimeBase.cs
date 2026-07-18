@@ -1,8 +1,9 @@
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Base.Utilities;
 
-public abstract class RuntimeBase : IThingRuntime
+public abstract class RuntimeBase : IThingRuntime, IDiagnosable
 {
     private readonly ILogger logger;
 
@@ -10,6 +11,8 @@ public abstract class RuntimeBase : IThingRuntime
     {
         this.logger = logger;
     }
+
+    public virtual string Name => $"{nameof(IThingRuntime)}/{nameof(RuntimeBase)} {GetType().Name}";
 
     bool IsDisposed { get; set; }
 
@@ -30,6 +33,18 @@ public abstract class RuntimeBase : IThingRuntime
         }
 
         IsDisposed = true;
+    }
+
+    /// <summary>
+    /// Override without calling base. This base method only creates a diagnostic record indicating that the method is not implemented and required overriding in the derived class.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public virtual async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken = default)
+    {
+        var rootNode = DiagnosticResultNode.Create(Name);
+        rootNode.AddRecord("GetDiagnosisAsync", "Not implemented in derived class. Override this method without calling base to provide diagnostic information for this runtime.");
+        return rootNode;
     }
 
     public abstract Task InitializeAsync(CancellationToken cancellationToken = default);

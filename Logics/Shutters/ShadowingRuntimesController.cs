@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -9,7 +10,7 @@ namespace HomeCompanion.Logics.Shutters;
 /// Manages the lifecycles of runtimes for buildings, rooms, and shutters, and handles the distribution of shutter automation computation triggers.
 /// Triggers are sent to the event bus as <see cref="ShutterAutomationComputationTriggerEvent"/> events for consumption by the <see cref="ShutterController"/>, <see cref="RoomShutterSceneLogic"/>, and potentially other components.
 /// </summary>
-public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
+public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagnosable
 {
     private readonly IModelProvider modelProvider;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder;
@@ -215,4 +216,15 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider
         }
         throw new KeyNotFoundException($"Shutter runtime for key {shutterKey} not found.");
     }
+
+    #region Diagnostics
+    protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        var node = await base.PopulateDiagnosticResultsAsync(parentNode, cancellationToken);
+        node.AddChilds("BuildingRuntimes", await Task.WhenAll(buildingRuntimes.Select(async kvp => await kvp.Value.GetDiagnosisAsync(cancellationToken))));
+        node.AddChilds("RoomRuntimes", await Task.WhenAll(roomRuntimes.Select(async kvp => await kvp.Value.GetDiagnosisAsync(cancellationToken))));
+        node.AddChilds("ShutterRuntimes", await Task.WhenAll(shutterRuntimes.Select(async kvp => await kvp.Value.GetDiagnosisAsync(cancellationToken))));
+        return node;
+    }
+    #endregion
 }

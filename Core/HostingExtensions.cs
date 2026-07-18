@@ -441,11 +441,21 @@ public static class HostingExtensions
 
         foreach (var type in logicTypes)
         {
-            services.TryAddSingleton(type);
-            services.AddSingleton(logicInterface, sp => (ILogic)sp.GetRequiredService(type));
+            RegisterLogicType(services, type);
         }
 
         return services;
+    }
+
+    internal static void RegisterLogicType(IServiceCollection services, Type type)
+    {
+        services.TryAddSingleton(type);
+        services.AddSingleton(typeof(ILogic), sp => (ILogic)sp.GetRequiredService(type));
+
+        if (typeof(IDiagnosable).IsAssignableFrom(type))
+        {
+            services.AddSingleton(typeof(IDiagnosable), sp => (IDiagnosable)sp.GetRequiredService(type));
+        }
     }
 
     /// <summary>
