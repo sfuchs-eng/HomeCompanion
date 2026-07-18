@@ -2,6 +2,7 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Extensions;
 using HomeCompanion.Persistence;
 using HomeCompanion.Values;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -29,9 +30,30 @@ public class OpenHabExtensionRegistration(
 
     public void RegisterServices(IExtensionRegistrationContext context)
     {
+        // see whether configuration is available, if not, aim to load it
+        var configSection = context.Builder.Configuration.GetSection(OpenHabIntegrationOptions.SectionName);
+        if (!configSection.Exists())
+        {
+            logger.LogWarning("OpenHAB configuration section '{SectionName}' not found. OpenHAB integration will be disabled. Please ensure the configuration is present in appsettings.json or environment variables.", OpenHabIntegrationOptions.SectionName);
+            return;
+        }
+        else
+        {
+            logger.LogInformation("Found OpenHAB configuration section '{SectionName}'. Proceeding with OpenHAB extension registration.", OpenHabIntegrationOptions.SectionName);
+        }
+        // is it disabled via configuration?
+        var integrationOptions = configSection.Get<OpenHabIntegrationOptions>();
+        if (integrationOptions is null || !integrationOptions.Enable)
+        {
+            logger.LogInformation("OpenHAB integration is disabled via configuration. Skipping OpenHAB extension registration.");
+            return;
+        }
         context.Builder.Services.AddOpenHabConnector();
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
         context.Builder.Services.AddSingleton<OpenHabStateConverter>();
+        context.Builder.Services.AddSingleton<OpenHabConnectivityProvider>();
+        context.Builder.Services.AddSingleton<IConnectivityProvider>(sp => sp.GetRequiredService<OpenHabConnectivityProvider>());
+        context.Builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<OpenHabConnectivityProvider>());
         context.Builder.Services.AddHostedService<OpenHabExtensionRegistrationBackgroundService>();
         logger.LogInformation("Registered OpenHAB connectivity extension");
     }

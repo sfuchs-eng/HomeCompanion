@@ -9,6 +9,7 @@ namespace HomeCompanion.Extensions;
 /// Note that <see cref="ILogic"/> and <see cref="IConnectivityProvider"/> only need to be complemented by an <see cref="IExtensionRegistration"/>
 /// if they require additional services to be registered in the DI container;
 /// otherwise, they can be registered directly as implementations of their respective interfaces and are discovered and registered automatically.
+/// Connectivity providers that should not be discovered automatically can be marked with <see cref="ManualConnectivityProviderRegistrationAttribute"/> and registered explicitly by the owning extension.
 /// </summary>
 /// <remarks>
 /// Implementations may use DI to consume services registered by other extensions. But returned services are temporary objects and should not be stored or cached by the extension registration itself.<br/>

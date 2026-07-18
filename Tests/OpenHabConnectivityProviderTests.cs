@@ -7,6 +7,7 @@ using HomeCompanion.Integrations.OpenHab.Events;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using SRF.Knx.Config;
 using SRF.Knx.Core;
 using SRF.Knx.Core.DPT;
@@ -54,6 +55,7 @@ public class OpenHabConnectivityProviderTests
         var valuesManager = new TestValuesManager(subscriber);
         InitializeValues(containers, publisher, valuesManager);
         return new OpenHabConnectivityProvider(
+            Options.Create(new OpenHabIntegrationOptions { Enable = true }),
             publisher,
             subscriber,
             eventBusClient,

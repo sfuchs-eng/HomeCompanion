@@ -33,6 +33,7 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// indexed by item name.
 /// </para>
 /// </remarks>
+[ManualConnectivityProviderRegistration]
 public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<string, OpenHabBusEndpointMapping>
 {
     private const string ProviderName = nameof(OpenHabConnectivityProvider);
@@ -88,7 +89,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     {
         if ( !IsEnabled )
         {
-            _logger.LogInformation("OpenHabConnectivityProvider is disabled via configuration. Skipping startup.");
+            _logger.LogWarning("OpenHabConnectivityProvider is disabled via configuration. Skipping startup.");
             return;
         }
 

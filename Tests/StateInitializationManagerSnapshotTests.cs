@@ -239,6 +239,27 @@ public class StateInitializationManagerSnapshotTests
         Assert.That(target.Mode.Value, Is.EqualTo(ModeState.Online));
     }
 
+    [Test]
+    public async Task InitializeState_signals_skipped_stages_without_registered_delegates()
+    {
+        var lifecycle = new RecordingLifecycleSync();
+        var manager = new StateInitializationManager(
+            lifecycle,
+            new StubStateStore { ForceIsSuccess = false },
+            [new RoundtripContainer()],
+            NullLogger<StateInitializationManager>.Instance,
+            TimeProvider.System);
+
+        await manager.InitializeStateAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(lifecycle.SignaledStages, Does.Contain(AppInitializationStage.InitLoadFromStore));
+            Assert.That(lifecycle.SignaledStages, Does.Contain(AppInitializationStage.InitRetrieveFromEnvironment));
+            Assert.That(lifecycle.SignaledStages, Does.Contain(AppInitializationStage.InitModelReady));
+        });
+    }
+
     private sealed class StubStateStore : IStateStore
     {
         public object? Stored { get; set; }
@@ -293,6 +314,26 @@ public class StateInitializationManagerSnapshotTests
         public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
 
         public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
+    }
+
+    private sealed class RecordingLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    {
+        public List<AppInitializationStage> SignaledStages { get; } = [];
+
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+
+        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
+
+        public bool IsInitializationStageCompleted(AppInitializationStage level) => SignaledStages.Contains(level);
+
+        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        {
+            SignaledStages.Add(level);
+            return Task.CompletedTask;
+        }
+
+        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+            => Task.CompletedTask;
     }
 
     private sealed class RoundtripContainer : IValuesContainer

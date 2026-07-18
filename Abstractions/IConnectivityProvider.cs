@@ -9,7 +9,9 @@ namespace HomeCompanion;
 /// Connectivity providers are the entry points for system integrations. Typically they are in separate libraries within the HomeCompanion.Integrations namespace,
 /// and are responsible for translating between the external system's message format and the internal <see cref="IEvent"/> format, as well as for managing the connection lifecycle and reliability concerns of the external system.
 /// <br/>
-/// <see cref="IConnectivityProvider"/>s are registered as <see cref="IConnectivityProvider"/> and as <see cref="IHostedService"/> automatically by the host, so they will be started and stopped with the application and can run background loops to maintain connections and process messages in real time.
+/// Most <see cref="IConnectivityProvider"/>s are registered as <see cref="IConnectivityProvider"/> and as <see cref="IHostedService"/> automatically by the host, so they will be started and stopped with the application and can run background loops to maintain connections and process messages in real time.
+/// Providers marked with <see cref="ManualConnectivityProviderRegistrationAttribute"/> are registered explicitly by their owning extension.
+/// This lets an extension disable automatic discovery for provider types that require extra enable/disable gating or other bespoke registration logic.
 /// </summary>
 /// <remarks>
 /// A connectivity provider is responsible for translating inbound bus messages into <see cref="IEvent"/> instances

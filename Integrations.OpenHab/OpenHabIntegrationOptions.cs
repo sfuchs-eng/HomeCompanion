@@ -5,13 +5,13 @@ namespace HomeCompanion.Integrations.OpenHab;
 /// </summary>
 public sealed class OpenHabIntegrationOptions
 {
-    public bool Enable { get; set; } = true;
-    
     /// <summary>
     /// Configuration section name.
     /// </summary>
     public const string SectionName = "OpenHAB";
 
+    public bool Enable { get; set; } = true;
+    
     /// <summary>
     /// If true, values are also initialized by matching OpenHAB item names against
     /// value property names in <see cref="IValuesContainer"/> instances.

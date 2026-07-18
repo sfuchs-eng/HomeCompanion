@@ -87,7 +87,7 @@ The implementation uses:
 `SRF.Network.Mqtt` currently exposes non-keyed `AddMqtt(configSection)` registrations. This architecture decides to extend registration in `SRF.Network.Mqtt.Hosting` with keyed/named broker support while still using `MqttBrokerConnection` and `MqttOptions`.
 
 `Integrations.Mqtt` consumes these keyed services and remains focused on value mapping, routing, and event translation.
-Because HomeCompanion core discovers exported provider types before extension registration, the per-broker MQTT providers are registered as keyed internal services and then exposed as `IConnectivityProvider` and `IHostedService` adapters.
+HomeCompanion core automatically discovers most `IConnectivityProvider` implementations, but providers that need extension-specific gating can be marked with `ManualConnectivityProviderRegistrationAttribute` and registered explicitly by the extension. MQTT uses the automatic pattern; OpenHAB now uses the manual pattern.
 
 ## 7. Value Mapping Model
 

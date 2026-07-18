@@ -112,6 +112,8 @@ public class StateInitializationManager : IStateInitializationManager
             if (Initializations[stage].Count == 0)
             {
                 Logger.LogTrace("Skipping stage {Stage} as it has no registered initialization delegates.", stage);
+                CurrentStage = stage;
+                await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(stage).ConfigureAwait(false);
                 continue;
             }
 

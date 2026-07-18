@@ -55,7 +55,6 @@ public static class HostingExtensions
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ModelProvider>());
         builder.Services.TryAddSingleton<LogicValueBinder>();
         builder.Services.TryAddSingleton<IMcpIntrospectionService, McpIntrospectionService>();
-        builder.Services.AddOpenHabConnector();
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
@@ -320,6 +319,9 @@ public static class HostingExtensions
             .SelectMany(GetExportedTypesSafe)
             .Where(t => t.IsClass && !t.IsAbstract && extensionInterface.IsAssignableFrom(t));
 
+        // Create a temporary service provider to resolve dependencies for extension constructors.
+        // ensure configuration is available for extensions that require it
+        builder.Services.AddOptions();
         using var tempProvider = builder.Services.BuildServiceProvider();
         var context = new ExtensionRegistrationContext(builder);
 
@@ -364,6 +366,7 @@ public static class HostingExtensions
     /// <remarks>
     /// Discovery is performed once at registration time against <see cref="AppDomain.CurrentDomain"/>.
     /// Any assembly loaded after this call will not be discovered automatically.
+    /// Types marked with <see cref="ManualConnectivityProviderRegistrationAttribute"/> are excluded from this automatic registration path.
     /// Each provider is registered as a singleton; the <see cref="IHostedService"/> registration forwards to the
     /// same singleton instance so the host manages the connection lifecycle.
     /// </remarks>
@@ -374,7 +377,8 @@ public static class HostingExtensions
         var providerTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic)
             .SelectMany(GetExportedTypesSafe)
-            .Where(t => t.IsClass && !t.IsAbstract && providerInterface.IsAssignableFrom(t));
+            .Where(t => t.IsClass && !t.IsAbstract && providerInterface.IsAssignableFrom(t))
+            .Where(t => t.GetCustomAttributes(typeof(ManualConnectivityProviderRegistrationAttribute), inherit: false).Length == 0);
 
         foreach (var type in providerTypes)
         {
