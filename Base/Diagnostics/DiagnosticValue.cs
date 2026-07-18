@@ -10,24 +10,29 @@ public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 {
     private readonly T value;
 
-    public DiagnosticIValue(IDiagnosable owner, string scope, T value)
+    protected DiagnosticIValue(T value)
     {
-        this.value = value;
-        Owner = owner;
-        Scope = scope;
         this.value = value;
         this.value.Changed += HandleValueChanged;
     }
 
+    public static DiagnosticIValue<T> Create(T value, IDiagnosable owner)
+    {
+        return new DiagnosticIValue<T>(value)
+        {
+            Owner = owner
+        };
+    }
+
     public required IDiagnosable Owner { get; init; }
-    public required string Scope { get; init; }
-    public required string Message { get => value?.ToString() ?? string.Empty; set => throw new NotSupportedException($"Setting the message is not supported. {nameof(DiagnosticIValue<T>)} uses the wrapped IValue's ToString() method."); }
 
     public T Value => value;
 
     public string FormattedValue => Value?.Format() ?? string.Empty;
 
     public string Name => Value?.Name ?? string.Empty;
+
+    public string? Message => Value?.Label ?? Value?.Name;
 
     IDiagnosticValue? IDiagnosticRecord.Value => new DiagnosticValue(() => FormattedValue);
 

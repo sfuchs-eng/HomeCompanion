@@ -25,6 +25,7 @@ public class CfgRoom : CfgEntity
     /// <summary>
     /// Resolves the room-level default shutter constraints from the building-level defaults.
     /// </summary>
+    [Obsolete("use Shutter.ResolveEffectiveConstraints() instead")]
     public ShutterConstraints EffectiveShutterConstraints(ShutterConstraints buildingConstraints)
     {
         var mask = BuildingConstraintsMask ?? ShutterConstraints.None;
@@ -76,12 +77,6 @@ public class CfgRoom : CfgEntity
     public RoomObjectiveProfile ObjectiveProfile { get; set; } = RoomObjectiveProfile.InheritFromThermalControl;
 
     /// <summary>
-    /// Optional room-level automation level override.
-    /// </summary>
-    [Obsolete("solve via room scnene semantics")]
-    public ShadowingAutomationLevel? AutomationLevelOverride { get; set; }
-
-    /// <summary>
     /// Optional room-level override for manual override persistence.
     /// </summary>
     public bool? PersistManualOverride { get; set; }
@@ -112,12 +107,6 @@ public class CfgRoom : CfgEntity
     /// Shutter positions and slat angles can be defined in the building special overall, but can be overridden at room level.
     /// </summary>
     public Dictionary<byte, CfgRoomSceneShutterPreset> SceneShutterPresets { get; set; } = [];
-
-    /// <summary>
-    /// Optional objective-selector input rules for future IValue-driven objective adaptation.
-    /// </summary>
-    [Obsolete("to be reconsidered")]
-    public Dictionary<string, CfgObjectiveSelectorInput> ObjectiveSelectorInputs { get; set; } = [];
 
     /// <summary>
     /// Cron-style schedule transitions for room-scoped shutter scene changes.

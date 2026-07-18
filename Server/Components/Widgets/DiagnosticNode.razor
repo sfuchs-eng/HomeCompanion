@@ -14,15 +14,15 @@
             {
                 <table class="table table-sm" style="margin: 10px 0; border: 1px solid #ddd;">
                     <thead>
-                        <tr><th>Record</th><th>Message</th><th>Value</th></tr>
+                        <tr><th>Name</th><th>Message</th><th>Value</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var record in Node.Records)
                         {
                             <tr>
                                 <td>@record.Name</td>
-                                <td>@record.Message</td>
-                                <td>@record.Value?.FormattedValue</td>
+                                <td>@(record.Message ?? string.Empty)</td>
+                                <td>@(record.Value?.FormattedValue ?? string.Empty)</td>
                             </tr>
                         }
                     </tbody>

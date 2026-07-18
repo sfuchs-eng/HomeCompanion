@@ -370,10 +370,10 @@ public class RoomRuntime : RuntimeBase, IDisposable
     {
         var node = DiagnosticResultNode.Create(Name);
         node.Records = [
-            new DiagnosticRecord("RoomKey", RoomKey.Key),
-            new DiagnosticRecord("LastSceneCommanded", LastSceneCommanded.ToString()),
-            new DiagnosticRecord("IsRoomTemperatureAboveAutoShadowThreshold", IsRoomTemperatureAboveAutoShadowThreshold.ToString()),
-            new DiagnosticRecord("FilteredRoomTemperature", FilteredRoomTemperature.ToString("F1"))
+            RoomKey.Key.AsDiagnosticRecord("RoomKey"),
+            LastSceneCommanded.AsDiagnosticRecord("LastSceneCommanded"),
+            IsRoomTemperatureAboveAutoShadowThreshold.AsDiagnosticRecord("IsRoomTemperatureAboveAutoShadowThreshold"),
+            FilteredRoomTemperature.AsDiagnosticRecord("FilteredRoomTemperature", "Filtered room temperature in °C, throttled to max 15 min and with hysteresis of 0.2°C."),
         ];
         var tasks = new Task<IDiagnosticResultNode>[]
         {

@@ -75,6 +75,12 @@ public class RoomSceneConditionsAssessor
 
     internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
     {
-        return DiagnosticResultNode.Create(nameof(RoomSceneConditionsAssessor), "Not implemented yet: capture previous computation or run life upon diag request?");
+        var node = DiagnosticResultNode.Create(nameof(RoomSceneConditionsAssessor));
+        node.Records = [
+            roomContext.Room.Configuration.ObjectiveProfile.AsDiagnosticRecord("Configured RoomObjectiveProfile", "The room objective profile as configured for the room, which may be inherited from the building thermal control mode."),
+            ResolveCurrentRoomObjectiveProfile().AsDiagnosticRecord("CurrentRoomObjectiveProfile", "The current room objective profile, which may be inherited from the building thermal control mode."),
+            ResolvePreferredAutomationSceneForRoomObjectiveProfile(ResolveCurrentRoomObjectiveProfile()).AsDiagnosticRecord("PreferredAutomationScene", "The preferred automation scene for the current room objective profile.")
+        ];
+        return node;
     }
 }

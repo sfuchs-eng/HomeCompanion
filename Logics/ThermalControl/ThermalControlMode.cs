@@ -1,6 +1,6 @@
 ﻿namespace HomeCompanion.Logics.ThermalControl;
 
-public enum ThermalControlMode
+public enum ThermalControlMode : byte
 {
     /// <summary>
     /// Not initialized. Determine appropriate status and set it.
@@ -9,7 +9,7 @@ public enum ThermalControlMode
 
     /// <summary>
     /// It's really cold.
-    /// Heat, use all sources to heat the house - e.g. no auto-shadowning
+    /// Heat, use all sources to heat the house - e.g. no auto-shadowing
     /// </summary>
     Winter = 10,
 
@@ -36,19 +36,28 @@ public enum ThermalControlMode
     /// Do everything possible to keep the house as cool as possible
     /// </summary>
     HeatProtect = 40,
+
+    InternalConversionFailure = 100,
 }
 
 public static class ThermalControlModeExtensions
 {
     public static ThermalControlMode TryGetThermalControlMode(this IValue<byte>? value)
     {
-        if (value == null)
-            return ThermalControlMode.Undefined;
+        try
+        {
+            if (value == null)
+                return ThermalControlMode.Undefined;
 
-        var modeByte = value.Value;
-        if (!Enum.IsDefined(typeof(ThermalControlMode), modeByte))
-            return ThermalControlMode.Undefined;
+            var modeByte = value.Value;
+            if (!Enum.IsDefined(typeof(ThermalControlMode), modeByte))
+                return ThermalControlMode.Undefined;
 
-        return (ThermalControlMode)modeByte;
+            return (ThermalControlMode)modeByte;
+        }
+        catch
+        {
+            return ThermalControlMode.InternalConversionFailure;
+        }
     }
 }

@@ -45,7 +45,7 @@ public interface IDiagnosable : IDiagnosticEntity
 /// </summary>
 public interface IDiagnosticRecord : IDiagnosticEntity
 {
-    string Message { get; }
+    string? Message { get; }
     IDiagnosticValue? Value { get; }
 }
 
