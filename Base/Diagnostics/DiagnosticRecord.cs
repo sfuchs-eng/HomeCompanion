@@ -76,6 +76,11 @@ public static class DiagnosticRecordExtensions
         return new DiagnosticRecord(name, new DiagnosticValue(() => value.ToString() ?? ""), explanation);
     }
 
+    public static DiagnosticRecord AsDiagnosticRecord<T>(this T value, string name, Func<T, string>? formatter, string? explanation = null)
+    {
+        return new DiagnosticRecord(name, new DiagnosticValue(() => formatter?.Invoke(value) ?? value?.ToString() ?? ""), explanation);
+    }
+
     public static DiagnosticRecord AsDiagnosticRecord(this object value, string name, string? explanation = null)
     {
         return new DiagnosticRecord(name, value, explanation);

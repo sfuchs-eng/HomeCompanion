@@ -8,7 +8,7 @@ Scratchpad, don't take this all for granted.
 
 ### Priority 1 — Shutter automation logic
 
-Unit tests passing. Scan again for "NotImplemented" and "Not yet implemented" markers in the code base to identify missing pieces.
+Unit tests passing. Scan again for "NotImplemented" and "Not yet implemented" as well as FIXME and TODO markers in the code base to identify missing pieces.
 Then prep for hot trials on life system.
 
 ### Port existing functionality from the old HomeCompanion solution into the one at hand

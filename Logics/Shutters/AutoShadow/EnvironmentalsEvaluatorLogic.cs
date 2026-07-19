@@ -1,6 +1,7 @@
 using System.Reactive.Linq;
 using HomeCompanion.Base.SignalProcessing;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -74,7 +75,7 @@ public interface IEnvironmentalsProvider
 /// It is responsible to ensure that shutter target evaluation logic is not called too often, e.g. by providing a minimum time interval between evaluations, yet whenever appropriate it is triggered.
 /// </summary>
 /// <typeparam name="EnvironmentalsEvaluatorLogic"></typeparam>
-public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, IDisposable
+public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, IDisposable, IDiagnosable
 {
     private readonly IModelProvider modelProvider;
     private readonly TimeProvider timeProvider;
@@ -127,6 +128,23 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
     TimeSpan temperatureAveragingWindow = TimeSpan.FromMinutes(15);
     float temperatureHysteresis = 0.5f;
+
+    protected override Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        var node = parentNode.AddChild("EnvironmentalsEvaluatorLogic");
+        node.Records = [
+            OutdoorTemperature.AsDiagnosticRecord("OutdoorTemperature", (v) => $"{v:F1} °C"),
+            SunIntensityPU.AsDiagnosticRecord("SunIntensityPU", (v) => $"{v:F3} p.u."),
+            SunIntensityAboveThreshold.AsDiagnosticRecord("SunIntensityAboveThreshold", (v) => v.ToString()),
+            UvIntensityPU.AsDiagnosticRecord("UvIntensityPU", (v) => $"{v:F3} p.u."),
+            UvIntensityAboveThreshold.AsDiagnosticRecord("UvIntensityAboveThreshold", (v) => v.ToString()),
+            SunPosition.AsDiagnosticRecord("SunPosition", (v) => v.ToString()),
+            IsSunAboveHorizon.AsDiagnosticRecord("IsSunAboveHorizon", (v) => v.ToString()),
+            EnergyBalancePU24hActual.AsDiagnosticRecord("EnergyBalancePU24hActual", (v) => $"{v:F3} p.u."),
+            CautiousShadowingEnergyBalanceLimitExceeded.AsDiagnosticRecord("CautiousShadowingEnergyBalanceLimitExceeded", (v) => v.ToString())
+        ];
+        return Task.FromResult(node);
+    }
 
     List<IDisposable> subscriptions = [];
 

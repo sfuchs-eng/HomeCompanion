@@ -20,6 +20,8 @@ public class RoomSceneConditionsAssessor
     protected readonly RoomContext roomContext;
     protected readonly ILogger<RoomSceneConditionsAssessor> logger;
 
+    protected string _lastRoomObjectiveProfileDecisionMessage = string.Empty;
+
     public RoomSceneConditionsAssessor(RoomContext roomContext, ILogger<RoomSceneConditionsAssessor> logger)
     {
         this.roomContext = roomContext;
@@ -28,6 +30,7 @@ public class RoomSceneConditionsAssessor
 
     public virtual RoomObjectiveProfile ResolveCurrentRoomObjectiveProfile()
     {
+        _lastRoomObjectiveProfileDecisionMessage = $"Room '{roomContext.Room.Name}' has configured RoomObjectiveProfile '{roomContext.Room.Configuration.ObjectiveProfile}'";
         return roomContext.Room.Configuration.ObjectiveProfile switch
         {
             RoomObjectiveProfile.InheritFromThermalControl => ResolveRoomThermalControlModeObjectiveProfile(),
@@ -46,10 +49,11 @@ public class RoomSceneConditionsAssessor
         if (buildingThermalControlMode == ThermalControl.ThermalControlMode.Undefined)
         {
             // building is not defined, revert back to room-level default.
+            _lastRoomObjectiveProfileDecisionMessage = $"Room '{roomContext.Room.Name}' has configured RoomObjectiveProfile '{roomContext.Room.Configuration.ObjectiveProfile}', but building thermal control mode is undefined, so using room-level configuration.";
             return roomContext.Room.Configuration.ObjectiveProfile;
         }
 
-        return buildingThermalControlMode switch
+        var ret = buildingThermalControlMode switch
         {
             ThermalControl.ThermalControlMode.Cooling => RoomObjectiveProfile.BalancedDefault,
             ThermalControl.ThermalControlMode.HeatProtect => RoomObjectiveProfile.ThermalPriority,
@@ -58,11 +62,15 @@ public class RoomSceneConditionsAssessor
             ThermalControl.ThermalControlMode.Winter => RoomObjectiveProfile.DaylightPriority,
             _ => RoomObjectiveProfile.BalancedDefault
         };
+        _lastRoomObjectiveProfileDecisionMessage = $"Room '{roomContext.Room.Name}' has configured RoomObjectiveProfile '{roomContext.Room.Configuration.ObjectiveProfile}', but building thermal control mode is '{buildingThermalControlMode}', so using resolved RoomObjectiveProfile '{ret}'.";
+        return ret;
     }
+
+    protected string _lastPreferredAutomationSceneDecisionMessage = string.Empty;
 
     public virtual RoomShutterScene ResolvePreferredAutomationSceneForRoomObjectiveProfile(RoomObjectiveProfile roomObjectiveProfile, bool presence = false)
     {
-        return roomObjectiveProfile switch
+        var ret = roomObjectiveProfile switch
         {
             RoomObjectiveProfile.DaylightPriority => presence ? RoomShutterScene.AutoReopen : RoomShutterScene.AutoNoReopen,
             RoomObjectiveProfile.ThermalPriority => RoomShutterScene.AutoNoReopen,
@@ -71,6 +79,8 @@ public class RoomSceneConditionsAssessor
             RoomObjectiveProfile.NoisePrevention => RoomShutterScene.Deactivated,
             _ => RoomShutterScene.AutoReopen
         };
+        _lastPreferredAutomationSceneDecisionMessage = $"Room '{roomContext.Room.Name}' has RoomObjectiveProfile '{roomObjectiveProfile}', resolving to preferred automation scene '{ret}'.";
+        return ret;
     }
 
     internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
@@ -79,7 +89,9 @@ public class RoomSceneConditionsAssessor
         node.Records = [
             roomContext.Room.Configuration.ObjectiveProfile.AsDiagnosticRecord("Configured RoomObjectiveProfile", "The room objective profile as configured for the room, which may be inherited from the building thermal control mode."),
             ResolveCurrentRoomObjectiveProfile().AsDiagnosticRecord("CurrentRoomObjectiveProfile", "The current room objective profile, which may be inherited from the building thermal control mode."),
-            ResolvePreferredAutomationSceneForRoomObjectiveProfile(ResolveCurrentRoomObjectiveProfile()).AsDiagnosticRecord("PreferredAutomationScene", "The preferred automation scene for the current room objective profile.")
+            ResolvePreferredAutomationSceneForRoomObjectiveProfile(ResolveCurrentRoomObjectiveProfile()).AsDiagnosticRecord("PreferredAutomationScene", "The preferred automation scene for the current room objective profile."),
+            _lastRoomObjectiveProfileDecisionMessage.AsDiagnosticRecord("RoomObjectiveProfileDecisionMessage", "The decision message for the current room objective profile."),
+            _lastPreferredAutomationSceneDecisionMessage.AsDiagnosticRecord("PreferredAutomationSceneDecisionMessage", "The decision message for the preferred automation scene.")
         ];
         return node;
     }
