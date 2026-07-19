@@ -14,15 +14,19 @@
             {
                 <table class="table table-sm" style="margin: 10px 0; border: 1px solid #ddd;">
                     <thead>
-                        <tr><th>Name</th><th>Message</th><th>Value</th></tr>
+                        <tr>
+                            <th>Name&nbsp;<span style="margin-left: 10px; font-weight: normal; cursor: pointer;" @onclick="StateHasChanged">🔄</span></th>
+                            <th>Value</th>
+                            <th>Explanation</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @foreach (var record in Node.Records)
                         {
                             <tr>
                                 <td>@record.Name</td>
-                                <td>@(record.Message ?? string.Empty)</td>
                                 <td>@(record.Value?.FormattedValue ?? string.Empty)</td>
+                                <td><span class="text-muted">@(record.Explanation ?? string.Empty)</span></td>
                             </tr>
                         }
                     </tbody>

@@ -5,17 +5,22 @@ namespace HomeCompanion.Diagnostics;
 
 public class DiagnosticRecord : IDiagnosticRecord
 {
-    public DiagnosticRecord(string name, string? message, IDiagnosticValue? value = null)
+    public DiagnosticRecord(string name, IDiagnosticValue? value = null, string? explanation = null)
     {
         Name = name;
-        Message = message;
+        if ( value is null && explanation is not null)
+        {
+            value = new DiagnosticValue(() => explanation);
+            explanation = null;
+        }
+        Explanation = explanation;
         Value = value;
     }
 
-    public DiagnosticRecord(string name, string? message, object? value)
+    public DiagnosticRecord(string name, object? value, string? explanation = null)
     {
         Name = name;
-        Message = message;
+        Explanation = explanation;
         Value = value is null ? new DiagnosticValueWrapper("<null>") : new DiagnosticValueWrapper(value);
     }
 
@@ -53,7 +58,7 @@ public class DiagnosticRecord : IDiagnosticRecord
 
     public virtual string Name { get; init; }
 
-    public virtual string? Message { get; init; }
+    public virtual string? Explanation { get; init; }
 
     public virtual IDiagnosticValue? Value { get; init; }
 }
@@ -66,13 +71,13 @@ public static class DiagnosticRecordExtensions
         return DiagnosticIValue<T>.Create(value, owner);
     }
 
-    public static DiagnosticRecord AsDiagnosticRecord<T>(this T value, string name, string? message = null) where T : Enum
+    public static DiagnosticRecord AsDiagnosticRecord<T>(this T value, string name, string? explanation = null) where T : Enum
     {
-        return new DiagnosticRecord(name, message, new DiagnosticValue(() => value.ToString() ?? ""));
+        return new DiagnosticRecord(name, new DiagnosticValue(() => value.ToString() ?? ""), explanation);
     }
 
-    public static DiagnosticRecord AsDiagnosticRecord(this object value, string name, string? message = null)
+    public static DiagnosticRecord AsDiagnosticRecord(this object value, string name, string? explanation = null)
     {
-        return new DiagnosticRecord(name, message, value);
+        return new DiagnosticRecord(name, value, explanation);
     }
 }

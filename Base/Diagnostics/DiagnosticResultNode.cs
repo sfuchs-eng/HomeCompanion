@@ -56,12 +56,18 @@ public class DiagnosticResultNode : IDiagnosticResultNode
     /// Creates and adds a diagnostic record to the current node and returns the node (not the new record).
     /// </summary>
     /// <param name="name"></param>
-    /// <param name="message"></param>
+    /// <param name="explanation"></param>
     /// <param name="value"></param>
     /// <returns>The current node (not the new record).</returns>
-    public DiagnosticResultNode AddRecord(string name, string message, IDiagnosticValue? value = null)
+    public DiagnosticResultNode AddRecord(string name, IDiagnosticValue? value = null, string? explanation = null)
     {
-        Records.Add(new DiagnosticRecord(name, message, value));
+        Records.Add(new DiagnosticRecord(name, value, explanation));
+        return this;
+    }
+
+    public DiagnosticResultNode AddRecord(string name, string? message, string? explanation = null)
+    {
+        Records.Add(new DiagnosticRecord(name, message, explanation));
         return this;
     }
 }

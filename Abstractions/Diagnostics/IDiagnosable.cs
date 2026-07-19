@@ -45,7 +45,7 @@ public interface IDiagnosable : IDiagnosticEntity
 /// </summary>
 public interface IDiagnosticRecord : IDiagnosticEntity
 {
-    string? Message { get; }
+    string? Explanation { get; }
     IDiagnosticValue? Value { get; }
 }
 
@@ -55,7 +55,7 @@ public interface IDiagnosticValue
 }
 
 /// <summary>
-/// A dynamic diagnostic record may update it's <see cref="IDiagnosticRecord.Message"/> over time, and will notify subscribers of changes via the <see cref="Changed"/> event.
+/// A dynamic diagnostic record may update it's <see cref="IDiagnosticRecord.Explanation"/> over time, and will notify subscribers of changes via the <see cref="Changed"/> event.
 /// </summary>
 public interface IDynamicDiagnosticRecord : IDiagnosticRecord
 {

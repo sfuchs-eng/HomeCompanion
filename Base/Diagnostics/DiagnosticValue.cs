@@ -32,7 +32,7 @@ public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 
     public string Name => Value?.Name ?? string.Empty;
 
-    public string? Message => Value?.Label ?? Value?.Name;
+    public string? Explanation => $"{Value.GetType().Name} {Value?.Label ?? Value?.Name}";
 
     IDiagnosticValue? IDiagnosticRecord.Value => new DiagnosticValue(() => FormattedValue);
 
