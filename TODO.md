@@ -18,7 +18,7 @@ Then prep for hot trials on life system.
 - [x] e-Mail notifications
 - [x] generic alerting/notification framework
 - [x] port from legacy: Spheric vector
-- [ ] port from legacy: piece wise linear curves classes
+- [x] port from legacy: piece wise linear curves classes
 
 ### Furthermore
 
