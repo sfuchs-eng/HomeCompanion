@@ -1,3 +1,4 @@
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.MotorizedWindow;
@@ -7,10 +8,15 @@ internal class MotorizedWindow
     public ThreeWireControl? WindowControl { get; set; }
     public ThreeWireControl? ShutterControl { get; set; }
 
+    private readonly MotorizedWindowSpecial model;
+
+    public string Name => model.Name;
+
     ILogger<MotorizedWindow> Logger { get; }
 
     public MotorizedWindow(MotorizedWindowSpecial model, ILoggerFactory loggerFactory) : base()
     {
+        this.model = model;
         Logger = loggerFactory.CreateLogger<MotorizedWindow>();
 
         if ( !model.Config.Enable )
@@ -59,5 +65,24 @@ internal class MotorizedWindow
         }
         await WindowControl.StartAsync(cancellationToken);
         await ShutterControl.StartAsync(cancellationToken);
+    }
+
+    internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        var node = DiagnosticResultNode.Create($"MotorizedWindow {Name}");
+
+        node.Records.Add(model.Configuration.Enable.AsDiagnosticRecord("Enable"));
+        node.Records.Add(new DiagnosticRecord("WindowControl", WindowControl != null ? "Initialized" : "Not initialized"));
+        node.Records.Add(new DiagnosticRecord("ShutterControl", ShutterControl != null ? "Initialized" : "Not initialized"));
+
+        if (WindowControl != null)
+        {
+            node.Children.Add(await WindowControl.GetDiagnosisAsync(cancellationToken));
+        }
+        if ( ShutterControl != null )
+        {
+            node.Children.Add(await ShutterControl.GetDiagnosisAsync(cancellationToken));
+        }
+        return node;
     }
 }

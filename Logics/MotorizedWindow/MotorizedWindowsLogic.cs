@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Model;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ public class MotorizedWindowsLogic(
     IEventSubscriber subscriber,
     ILoggerFactory loggerFactory,
     ILogger<MotorizedWindowsLogic> logger
-) : LogicBase(publisher, subscriber)
+) : LogicBase(publisher, subscriber), IDiagnosable
 {
     private readonly MotorizedWindowsOptions options = options.Value;
     private readonly ILoggerFactory loggerFactory = loggerFactory;
@@ -36,14 +37,12 @@ public class MotorizedWindowsLogic(
         // we should already be in a life-cycle state that allows to initialize the logic when this here is called.
 
         // Load all configured windows and their special configurations.
-        windows = modelProvider.GetModel().Specials
-            .Where(s => s.Value is MotorizedWindowSpecial)
-            .Select(s => new { Name = s.Key, Special = s.Value as MotorizedWindowSpecial })
-            .Where(s => s.Special != null)
+        windows = modelProvider.GetModel().GetAllSpecialsByName<MotorizedWindowSpecial>()
+            .Select(s => new { Name = s.Key, Special = s.Value })
             .ToDictionary(
                 s => s.Name,
                 s => new MotorizedWindow(
-                    s.Special!,
+                    s.Special,
                     loggerFactory
                 ));
 
@@ -53,6 +52,26 @@ public class MotorizedWindowsLogic(
         }
 
         await Task.CompletedTask;
+    }
+
+    public override async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        var rootNode = DiagnosticResultNode.Create("MotorizedWindowsLogic");
+
+        var model = modelProvider.GetModel();
+
+
+        if (windows.Count == 0)
+        {
+            rootNode.AddRecord("No motorized windows configured.");
+            return rootNode;
+        }
+        
+        foreach (var window in windows)
+        {
+            rootNode.Children.Add(await window.Value.GetDiagnosisAsync(cancellationToken));
+        }
+        return rootNode;
     }
 }
 

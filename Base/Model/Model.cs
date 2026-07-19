@@ -30,6 +30,31 @@ public class Model : ModelEntityWithConfig<CfgModel>
     {
         return Buildings.Values.SelectMany(b => b.Specials.Values.OfType<T>()).Concat(Specials.Values.OfType<T>());
     }
+
+    public IReadOnlyDictionary<string, T> GetAllSpecialsByName<T>() where T : ISpecial
+    {
+        var specials = new Dictionary<string, T>();
+        foreach (var building in Buildings.Values)
+        {
+            foreach (var special in building.Specials.Values.OfType<T>())
+            {
+                if ( specials.ContainsKey(special.Name) )
+                {
+                    throw new InvalidOperationException($"Duplicate special name '{special.Name}' found in building '{building.Name}'. Special names must be unique across the entire model.");
+                }
+                specials[special.Name] = special;
+            }
+        }
+        foreach (var special in Specials.Values.OfType<T>())
+        {
+            if ( specials.ContainsKey(special.Name) )
+            {
+                throw new InvalidOperationException($"Duplicate special name '{special.Name}' found in model root. Special names must be unique across the entire model.");
+            }
+            specials[special.Name] = special;
+        }
+        return specials;
+    }
 }
 
 /// <summary>

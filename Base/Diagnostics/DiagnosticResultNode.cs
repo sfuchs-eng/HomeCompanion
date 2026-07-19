@@ -61,6 +61,12 @@ public class DiagnosticResultNode : IDiagnosticResultNode
     /// <returns>The current node (not the new record).</returns>
     public DiagnosticResultNode AddRecord(string name, IDiagnosticValue? value = null, string? explanation = null)
     {
+        if ( value == null )
+        {
+            // expecting a simple message
+            Records.Add(new DiagnosticRecord("Message", name, explanation));
+            return this;
+        }
         Records.Add(new DiagnosticRecord(name, value, explanation));
         return this;
     }

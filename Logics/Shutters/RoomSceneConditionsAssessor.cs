@@ -70,16 +70,21 @@ public class RoomSceneConditionsAssessor
 
     public virtual RoomShutterScene ResolvePreferredAutomationSceneForRoomObjectiveProfile(RoomObjectiveProfile roomObjectiveProfile, bool presence = false)
     {
+        var constraints = roomContext.Room.ResolveRoomShutterSceneConstraints(roomContext.Building);
+        var roomPreferenceAutoMode =
+            presence ? RoomShutterScene.AutoNoReopen : (
+                constraints.HasFlag(ShutterConstraints.LeaveClosed) ? RoomShutterScene.AutoNoReopen : RoomShutterScene.AutoReopen
+            );
         var ret = roomObjectiveProfile switch
         {
-            RoomObjectiveProfile.DaylightPriority => presence ? RoomShutterScene.AutoReopen : RoomShutterScene.AutoNoReopen,
-            RoomObjectiveProfile.ThermalPriority => RoomShutterScene.AutoNoReopen,
-            RoomObjectiveProfile.BalancedDefault => presence ? RoomShutterScene.AutoReopen : RoomShutterScene.AutoNoReopen,
+            RoomObjectiveProfile.DaylightPriority => roomPreferenceAutoMode,
+            RoomObjectiveProfile.ThermalPriority => roomPreferenceAutoMode,
+            RoomObjectiveProfile.BalancedDefault => roomPreferenceAutoMode,
             RoomObjectiveProfile.NightClosure => RoomShutterScene.HardClosed,
             RoomObjectiveProfile.NoisePrevention => RoomShutterScene.Deactivated,
             _ => RoomShutterScene.AutoReopen
         };
-        _lastPreferredAutomationSceneDecisionMessage = $"Room '{roomContext.Room.Name}' has RoomObjectiveProfile '{roomObjectiveProfile}', resolving to preferred automation scene '{ret}'.";
+        _lastPreferredAutomationSceneDecisionMessage = $"Room '{roomContext.Room.Name}' has RoomObjectiveProfile '{roomObjectiveProfile}', resolved to room shutter scene '{ret}'.";
         return ret;
     }
 

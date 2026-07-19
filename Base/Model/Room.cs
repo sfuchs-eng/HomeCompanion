@@ -162,4 +162,12 @@ public class Room : ModelEntity, IConfigBackedModelEntity
             return roomTemperature;
         return Configuration.DefaultRoomTemperature;
     }
+
+    public ShutterConstraints ResolveRoomShutterSceneConstraints(Building building)
+    {
+        var buildingConstraints = building.TryGetShadowingSpecial(out var shadowingSpecial) ? shadowingSpecial.Configuration.DefaultShutterConstraints : ShutterConstraints.None;
+        var roomConstraints = Configuration.ShutterConstraints;
+        var mask = Configuration.BuildingConstraintsMask ?? ShutterConstraints.None;
+        return (buildingConstraints & ~mask) | roomConstraints;
+    }
 }

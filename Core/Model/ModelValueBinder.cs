@@ -145,7 +145,7 @@ public sealed class ModelValueBinder(
 
             targetProperty.SetValue(entity, value);
 
-            _logger.LogInformation(
+            _logger.LogTrace(
                 "Bound model value at {ModelPath}. Target={Target}, SourceProperty={SourceProperty}, Reference={Reference}.",
                 path,
                 $"{entityType.Name}.{targetProperty.Name}",

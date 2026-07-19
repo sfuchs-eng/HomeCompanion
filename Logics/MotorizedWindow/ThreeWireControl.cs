@@ -1,3 +1,4 @@
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.MotorizedWindow;
@@ -257,6 +258,21 @@ internal class ThreeWireControl(
             await Task.Delay(500, cancellationToken); // check every 500ms
         }
         return false; // operation was cancelled
+    }
+
+    public async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        var node = DiagnosticResultNode.Create(context.Name);
+        node.Records = [
+            state.AsDiagnosticRecord("State"),
+            _forceOpenRequested.AsDiagnosticRecord("ForceOpenRequested"),
+            context.PositionRequest.AsDiagnosticRecord("PositionRequest"),
+            context.PositionStatus.AsDiagnosticRecord("PositionStatus"),
+            context.CloseCommand.AsDiagnosticRecord("CloseCommand"),
+            context.OpenCommand.AsDiagnosticRecord("OpenCommand"),
+            context.CommandAcknowledgment.AsDiagnosticRecord("CommandAcknowledgment")
+        ];
+        return node;
     }
 }
 
