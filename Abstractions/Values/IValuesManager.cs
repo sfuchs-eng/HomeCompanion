@@ -14,6 +14,7 @@ namespace HomeCompanion.Values;
 /// <see cref="IValue"/> instances register themselves with the manager via <see cref="RegisterValue"/> during their <see cref="IValue.Initialize"/> call,
 /// typically initiated by a connectivity provider during value discovery.
 /// </para>
+/// <para>See <see cref="IValueProvider"/> for an interface that supports finding/retrieving particular values by their <see cref="IValue.Id"/>.</para>
 /// </remarks>
 public interface IValuesManager
 {
