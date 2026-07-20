@@ -12,12 +12,12 @@ namespace HomeCompanion.Logics;
 /// </remarks>
 public abstract class LogicBase : ILogic
 {
-    private readonly IEventSubscriber _subscriber;
-
-    public virtual string Name => $"Logic {GetType().Name}";
+    protected IEventSubscriber Subscriber { get; }
 
     /// <summary>The event publisher for dispatching events onto the event bus.</summary>
     protected IEventPublisher Publisher { get; }
+
+    public virtual string Name => $"Logic {GetType().Name}";
 
     /// <summary>
     /// Initializes the logic with the required event bus services.
@@ -25,14 +25,14 @@ public abstract class LogicBase : ILogic
     protected LogicBase(IEventPublisher publisher, IEventSubscriber subscriber)
     {
         Publisher = publisher;
-        _subscriber = subscriber;
+        Subscriber = subscriber;
     }
 
     /// <summary>
     /// Registers <paramref name="handler"/> to receive events of type <typeparamref name="T"/> from the event bus.
     /// </summary>
     protected void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
-        => _subscriber.Subscribe(handler);
+        => Subscriber.Subscribe(handler);
 
     // Semaphore to ensure that InitializeAsyncLatched is only called once, even if InitializeAsync is called multiple times.
     private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);

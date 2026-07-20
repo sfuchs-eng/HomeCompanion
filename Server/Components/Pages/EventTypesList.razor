@@ -1,0 +1,39 @@
+@page "/event-types-list"
+@rendermode InteractiveServer
+
+@using System.Reflection
+
+<PageTitle>Event Types List</PageTitle>
+
+<h1>Event Types List</h1>
+
+<ul>
+@foreach (var eventType in _eventTypes)
+{
+    <li>@eventType</li>
+}
+</ul>
+
+@code {
+
+    private List<string> _eventTypes = new();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        var eventType = typeof(HomeCompanion.Events.IEvent);
+        // query all loaded assemblies for types that implement the IEvent interface
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        var eventTypes = assemblies.SelectMany(a => a.GetTypes())
+            .Where(t => eventType.IsAssignableFrom(t) && !t.IsAbstract)
+            .Select(t => t.Name)
+            .OrderBy(name => name)
+            .ToList();
+
+        if (eventTypes is not null)
+        {
+            _eventTypes = eventTypes;
+        }
+    }
+}

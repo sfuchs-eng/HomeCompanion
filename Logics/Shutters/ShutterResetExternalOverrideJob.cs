@@ -29,6 +29,7 @@ public class ShutterResetExternalOverrideJob(
     /// <summary>
     /// Provide the shutter key in the JobDataMap with the key "ShutterKey" to specify which shutter's external override should be reset.
     /// </summary>
+    [Obsolete("Use typeof(...).GetJobKeyFromType() directly instead.")]
     public static JobKey GetJobKey()
     {
         return typeof(ShutterResetExternalOverrideJob).GetJobKeyFromType()

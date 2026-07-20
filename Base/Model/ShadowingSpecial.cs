@@ -389,5 +389,25 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
         }
     }
 
+    public bool TrySetSunPosition(SphericVector sunPosition, out Exception? ex)
+    {
+        ex = null;
+        if ( SunPositionAzimuth is not null && SunPositionElevation is not null)
+        {
+            try
+            {
+                var (Azimuth, Elevation) = sunPosition.ToDegreesPair();
+                var succAzi = SunPositionAzimuth.TryWriteNumeric(Azimuth);
+                var succElev = SunPositionElevation.TryWriteNumeric(Elevation);
+                return succAzi && succElev;
+            }
+            catch (Exception e)
+            {
+                ex = e;
+                return false;
+            }
+        }
+        return false;
+    }
     #endregion
 }
