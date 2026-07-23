@@ -1,4 +1,5 @@
 using HomeCompanion.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics;
 
@@ -10,29 +11,14 @@ namespace HomeCompanion.Logics;
 /// <para>Use <see cref="Publisher"/> to publish events.</para>
 /// <para>Inherit <see cref="IDiagnosable"/> in deriving classes and override <see cref="PopulateDiagnosticResultsAsync"/> to provide diagnostic information about the logic module.</para>
 /// </remarks>
-public abstract class LogicBase : ILogic
+/// <remarks>
+/// Initializes the logic with the required event bus services.
+/// </remarks>
+public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
 {
-    protected IEventSubscriber Subscriber { get; }
-
-    /// <summary>The event publisher for dispatching events onto the event bus.</summary>
-    protected IEventPublisher Publisher { get; }
-
     public virtual string Name => $"Logic {GetType().Name}";
 
-    /// <summary>
-    /// Initializes the logic with the required event bus services.
-    /// </summary>
-    protected LogicBase(IEventPublisher publisher, IEventSubscriber subscriber)
-    {
-        Publisher = publisher;
-        Subscriber = subscriber;
-    }
-
-    /// <summary>
-    /// Registers <paramref name="handler"/> to receive events of type <typeparamref name="T"/> from the event bus.
-    /// </summary>
-    protected void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
-        => Subscriber.Subscribe(handler);
+    protected ILogger<ILogic> Logger { get; } = logicLogger;
 
     // Semaphore to ensure that InitializeAsyncLatched is only called once, even if InitializeAsync is called multiple times.
     private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
@@ -48,20 +34,32 @@ public abstract class LogicBase : ILogic
     /// <returns></returns>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        await _initializationSemaphore.WaitAsync(cancellationToken);
         try
         {
-            if (_isInitialized)
-                return;
+            await _initializationSemaphore.WaitAsync(cancellationToken);
+            try
+            {
+                if (_isInitialized)
+                    return;
 
-            await InitializeAsyncLatched(cancellationToken);
-            _isInitialized = true;
+                await InitializeAsyncLatched(cancellationToken);
+                _isInitialized = true;
+            }
+            catch
+            {
+                throw;
+            }
+            finally
+            {
+                _initializationSemaphore.Release();
+            }
+            await EnableAsync(cancellationToken);
         }
-        finally
+        catch (Exception ex)
         {
-            _initializationSemaphore.Release();
+            OnActivationFailed(ex);
+            throw;
         }
-        await EnableAsync(cancellationToken);
     }
     
     /// <summary>
@@ -74,6 +72,8 @@ public abstract class LogicBase : ILogic
     /// <inheritdoc/>
     public virtual Task EnableAsync(CancellationToken cancellationToken = default)
     {
+        if ( IsActivationFailed )
+            throw new InvalidOperationException("Cannot enable logic because activation failed.", ActivationFailedException);
         IsEnabled = true;
         return Task.CompletedTask;
     }
@@ -81,12 +81,30 @@ public abstract class LogicBase : ILogic
     /// <inheritdoc/>
     public virtual Task DisableAsync(CancellationToken cancellationToken = default)
     {
+        if (!IsEnabled)
+            return Task.CompletedTask;
         IsEnabled = false;
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
     public bool IsEnabled { get; private set; }
+
+    public bool IsActivationFailed => ActivationFailedException is not null;
+
+    /// <summary>
+    /// Should be set in case <see cref="InitializeAsyncLatched(CancellationToken)"/> or <see cref="EnableAsync(CancellationToken)"/> fail,
+    /// causing <see cref="IsEnabled"/> to remain false.
+    /// </summary>
+    /// <value></value>
+    public Exception? ActivationFailedException { get; private set; } = null;
+
+    protected void OnActivationFailed(Exception exception)
+    {
+        ActivationFailedException = exception;
+        IsEnabled = false;
+        Logger.LogError(exception, "Logic activation failed: {Message}", exception.Message);
+    }
 
     protected virtual Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
     {

@@ -20,11 +20,9 @@ namespace HomeCompanion.Logics.MotorizedWindow;
 public class MotorizedWindowsLogic(
     IOptions<MotorizedWindowsOptions> options,
     IModelProvider modelProvider,
-    IEventPublisher publisher,
-    IEventSubscriber subscriber,
     ILoggerFactory loggerFactory,
     ILogger<MotorizedWindowsLogic> logger
-) : LogicBase(publisher, subscriber), IDiagnosable
+) : LogicBase(logger), IDiagnosable
 {
     private readonly MotorizedWindowsOptions options = options.Value;
     private readonly ILoggerFactory loggerFactory = loggerFactory;

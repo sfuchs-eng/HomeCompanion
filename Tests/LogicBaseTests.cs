@@ -67,7 +67,7 @@ public class LogicBaseTests
 
         protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
         {
-            Subscribe(new DummyHandler());
+            //Subscribe(new DummyHandler());
             return Task.CompletedTask;
         }
     }

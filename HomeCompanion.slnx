@@ -27,6 +27,9 @@
   <Folder Name="/Integrations.OpenHab/">
     <Project Path="Integrations.OpenHab/HomeCompanion.Integrations.OpenHab.csproj" />
   </Folder>
+  <Folder Name="/Logics.MeteoSchweiz/">
+    <Project Path="Logics.MeteoSchweiz/HomeCompanion.Logics.MeteoSchweiz.csproj" />
+  </Folder>
   <Folder Name="/Logics/">
     <Project Path="Logics/HomeCompanion.Logics.csproj" />
   </Folder>

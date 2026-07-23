@@ -11,16 +11,17 @@ namespace HomeCompanion.Logics.Sun;
 public class SunLogic : LogicBase
 {
     private readonly ISchedulerFactory schedulerFactory;
+    private readonly IEventSubscriber subscriber;
     private readonly ILogger<SunLogic> logger;
 
     public SunLogic(
-        IEventPublisher eventPublisher,
-        IEventSubscriber eventSubscriber,
         ISchedulerFactory schedulerFactory,
+        IEventSubscriber subscriber,
         ILogger<SunLogic> logger
-    ) : base(eventPublisher, eventSubscriber)
+    ) : base(logger)
     {
         this.schedulerFactory = schedulerFactory;
+        this.subscriber = subscriber;
         this.logger = logger;
     }
 
@@ -38,7 +39,7 @@ public class SunLogic : LogicBase
         await (await schedulerFactory.GetScheduler(cancellationToken)).ScheduleJob(trigger, cancellationToken);
 
         // subscribe to the sun position update event
-        Subscriber.Subscribe<SunPositionPerBuildingUpdateEvent>(HandleSunPositionUpdateEvent);
+        subscriber.Subscribe<SunPositionPerBuildingUpdateEvent>(HandleSunPositionUpdateEvent);
     }
 
     private async ValueTask HandleSunPositionUpdateEvent(SunPositionPerBuildingUpdateEvent @event, CancellationToken cancellationToken)

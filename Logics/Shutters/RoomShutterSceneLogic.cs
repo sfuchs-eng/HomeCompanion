@@ -14,25 +14,13 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 /// <typeparam name="RoomShutterSceneLogic"></typeparam>
 public class RoomShutterSceneLogic(
-    IValueProvider valuesProvider,
-    IEventPublisher eventPublisher,
     IEventSubscriber eventSubscriber,
-    TimeProvider timeProvider,
-    IModelProvider modelProvider,
     IRuntimesProvider runtimesProvider,
-    ShadowingRuntimesController runtimesController,
-    ILoggerFactory loggerFactory,
     ILogger<RoomShutterSceneLogic> logger
-) : LogicBase(eventPublisher, eventSubscriber)
+) : LogicBase(logger)
 {
-    private readonly IValueProvider valuesProvider = valuesProvider;
-    private readonly IEventPublisher eventPublisher = eventPublisher;
     private readonly IEventSubscriber eventSubscriber = eventSubscriber;
-    private readonly TimeProvider timeProvider = timeProvider;
-    private readonly IModelProvider modelProvider = modelProvider;
     private readonly IRuntimesProvider runtimesProvider = runtimesProvider;
-    private readonly ShadowingRuntimesController runtimesController = runtimesController;
-    private readonly ILoggerFactory loggerFactory = loggerFactory;
     private readonly ILogger<RoomShutterSceneLogic> logger = logger;
 
     protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)

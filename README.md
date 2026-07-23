@@ -156,6 +156,12 @@ Use `RegisterQuartzJobAttribute.TryGetFromType<T>(out RegisterQuartzJobAttribute
 
 See example implementation in `ShutterResetExternalOverrideJob`.
 
+### Varia
+
+#### Flags Enums
+
+Use `CommaSeparatedFlagsEnumJsonConverter` for JSON serialization of flags enums as comma-separated strings instead of numeric values.
+
 ### Dependencies
 
 The application uses the following main dependencies:

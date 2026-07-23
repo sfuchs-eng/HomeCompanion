@@ -36,7 +36,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         IModelProvider modelProvider,
         ISchedulerFactory schedulerFactory,
         ILoggerFactory loggerFactory
-) : base(eventPublisher, eventSubscriber)
+) : base(loggerFactory.CreateLogger<ShadowingRuntimesController>())
     {
         //      this.valuesProvider = valuesProvider;
         //      this.eventPublisher = eventPublisher;
@@ -68,7 +68,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         IQueueFeeder<ShutterAutomationComputationTriggerContext> computationTriggerQueueFeeder,
         ISchedulerFactory schedulerFactory,
         ILoggerFactory loggerFactory
-) : base(eventPublisher, eventSubscriber)
+) : base(loggerFactory.CreateLogger<ShadowingRuntimesController>())
     {
         this.modelProvider = modelProvider;
         this.computationTriggerQueueFeeder = computationTriggerQueueFeeder;

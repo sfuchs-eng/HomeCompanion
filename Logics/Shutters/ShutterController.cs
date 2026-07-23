@@ -57,7 +57,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
         IEnvironmentalsProvider environmentalsProvider,
         ILoggerFactory loggerFactory,
         ILogger<ShutterController> logger
-        ) : base(eventPublisher, eventSubscriber)
+        ) : base(logger)
     {
         this.valuesProvider = valuesProvider;
         this.eventPublisher = eventPublisher;

@@ -1,6 +1,3 @@
-using System.Reactive.Linq;
-using HomeCompanion.Base.SignalProcessing;
-using HomeCompanion.Base.Utilities;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,11 +81,10 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
     public EnvironmentalsEvaluatorLogic(
         IEventPublisher eventPublisher,
-        IEventSubscriber eventSubscriber,
         IModelProvider modelProvider,
         TimeProvider timeProvider,
         ILogger<EnvironmentalsEvaluatorLogic> logger
-    ) : base(eventPublisher, eventSubscriber)
+    ) : base(logger)
     {
         this.eventPublisher = eventPublisher;
         this.modelProvider = modelProvider;
