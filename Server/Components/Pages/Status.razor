@@ -76,7 +76,9 @@
             <thead class="table-light">
                 <tr>
                     <th>Type</th>
+                    <th>Activated</th>
                     <th>Enabled</th>
+                    <th>Activation exception</th>
                 </tr>
             </thead>
             <tbody>
@@ -85,6 +87,16 @@
                     <tr>
                         <td><code>@logic.GetType().Name</code></td>
                         <td>
+                            @if (logic.IsActivated)
+                            {
+                                <span class="badge text-bg-success">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">No</span>
+                            }
+                        </td>
+                        <td>
                             @if (logic.IsEnabled)
                             {
                                 <span class="badge text-bg-success">Yes</span>
@@ -92,6 +104,12 @@
                             else
                             {
                                 <span class="badge text-bg-secondary">No</span>
+                            }
+                        </td>
+                        <td>
+                            @if (logic.ActivationException is not null)
+                            {
+                                <span class="text-danger">@logic.ActivationException.Message</span>
                             }
                         </td>
                     </tr>

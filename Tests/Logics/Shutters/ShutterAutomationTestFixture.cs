@@ -238,14 +238,14 @@ public partial class ShutterAutomationTestFixture(
         var schedulerFactory = new TestSchedulerFactory(timeProvider);
         var modelProvider = new StubModelProvider(model);
         //var environmentalsProvider = new StubEnvironmentalsProvider();
-        var environmentalsProvider = new EnvironmentalsEvaluatorLogic(eventPublisher, eventSubscriber, modelProvider, timeProvider, NullLoggerFactory.Instance.CreateLogger<EnvironmentalsEvaluatorLogic>());
+        var environmentalsProvider = new EnvironmentalsEvaluatorLogic(eventPublisher, modelProvider, timeProvider, NullLoggerFactory.Instance.CreateLogger<EnvironmentalsEvaluatorLogic>());
         var loggerFactory = NullLoggerFactory.Instance;
         var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, schedulerFactory, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 
         var shutterController = new ShutterController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, environmentalsProvider, loggerFactory, loggerFactory.CreateLogger<ShutterController>());
-        var roomShutterSceneLogic = new RoomShutterSceneLogic(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, loggerFactory, loggerFactory.CreateLogger<RoomShutterSceneLogic>());
+        var roomShutterSceneLogic = new RoomShutterSceneLogic(eventSubscriber, runtimesProvider, loggerFactory.CreateLogger<RoomShutterSceneLogic>());
 
         var lifeCycleManager = new StubLifeCycleManager();
         var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, loggerFactory.CreateLogger<ValuesManager>());

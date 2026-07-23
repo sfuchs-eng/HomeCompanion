@@ -3,8 +3,13 @@ using HomeCompanion.Events;
 namespace HomeCompanion.Logics;
 
 /// <summary>
-/// Intention: have some ILogic that periodically publishes a weather forecast and/or critical weather events to the system.
+/// <see cref="ILogic"/> and other consumers of weather forecast data can
+/// subscribe to <see cref="WeatherForecastEvent"/> to receive the latest forecast data.
 /// </summary>
+/// <remarks>
+/// The sender is realized by <see cref="HomeCompanion.Logics.MeteoSchweiz"/> as example for a concrete implementation
+/// of the sender of the weather forecast event.
+/// </remarks>
 public interface IWeatherForecast
 {
     public DateTimeOffset Received { get; }
@@ -25,6 +30,10 @@ public interface IWeatherForecastDay
     public double PrecipitationMax { get; }
 }
 
+/// <summary>
+/// Event published when a new weather forecast is available.
+/// See <see cref="HomeCompanion.Logics.MeteoSchweiz"/> for an example implementation.
+/// </summary>
 public class WeatherForecastEvent(IWeatherForecast forecast) : IEvent
 {
     public IWeatherForecast Forecast { get; } = forecast;

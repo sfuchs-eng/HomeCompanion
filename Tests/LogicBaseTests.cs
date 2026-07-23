@@ -1,4 +1,3 @@
-using HomeCompanion.Events;
 using HomeCompanion.Logics;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -7,37 +6,11 @@ namespace HomeCompanion.Tests;
 [TestFixture]
 public class LogicBaseTests
 {
-    // ── Stubs ─────────────────────────────────────────────────────────────────
-
-    private sealed class NullEventPublisher : IEventPublisher
-    {
-        public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
-            => ValueTask.CompletedTask;
-
-        public void Publish(IEvent @event)
-        {
-        }
-    }
-
-    private sealed class RecordingSubscriber : IEventSubscriber
-    {
-        public List<object> Handlers { get; } = [];
-
-        public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
-            => Handlers.Add(handler);
-
-        public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
-        {
-            Handlers.Add(handler);
-        }
-    }
-
     /// <summary>
     /// Minimal concrete <see cref="LogicBase"/> that counts how many times
     /// <see cref="InitializeAsyncLatched"/> is invoked.
     /// </summary>
-    private sealed class CountingLogic(IEventPublisher publisher, IEventSubscriber subscriber)
-        : LogicBase(publisher, subscriber)
+    private sealed class CountingLogic() : LogicBase(NullLogger<ILogic>.Instance)
     {
         public int InitCount { get; private set; }
 
@@ -48,43 +21,39 @@ public class LogicBaseTests
         }
     }
 
-    /// <summary>
-    /// Logic that subscribes a handler during <see cref="InitializeAsyncLatched"/>.
-    /// </summary>
-    private sealed class SubscribingLogic(IEventPublisher publisher, IEventSubscriber subscriber)
-        : LogicBase(publisher, subscriber)
+    private sealed class FaultingInitLogic(Exception activationException) : LogicBase(NullLogger<ILogic>.Instance)
     {
-        private sealed class DummyEvent : IEvent
-        {
-            public DateTimeOffset Timestamp { get; init; }
-        }
-
-        private sealed class DummyHandler : IEventHandler<DummyEvent>
-        {
-            public ValueTask HandleAsync(DummyEvent @event, CancellationToken cancellationToken = default)
-                => ValueTask.CompletedTask;
-        }
+        public Exception ActivationException { get; } = activationException;
 
         protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
         {
-            //Subscribe(new DummyHandler());
-            return Task.CompletedTask;
+            return Task.FromException(ActivationException);
         }
     }
 
-    private static (CountingLogic logic, RecordingSubscriber subscriber) CreateLogic()
+    private sealed class FaultingEnableLogic(Exception activationException) : LogicBase(NullLogger<ILogic>.Instance)
     {
-        var subscriber = new RecordingSubscriber();
-        var logic = new CountingLogic(new NullEventPublisher(), subscriber);
-        return (logic, subscriber);
+        public Exception ActivationException { get; } = activationException;
+
+        protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public override Task EnableAsync(CancellationToken cancellationToken = default)
+        {
+            throw ActivationException;
+        }
     }
+
+    private static CountingLogic CreateLogic() => new();
 
     // ── Tests: InitializeAsync latching ──────────────────────────────────────
 
     [Test]
     public async Task InitializeAsync_CallsInitializeAsyncLatchedExactlyOnce()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         await logic.InitializeAsync();
 
@@ -94,7 +63,7 @@ public class LogicBaseTests
     [Test]
     public async Task InitializeAsync_CalledTwice_InvokesLatchedOnlyOnce()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         await logic.InitializeAsync();
         await logic.InitializeAsync();
@@ -105,7 +74,7 @@ public class LogicBaseTests
     [Test]
     public async Task InitializeAsync_ConcurrentCalls_LatchedCalledOnce()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         // Fire 5 concurrent initializations
         var tasks = Enumerable.Range(0, 5)
@@ -120,7 +89,7 @@ public class LogicBaseTests
     [Test]
     public async Task InitializeAsync_ConcurrentCalls_AllTasksComplete()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         var tasks = Enumerable.Range(0, 5)
             .Select(_ => logic.InitializeAsync())
@@ -138,7 +107,7 @@ public class LogicBaseTests
     [Test]
     public async Task InitializeAsync_SetsIsEnabledToTrue()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         Assert.That(logic.IsEnabled, Is.False); // initial state
 
@@ -150,7 +119,7 @@ public class LogicBaseTests
     [Test]
     public async Task EnableAsync_SetsIsEnabledTrue()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
         await logic.DisableAsync(); // ensure starting from disabled
 
         await logic.EnableAsync();
@@ -161,7 +130,7 @@ public class LogicBaseTests
     [Test]
     public async Task DisableAsync_SetsIsEnabledFalse()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
         await logic.InitializeAsync(); // enables as part of init
 
         await logic.DisableAsync();
@@ -172,7 +141,7 @@ public class LogicBaseTests
     [Test]
     public async Task EnableDisable_CanToggleRepeatedly()
     {
-        var (logic, _) = CreateLogic();
+        var logic = CreateLogic();
 
         await logic.EnableAsync();
         Assert.That(logic.IsEnabled, Is.True);
@@ -184,16 +153,45 @@ public class LogicBaseTests
         Assert.That(logic.IsEnabled, Is.True);
     }
 
-    // ── Tests: Subscribe ──────────────────────────────────────────────────────
+    // ── Tests: activation failure semantics ──────────────────────────────────
 
     [Test]
-    public async Task Subscribe_RegistersHandlerWithSubscriber()
+    public void InitializeAsync_WhenLatchedThrows_MarksActivationFailedAndKeepsDisabled()
     {
-        var subscriber = new RecordingSubscriber();
-        var logic = new SubscribingLogic(new NullEventPublisher(), subscriber);
+        var failure = new InvalidOperationException("init failed");
+        var logic = new FaultingInitLogic(failure);
 
-        await logic.InitializeAsync();
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await logic.InitializeAsync());
 
-        Assert.That(subscriber.Handlers, Has.Count.EqualTo(1));
+        Assert.That(ex, Is.SameAs(failure));
+        Assert.That(logic.IsActivationFailed, Is.True);
+        Assert.That(logic.ActivationException, Is.SameAs(failure));
+        Assert.That(logic.IsEnabled, Is.False);
+    }
+
+    [Test]
+    public void EnableAsync_AfterActivationFailure_ThrowsInvalidOperationExceptionWithInnerException()
+    {
+        var failure = new InvalidOperationException("init failed");
+        var logic = new FaultingInitLogic(failure);
+        Assert.ThrowsAsync<InvalidOperationException>(async () => await logic.InitializeAsync());
+
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await logic.EnableAsync());
+        Assert.That(ex, Is.Not.Null);
+        Assert.That(ex!.InnerException, Is.SameAs(failure));
+    }
+
+    [Test]
+    public void InitializeAsync_WhenEnableThrows_MarksActivationFailedAndRethrows()
+    {
+        var failure = new InvalidOperationException("enable failed");
+        var logic = new FaultingEnableLogic(failure);
+
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(async () => await logic.InitializeAsync());
+
+        Assert.That(ex, Is.SameAs(failure));
+        Assert.That(logic.IsActivationFailed, Is.True);
+        Assert.That(logic.ActivationException, Is.SameAs(failure));
+        Assert.That(logic.IsEnabled, Is.False);
     }
 }

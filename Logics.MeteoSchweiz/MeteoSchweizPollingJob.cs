@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using HomeCompanion.Events;
 using MeteoSwissApi;
 using MeteoSwissApi.Models;
@@ -24,15 +26,22 @@ public class MeteoSchweizPollingJob(
 
     public async Task Execute(IJobExecutionContext context)
     {
+        var weatherForecast = await GetLatestForecastAsync();
+        eventPublisher.Publish(new WeatherForecastEvent(weatherForecast));
+        logger.LogTrace("Published weather forecast event: {Forecast}", weatherForecast);
+    }
+
+    public async Task<WeatherForecast<SwissMeteoWeatherForecastDay>> GetLatestForecastAsync(CancellationToken cancellationToken = default)
+    {
+        logger.LogTrace("Retrieving latest weather forecast for PLZ {PLZ} from MeteoSwiss API.", options.Value.PLZ);
         var forecast = await meteoSwissWeatherService.GetForecastAsync(plz: options.Value.PLZ);
-        var weatherForecast = new WeatherForecast<SwissMeteoWeatherForecastDay>
+        logger.LogTrace("Retrieved latest weather forecast for PLZ {PLZ} from MeteoSwiss API: {Forecast}", options.Value.PLZ, forecast);
+        return new WeatherForecast<SwissMeteoWeatherForecastDay>
         {
             Received = timeProvider.GetUtcNow(),
             Created = forecast.CurrentWeather.Time,
             Forecast = [.. forecast.Forecast.Select(f => new SwissMeteoWeatherForecastDay(f))]
         };
-
-        eventPublisher.Publish(new WeatherForecastEvent(weatherForecast));
     }
 }
 
@@ -41,7 +50,15 @@ public class WeatherForecast<T> : IWeatherForecast where T : IWeatherForecastDay
     public DateTimeOffset Received { get; set; }
     public DateTimeOffset? Created { get; set; }
     public List<T> Forecast { get; set; } = [];
+    
+    [JsonIgnore]
     IReadOnlyList<IWeatherForecastDay> IWeatherForecast.Forecast => (IReadOnlyList<IWeatherForecastDay>)Forecast;
+
+    public override string ToString()
+    {
+        // use json serialization to produce a human-readable representation of the forecast
+        return JsonSerializer.Serialize(this);
+    }
 }
 
 public class SwissMeteoWeatherForecastDay : IWeatherForecastDay
@@ -53,12 +70,11 @@ public class SwissMeteoWeatherForecastDay : IWeatherForecastDay
         this.f = f;
     }
 
+    public DateOnly Date => DateOnly.FromDateTime(f.DayDate);
     public double TemperatureAvg => (TemperatureMin + TemperatureMax)/2;
     public double TemperatureMin => f.TemperatureMin.DegreesCelsius;
     public double TemperatureMax => f.TemperatureMax.DegreesCelsius;
     public double Precipitation => f.Precipitation.Millimeters;
     public double PrecipitationMin => f.PrecipitationMin.Millimeters;
     public double PrecipitationMax => f.PrecipitationMax.Millimeters;
-
-    public DateOnly Date => DateOnly.FromDateTime(f.DayDate);
 }

@@ -14,6 +14,7 @@ namespace HomeCompanion.Logics;
 /// </remarks>
 public interface ILogic
 {
+    string Name { get; }
     /// <summary>
     /// Initializes the logic component, e.g. by subscribing to events and performing any necessary setup.
     /// Might be called multiple times, e.g. also by dependent logics before or after being called by the host.
@@ -25,4 +26,6 @@ public interface ILogic
     Task EnableAsync(CancellationToken cancellationToken = default);
     Task DisableAsync(CancellationToken cancellationToken = default);
     bool IsEnabled { get; }
+    bool IsActivated { get; }
+    Exception? ActivationException { get; }
 }

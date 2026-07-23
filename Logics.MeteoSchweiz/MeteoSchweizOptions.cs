@@ -15,9 +15,9 @@ public class MeteoSchweizOptions
     /// </summary>
     public string[] PollingInstants { get; set; } =
     [
-        "0 2 * * *",
-        "0 11 * * *",
-        "0 17 * * *",
-        "0 20 * * *"
+        "0 2 * * * ?",
+        "0 11 * * * ?",
+        "0 17 * * * ?",
+        "0 20 * * * ?"
     ];
 }

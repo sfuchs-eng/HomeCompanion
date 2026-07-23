@@ -456,7 +456,6 @@ public class EnvironmentalsEvaluatorLogicTests
         var eventBus = new RecordingEventBus();
         var sut = new EnvironmentalsEvaluatorLogic(
             eventBus,
-            eventBus,
             new StubModelProvider(model),
             timeProvider,
             NullLoggerFactory.Instance.CreateLogger<EnvironmentalsEvaluatorLogic>()

@@ -264,10 +264,19 @@ public static class IValueExtensions
         }
 
         // if that fails, see whether we can parse the enum's underlying type from IValue<EnumUnderlyingType> and convert to the enum type. Use TryGetIntegralValue to handle various integral underlying types.
-        if (TryGetIntegralValue(value!, out long integral, logger) && Enum.IsDefined(typeof(TEnum), integral))
+        if (TryGetIntegralValue(value!, out long integral, logger) )
         {
-            enumValue = (TEnum)Enum.ToObject(typeof(TEnum), integral);
-            return true;
+            // reverse map, because the enum's underlying type might not be long, but we can convert the long to the enum type using Enum.ToObject.
+            var definedValues = Enum.GetValues<TEnum>();
+            var defined = definedValues.Select(v => new { EnumVal = v, LongVal = Convert.ToInt64(v) }).Where(x => x.LongVal == integral).ToArray();
+            if (defined.Length > 0)
+            {
+                enumValue = defined[0].EnumVal;
+                return true;
+            }
+            // we can stop here.
+            enumValue = default!;
+            return false;
         }
 
         // If that fails, see whether we can parse from IValue<string>
@@ -277,7 +286,7 @@ public static class IValueExtensions
             return true;
         }
 
-        logger?.LogWarning("Value {ValueName} could not be converted to enum type {TargetType}.", value?.Name, typeof(TEnum).Name);
+        logger?.LogTrace("Value {ValueName} could not be converted to enum type {TargetType}.", value?.Name, typeof(TEnum).Name);
         enumValue = default!;
         return false;
     }

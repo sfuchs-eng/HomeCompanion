@@ -73,7 +73,7 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     public virtual Task EnableAsync(CancellationToken cancellationToken = default)
     {
         if ( IsActivationFailed )
-            throw new InvalidOperationException("Cannot enable logic because activation failed.", ActivationFailedException);
+            throw new InvalidOperationException("Cannot enable logic because activation failed.", ActivationException);
         IsEnabled = true;
         return Task.CompletedTask;
     }
@@ -90,18 +90,19 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     /// <inheritdoc/>
     public bool IsEnabled { get; private set; }
 
-    public bool IsActivationFailed => ActivationFailedException is not null;
+    public bool IsActivationFailed => ActivationException is not null;
+    public bool IsActivated => !IsActivationFailed && _isInitialized;
 
     /// <summary>
     /// Should be set in case <see cref="InitializeAsyncLatched(CancellationToken)"/> or <see cref="EnableAsync(CancellationToken)"/> fail,
     /// causing <see cref="IsEnabled"/> to remain false.
     /// </summary>
     /// <value></value>
-    public Exception? ActivationFailedException { get; private set; } = null;
+    public Exception? ActivationException { get; private set; } = null;
 
     protected void OnActivationFailed(Exception exception)
     {
-        ActivationFailedException = exception;
+        ActivationException = exception;
         IsEnabled = false;
         Logger.LogError(exception, "Logic activation failed: {Message}", exception.Message);
     }
