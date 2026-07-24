@@ -228,7 +228,8 @@ public class ShutterTargetEvaluatorAuto : ShutterTargetEvaluator
             return stepResult.Result;
         }
 
-        throw new NotImplementedException("Conditional closure triggers to be added here or above");
+        logger.LogTrace("Shutter {ShutterKey} in room {RoomKey} target position could not be determined by any step. No action taken.", cond.RuntimeContext.ShutterKey, cond.RuntimeContext.RoomKey);
+        return null;
     }
 
     protected override ShutterPosition? FilterShutterTargetByConstraints(ShutterPosition? targetPosition)
