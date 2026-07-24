@@ -20,6 +20,7 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
         new UnboundedChannelOptions { SingleReader = true });
 
     private readonly Dictionary<Type, List<Func<IEvent, CancellationToken, ValueTask>>> _handlers = [];
+    private readonly Lock _handlersLock = new();
     private readonly ILogger<EventBus> _logger;
 
     public EventBus(ILogger<EventBus> logger)
@@ -40,13 +41,18 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
     public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
     {
         var type = typeof(T);
-        if (!_handlers.TryGetValue(type, out var list))
+        int handlerCount;
+        lock (_handlersLock)
         {
-            list = [];
-            _handlers[type] = list;
-        }
+            if (!_handlers.TryGetValue(type, out var list))
+            {
+                list = [];
+                _handlers[type] = list;
+            }
 
-        list.Add((e, ct) => handler.HandleAsync((T)e, ct));
+            list.Add((e, ct) => handler.HandleAsync((T)e, ct));
+            handlerCount = list.Count;
+        }
     }
 
     /// <inheritdoc/>
@@ -56,7 +62,14 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
         {
             await foreach (var @event in _channel.Reader.ReadAllAsync(stoppingToken))
             {
-                await DispatchAsync(@event, stoppingToken);
+                try
+                {
+                    await DispatchAsync(@event, stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Event bus dispatch failed for {EventType}. Dispatch loop will continue.", @event.GetType().FullName);
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -98,7 +111,20 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
         Type? type = @event.GetType();
         while (type is not null && type != typeof(object))
         {
-            if (_handlers.TryGetValue(type, out var handlers))
+            Func<IEvent, CancellationToken, ValueTask>[] handlers;
+            lock (_handlersLock)
+            {
+                if (!_handlers.TryGetValue(type, out var list))
+                {
+                    handlers = [];
+                }
+                else
+                {
+                    handlers = [.. list];
+                }
+            }
+
+            if (handlers.Length > 0)
             {
                 foreach (var handler in handlers)
                 {
@@ -120,13 +146,18 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
     public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
     {
         var type = typeof(T);
-        if (!_handlers.TryGetValue(type, out var list))
+        int handlerCount;
+        lock (_handlersLock)
         {
-            list = [];
-            _handlers[type] = list;
-        }
+            if (!_handlers.TryGetValue(type, out var list))
+            {
+                list = [];
+                _handlers[type] = list;
+            }
 
-        list.Add((e, ct) => handler((T)e, ct));
+            list.Add((e, ct) => handler((T)e, ct));
+            handlerCount = list.Count;
+        }
     }
 
     public void Publish(IEvent @event)

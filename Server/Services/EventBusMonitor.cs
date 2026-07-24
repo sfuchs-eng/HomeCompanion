@@ -1,6 +1,7 @@
 using HomeCompanion;
 using HomeCompanion.Events;
 using HomeCompanion.Values;
+using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Server.Services;
 
@@ -12,22 +13,26 @@ public sealed record EventEntry(DateTimeOffset Timestamp, string EventType, stri
 /// and forwards events to any currently-registered listeners (i.e. open browser sessions).
 /// </summary>
 /// <remarks>
-/// No internal buffer is kept. When no browser session has the Event Monitor page open the listener list
-/// is empty and the forwarding cost is essentially zero.
+/// Keeps a small in-memory ring buffer so newly-opened browser sessions can immediately see recent events.
 /// </remarks>
 public sealed class EventBusMonitor
 {
+    private const int MaxBufferedEntries = 1000;
+
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<EventBusMonitor> _logger;
     private readonly Lock _lock = new();
     private readonly List<Action<EventEntry>> _listeners = [];
+    private readonly List<EventEntry> _buffer = [];
 
     /// <summary>
     /// Initialises the monitor and subscribes to all concrete <see cref="IEvent"/> implementations found in
     /// every currently-loaded assembly.
     /// </summary>
-    public EventBusMonitor(IEventSubscriber subscriber, TimeProvider timeProvider)
+    public EventBusMonitor(IEventSubscriber subscriber, TimeProvider timeProvider, ILogger<EventBusMonitor> logger)
     {
         _timeProvider = timeProvider;
+        _logger = logger;
         SubscribeToAllEventTypes(subscriber);
     }
 
@@ -35,10 +40,19 @@ public sealed class EventBusMonitor
     /// Registers a listener that is called for every event dispatched on the bus while the registration is live.
     /// Dispose the returned handle to unregister.
     /// </summary>
-    public IDisposable Register(Action<EventEntry> listener)
+    public IDisposable Register(Action<EventEntry> listener, bool replayBufferedEntries = true)
     {
+        EventEntry[] replay;
+        int listenerCount;
         lock (_lock)
+        {
             _listeners.Add(listener);
+            replay = replayBufferedEntries ? [.. _buffer] : [];
+            listenerCount = _listeners.Count;
+        }
+
+        foreach (var entry in replay)
+            listener(entry);
 
         return new Registration(this, listener);
     }
@@ -53,9 +67,15 @@ public sealed class EventBusMonitor
         Action<EventEntry>[] snapshot;
         lock (_lock)
         {
-            if (_listeners.Count == 0) return;
+            _buffer.Add(entry);
+            if (_buffer.Count > MaxBufferedEntries)
+                _buffer.RemoveRange(0, _buffer.Count - MaxBufferedEntries);
+
             snapshot = [.. _listeners];
         }
+
+        if (snapshot.Length == 0)
+            return;
 
         foreach (var listener in snapshot)
             listener(entry);

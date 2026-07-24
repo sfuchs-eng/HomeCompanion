@@ -48,12 +48,23 @@ internal sealed class CalendarQuartzScheduler(
         var enabledEntries = entries.Where(e => e.IsEnabled).ToArray();
 
         foreach (var entry in enabledEntries)
+        {
+            _logger.LogTrace(
+                "Reconciling calendar entry {EntryId} ({Title}) start={StartTime:o} end={EndTime:o} recurring={IsRecurring} timezone={TimeZoneId} nowUtc={NowUtc:o}",
+                entry.Id,
+                entry.Title,
+                entry.StartTime,
+                entry.EndTime,
+                entry.IsRecurring,
+                entry.TimeZoneId,
+                _timeProvider.GetUtcNow());
             await ScheduleEntryAsync(scheduler, jobKey, entry, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        }
 
         _logger.LogInformation("Calendar schedule reconciled for {Count} enabled entries.", enabledEntries.Length);
     }
 
-    private static async Task ScheduleEntryAsync(
+    private async Task ScheduleEntryAsync(
         IScheduler scheduler,
         JobKey jobKey,
         CalendarEntry entry,
@@ -63,7 +74,16 @@ internal sealed class CalendarQuartzScheduler(
         if (entry.IsRecurring)
         {
             if (string.IsNullOrWhiteSpace(entry.RecurrenceCronExpression))
+            {
+                _logger.LogTrace("Skipping recurring calendar entry {EntryId} because no cron expression is configured.", entry.Id);
                 return;
+            }
+
+            _logger.LogTrace(
+                "Scheduling recurring calendar entry {EntryId} with cron '{CronExpression}' in timezone {TimeZoneId}.",
+                entry.Id,
+                entry.RecurrenceCronExpression,
+                entry.TimeZoneId);
 
             var triggerBuilder = TriggerBuilder.Create()
                 .WithIdentity($"CalendarStart_{entry.Id:N}", TriggerGroup)
@@ -82,6 +102,7 @@ internal sealed class CalendarQuartzScheduler(
 
         if (entry.StartTime > nowUtc)
         {
+            _logger.LogTrace("Scheduling one-time calendar start trigger for entry {EntryId} at {StartTime:o} (nowUtc={NowUtc:o}).", entry.Id, entry.StartTime, nowUtc);
             var startTrigger = TriggerBuilder.Create()
                 .WithIdentity($"CalendarStart_{entry.Id:N}", TriggerGroup)
                 .ForJob(jobKey)
@@ -91,9 +112,14 @@ internal sealed class CalendarQuartzScheduler(
                 .Build();
             await scheduler.ScheduleJob(startTrigger, cancellationToken).ConfigureAwait(false);
         }
+        else
+        {
+            _logger.LogTrace("Skipping one-time calendar start trigger for entry {EntryId} because start={StartTime:o} is not in the future (nowUtc={NowUtc:o}).", entry.Id, entry.StartTime, nowUtc);
+        }
 
         if (entry.EndTime > nowUtc)
         {
+            _logger.LogTrace("Scheduling one-time calendar end trigger for entry {EntryId} at {EndTime:o} (nowUtc={NowUtc:o}).", entry.Id, entry.EndTime, nowUtc);
             var endTrigger = TriggerBuilder.Create()
                 .WithIdentity($"CalendarEnd_{entry.Id:N}", TriggerGroup)
                 .ForJob(jobKey)
@@ -102,6 +128,10 @@ internal sealed class CalendarQuartzScheduler(
                 .UsingJobData(CalendarEventDispatchJob.PhaseKey, (int)CalendarEventPhase.End)
                 .Build();
             await scheduler.ScheduleJob(endTrigger, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            _logger.LogTrace("Skipping one-time calendar end trigger for entry {EntryId} because end={EndTime:o} is not in the future (nowUtc={NowUtc:o}).", entry.Id, entry.EndTime, nowUtc);
         }
     }
 

@@ -41,6 +41,12 @@ internal sealed class CalendarEventDispatchJob(
         if (entry is null || !entry.IsEnabled)
             return;
 
+        _logger.LogTrace(
+            "Calendar dispatch job fired for entry {EntryId} phase={Phase} title={Title}",
+            entry.Id,
+            phase,
+            entry.Title);
+
         var eventType = _eventTypeRegistry.ResolveEventType(entry.EventType);
         if (eventType is null)
         {
@@ -61,6 +67,7 @@ internal sealed class CalendarEventDispatchJob(
         calendarEvent.MetadataJson = entry.MetadataJson;
 
         await _eventPublisher.PublishAsync(calendarEvent, cancellationToken).ConfigureAwait(false);
+        _logger.LogTrace("Calendar dispatch job published {EventType} for entry {EntryId} phase={Phase}.", eventType.Name, entry.Id, phase);
 
         if (phase == CalendarEventPhase.Start && entry.IsRecurring)
             await ScheduleRecurringEndEventAsync(entry, context, cancellationToken).ConfigureAwait(false);
