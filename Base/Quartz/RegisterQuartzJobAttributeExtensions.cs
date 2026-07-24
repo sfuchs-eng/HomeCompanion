@@ -35,4 +35,13 @@ public static class RegisterQuartzJobAttributeExtensions
             return null;
         return JobKey.Create(attr.JobName, attr.JobGroup);
     }
+
+    public static TriggerBuilder ForJobWithIdentity(this TriggerBuilder triggerBuilder, Type jobType, string triggerNameSuffix = ".trigger")
+    {
+        var jobKey = jobType.GetJobKeyFromType()
+            ?? throw new InvalidOperationException($"Job key for {jobType.Name} could not be determined.");
+        return triggerBuilder
+            .WithIdentity($"{jobKey.Name}{triggerNameSuffix}", jobKey.Group)
+            .ForJob(jobKey);
+    }
 }
