@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Quartz;
 using HomeCompanion.Base.Quartz;
+using Radzen;
 
 namespace HomeCompanion.Server;
 
@@ -16,6 +17,8 @@ public static class HomeCompanionServerHostingExtensions
 {
     public static IServiceCollection AddHomeCompanionServer(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddRadzenComponents();
+
         services.Configure<McpApiOptions>(configuration.GetSection("HomeCompanion:Mcp"));
         services.Configure<QuartzOptions>(configuration.GetSection("Quartz"));
         services.Configure<QuartzFileStoreOptions>(configuration.GetSection("HomeCompanion:QuartzFileStore"));

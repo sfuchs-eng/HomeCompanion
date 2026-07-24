@@ -95,7 +95,7 @@
 
 @code {
     private RadzenScheduler<CalendarAppointment>? _scheduler;
-    private readonly List<CalendarAppointment> _appointments = [];
+    private List<CalendarAppointment> _appointments = [];
     private IReadOnlyList<CalendarEntry> _entries = [];
     private IReadOnlyList<CalendarEventTypeDescriptor> _eventTypes = [];
     private CalendarEntry _editor = NewEntry();
@@ -113,15 +113,18 @@
     private async Task LoadAsync()
     {
         _entries = await Store.ListAsync();
-        _appointments.Clear();
-        _appointments.AddRange(_entries.Select(e => new CalendarAppointment
+        _appointments = _entries.Select(e => new CalendarAppointment
         {
             Id = e.Id,
             Text = e.Title,
             Start = e.StartTime.LocalDateTime,
             End = e.EndTime.LocalDateTime,
             Entry = e,
-        }));
+        }).ToList();
+
+        if (_scheduler is not null)
+            await _scheduler.Reload();
+
         await InvokeAsync(StateHasChanged);
     }
 
