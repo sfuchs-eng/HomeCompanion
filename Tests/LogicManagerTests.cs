@@ -28,8 +28,11 @@ public class LogicManagerTests
 
     private abstract class RecordingLogic(List<Type> initOrder) : ILogic
     {
+        public string Name => GetType().Name;
         public bool Initialized { get; private set; }
         public bool IsEnabled { get; private set; }
+        public bool IsActivated => IsEnabled;
+        public Exception? ActivationException => null;
 
         public virtual Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -70,8 +73,11 @@ public class LogicManagerTests
     // Blocks InitializeAsync on a semaphore — used to prove parallel execution.
     private sealed class BlockingLogic(SemaphoreSlim gate, List<Type> order) : ILogic
     {
+        public string Name => nameof(BlockingLogic);
         public bool Initialized { get; private set; }
         public bool IsEnabled { get; private set; }
+        public bool IsActivated => IsEnabled;
+        public Exception? ActivationException => null;
 
         public async Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -88,8 +94,11 @@ public class LogicManagerTests
     // Releases the semaphore on initialize — counterpart to BlockingLogic.
     private sealed class ReleasingLogic(SemaphoreSlim gate, List<Type> order) : ILogic
     {
+        public string Name => nameof(ReleasingLogic);
         public bool Initialized { get; private set; }
         public bool IsEnabled { get; private set; }
+        public bool IsActivated => IsEnabled;
+        public Exception? ActivationException => null;
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {
@@ -107,8 +116,11 @@ public class LogicManagerTests
     // Types for cycle detection — defined here but never instantiated.
     private sealed class CyclicTypeA : ILogic
     {
+        public string Name => nameof(CyclicTypeA);
         public CyclicTypeA(CyclicTypeB _) { }
         public bool IsEnabled => false;
+        public bool IsActivated => false;
+        public Exception? ActivationException => null;
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken ct = default) => Task.CompletedTask;
@@ -116,8 +128,11 @@ public class LogicManagerTests
 
     private sealed class CyclicTypeB : ILogic
     {
+        public string Name => nameof(CyclicTypeB);
         public CyclicTypeB(CyclicTypeA _) { }
         public bool IsEnabled => false;
+        public bool IsActivated => false;
+        public Exception? ActivationException => null;
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken ct = default) => Task.CompletedTask;

@@ -1,4 +1,5 @@
 using HomeCompanion.Server.Components;
+using HomeCompanion.Server.Calendar;
 using HomeCompanion.Server.Mcp;
 using HomeCompanion.Server.Quartz;
 using HomeCompanion.Server.Services;
@@ -91,6 +92,7 @@ public static class HomeCompanionServerHostingExtensions
         app.UseAntiforgery();
 
         app.MapHomeCompanionMcp();
+        app.MapHomeCompanionCalendar();
 
         return app;
     }

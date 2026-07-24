@@ -13,6 +13,8 @@ public class HostingExtensionsLogicRegistrationTests
         public string Name => nameof(TestDiagnosableLogic);
 
         public bool IsEnabled { get; private set; }
+        public bool IsActivated => IsEnabled;
+        public Exception? ActivationException => null;
 
         public Task InitializeAsync(CancellationToken cancellationToken = default)
         {

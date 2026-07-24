@@ -25,7 +25,18 @@ internal sealed class QuartzSchedulerConfiguratorHostedService(
         foreach (var configurator in _configurators)
         {
             _logger.LogInformation("Applying Quartz scheduler configurator {ConfiguratorType}.", configurator.GetType().FullName);
-            await configurator.ConfigureAsync(scheduler, cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                await configurator.ConfigureAsync(scheduler, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Quartz scheduler configurator {ConfiguratorType} failed. The application will keep running, but the related feature is disabled.",
+                    configurator.GetType().FullName);
+            }
         }
 
         _logger.LogInformation("Applied {Count} Quartz scheduler configurator(s).", _configurators.Count);

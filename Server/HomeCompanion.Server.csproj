@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Radzen.Blazor" Version="7.*" />
     <ProjectReference Include="..\Core\HomeCompanion.Core.csproj" />
   </ItemGroup>
 

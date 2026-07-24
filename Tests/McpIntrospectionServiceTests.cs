@@ -28,7 +28,10 @@ public class McpIntrospectionServiceTests
 
     private sealed class TestLogic : ILogic
     {
+        public string Name => nameof(TestLogic);
         public bool IsEnabled { get; private set; }
+        public bool IsActivated => IsEnabled;
+        public Exception? ActivationException => null;
 
         public TestLogic(bool isEnabled)
         {

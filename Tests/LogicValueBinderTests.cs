@@ -73,6 +73,8 @@ public class LogicValueBinderTests
 
     private sealed class AttributeBoundLogic : ILogic
     {
+        public string Name => nameof(AttributeBoundLogic);
+
         [ValueBinding("LogicTestValuesContainer[TestValuesContainer]:Flag")]
         public IValue<bool>? Flag { get; set; }
 
@@ -80,10 +82,14 @@ public class LogicValueBinderTests
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
+        public bool IsActivated => true;
+        public Exception? ActivationException => null;
     }
 
     private sealed class OverrideBoundLogic : ILogic
     {
+        public string Name => nameof(OverrideBoundLogic);
+
         [ValueBinding("LogicTestValuesContainer[TestValuesContainer]:Flag")]
         public IValue<bool>? Flag { get; set; }
 
@@ -91,10 +97,14 @@ public class LogicValueBinderTests
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
+        public bool IsActivated => true;
+        public Exception? ActivationException => null;
     }
 
     private sealed class MismatchBoundLogic : ILogic
     {
+        public string Name => nameof(MismatchBoundLogic);
+
         [ValueBinding("LogicTestValuesContainer[TestValuesContainer]:Counter")]
         public IValue<bool>? Flag { get; set; }
 
@@ -102,5 +112,7 @@ public class LogicValueBinderTests
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
+        public bool IsActivated => true;
+        public Exception? ActivationException => null;
     }
 }

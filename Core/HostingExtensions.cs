@@ -19,6 +19,10 @@ using HomeCompanion.Core.Persistence;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Calendar;
+using HomeCompanion.Core.Calendar;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HomeCompanion.Core;
 
@@ -58,6 +62,23 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
+
+        builder.Services.Configure<CalendarPersistenceOptions>(builder.Configuration.GetSection(CalendarPersistenceOptions.SectionName));
+        builder.Services.AddDbContext<CalendarDbContext>((sp, db) =>
+        {
+            var options = sp.GetRequiredService<IOptions<CalendarPersistenceOptions>>().Value;
+            var dbPath = ResolvePathRelativeToAppBase(options.DbPath, "state/calendar/calendar.db");
+            var directory = Path.GetDirectoryName(dbPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+            db.UseSqlite($"Data Source={dbPath}");
+        });
+        builder.Services.TryAddScoped<ICalendarEntryStore, EfCalendarEntryStore>();
+        builder.Services.TryAddSingleton<ICalendarEventTypeRegistry, AttributedCalendarEventTypeRegistry>();
+        builder.Services.TryAddSingleton<CalendarQuartzScheduler>();
+        builder.Services.TryAddSingleton<ICalendarScheduler>(sp => sp.GetRequiredService<CalendarQuartzScheduler>());
+        builder.Services.TryAddSingleton<Base.Quartz.IQuartzSchedulerConfigurator>(sp => sp.GetRequiredService<CalendarQuartzScheduler>());
+        builder.Services.AddHostedService<CalendarDatabaseInitializerHostedService>();
 
         // Load assemblies from the application base directory and optional extensions directory before scanning.
         // Reference-walk via AppDomain is unreliable (assemblies load lazily; entry assembly is null under dotnet watch).
@@ -304,6 +325,14 @@ public static class HostingExtensions
         };
         source.ResolveFileProvider();
         return source;
+    }
+
+    private static string ResolvePathRelativeToAppBase(string configuredPath, string fallback)
+    {
+        var effectivePath = string.IsNullOrWhiteSpace(configuredPath) ? fallback : configuredPath;
+        return Path.IsPathRooted(effectivePath)
+            ? effectivePath
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, effectivePath));
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 # HomeCompanion
 
-**under development**
+## Under Development
 
 ## Overview
 
@@ -22,6 +22,7 @@ path not only for other devices but also for integration with other home automat
 - **Modular automation logic**: implement your automation logic as `ILogic` modules, which are loaded at runtime and can be enabled/disabled via configuration
 - **Centralized value lifecycle**: `ValuesManager` initializes all discovered `IValue` instances at startup and routes `ValueUpdateReceived` / `ValueWriteReceived` events by `Target` to the owning value instance
 - **Extensions framework**: add functionality via separate assemblies, implementing `HomeCompanion.Extensions.IExtension` to get loaded at runtime with opportunity for service injection. Extensions can contain their own logic modules, values containers, connectivity providers, and other services
+- **Calendar events framework**: user-configurable calendar entries persisted with EF Core, scheduled by Quartz, and published to the event bus as extension-defined, attributed `ICalendarEvent` types at start/end (including recurring schedules and metadata JSON payload)
 - **KNX connectivity**: connect via KNX/net IP routing (UDP multicast) to a KNX system and receive/transmit Group Address write, read and read response telegrams
 - **OpenHAB connectivity**: connect via OpenHAB REST API (item commands) and Websocket (event bus) to an OpenHAB instance and receive/transmit item state changes and commands. Inbound OpenHAB `ItemState*` events are mapped to `ValueUpdateReceived`-based events, while inbound `ItemCommandEvent` is mapped to `ValueWriteReceived`-based events.
 - **MQTT connectivity**: connect to a MQTT broker and receive/transmit messages on specified topics
@@ -31,6 +32,11 @@ path not only for other devices but also for integration with other home automat
 ### Contained logic modules
 
 - ...
+
+### Calendar Documentation
+
+- Architecture specification: [docs/architecture/homecompanion-calendar-events-arch-spec.md](docs/architecture/homecompanion-calendar-events-arch-spec.md)
+- Architecture decision record: [docs/adr/0004-calendar-events-framework.md](docs/adr/0004-calendar-events-framework.md)
 
 ## Structure
 

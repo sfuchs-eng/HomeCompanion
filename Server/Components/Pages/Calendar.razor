@@ -1,0 +1,258 @@
+@page "/calendar"
+@rendermode InteractiveServer
+
+@inject ICalendarEntryStore Store
+@inject ICalendarEventTypeRegistry EventTypeRegistry
+@inject ICalendarScheduler Scheduler
+
+<PageTitle>Calendar</PageTitle>
+
+<h1>Calendar</h1>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-8">
+        <RadzenScheduler @ref="_scheduler"
+                         Data="@_appointments"
+                         TItem="CalendarAppointment"
+                         StartProperty="Start"
+                         EndProperty="End"
+                         TextProperty="Text"
+                         AppointmentSelect="OnAppointmentSelect"
+                         SlotSelect="OnSlotSelect"
+                         style="height: 680px;">
+            <RadzenDayView />
+            <RadzenWeekView />
+            <RadzenMonthView />
+        </RadzenScheduler>
+    </div>
+
+    <div class="col-12 col-xl-4">
+        <RadzenCard>
+            <h5>@(_isEditMode ? "Edit Entry" : "New Entry")</h5>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Title" />
+                <RadzenTextBox @bind-Value="_editor.Title" Name="title" Style="width:100%;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Event Type" />
+                <RadzenDropDown Data="_eventTypes"
+                                @bind-Value="_editor.EventType"
+                                ValueProperty="TypeName"
+                                TextProperty="DisplayName"
+                                Style="width:100%;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Start" />
+                <RadzenDatePicker @bind-Value="_editor.StartTime" DateFormat="yyyy-MM-dd HH:mm" ShowTime="true" Style="width:100%;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="End" />
+                <RadzenDatePicker @bind-Value="_editor.EndTime" DateFormat="yyyy-MM-dd HH:mm" ShowTime="true" Style="width:100%;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenCheckBox @bind-Value="_editor.IsRecurring" Name="isRecurring" />
+                <RadzenLabel Text="Recurring" class="ms-2" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Recurrence Cron" />
+                <RadzenTextBox @bind-Value="_editor.RecurrenceCronExpression" Name="cron" Style="width:100%;" Disabled="@(!_editor.IsRecurring)" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Timezone Id" />
+                <RadzenTextBox @bind-Value="_editor.TimeZoneId" Name="timeZone" Style="width:100%;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenLabel Text="Metadata JSON" />
+                <RadzenTextArea @bind-Value="_editor.MetadataJson" Style="width:100%; min-height: 120px;" />
+            </div>
+
+            <div class="mb-2">
+                <RadzenCheckBox @bind-Value="_editor.IsEnabled" Name="isEnabled" />
+                <RadzenLabel Text="Enabled" class="ms-2" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger py-2">@_error</div>
+            }
+
+            <div class="d-flex gap-2 flex-wrap">
+                <RadzenButton Text="@(_isEditMode ? "Update" : "Create")" Icon="save" Click="SaveAsync" />
+                <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger" Disabled="@(!_isEditMode)" Click="DeleteAsync" />
+                <RadzenButton Text="Reset" Icon="refresh" ButtonStyle="ButtonStyle.Secondary" Click="ResetEditor" />
+            </div>
+        </RadzenCard>
+    </div>
+</div>
+
+@code {
+    private RadzenScheduler<CalendarAppointment>? _scheduler;
+    private readonly List<CalendarAppointment> _appointments = [];
+    private IReadOnlyList<CalendarEntry> _entries = [];
+    private IReadOnlyList<CalendarEventTypeDescriptor> _eventTypes = [];
+    private CalendarEntry _editor = NewEntry();
+    private bool _isEditMode;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _eventTypes = EventTypeRegistry.ListEventTypes();
+        await LoadAsync();
+        if (string.IsNullOrWhiteSpace(_editor.EventType) && _eventTypes.Count > 0)
+            _editor.EventType = _eventTypes[0].TypeName;
+    }
+
+    private async Task LoadAsync()
+    {
+        _entries = await Store.ListAsync();
+        _appointments.Clear();
+        _appointments.AddRange(_entries.Select(e => new CalendarAppointment
+        {
+            Id = e.Id,
+            Text = e.Title,
+            Start = e.StartTime.LocalDateTime,
+            End = e.EndTime.LocalDateTime,
+            Entry = e,
+        }));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _error = null;
+            if (_editor.StartTime >= _editor.EndTime)
+            {
+                _error = "End time must be after start time.";
+                return;
+            }
+
+            if (_editor.IsRecurring && string.IsNullOrWhiteSpace(_editor.RecurrenceCronExpression))
+            {
+                _error = "A cron expression is required for recurring entries.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_editor.EventType) && _eventTypes.Count > 0)
+                _editor.EventType = _eventTypes[0].TypeName;
+
+            if (_editor.Id == Guid.Empty)
+                _editor.Id = Guid.NewGuid();
+
+            await Store.UpsertAsync(_editor);
+            await Scheduler.ReconcileAsync();
+
+            await LoadAsync();
+            _isEditMode = true;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.GetBaseException().Message;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!_isEditMode)
+            return;
+
+        await Store.DeleteAsync(_editor.Id);
+        await Scheduler.ReconcileAsync();
+
+        await LoadAsync();
+        ResetEditor();
+    }
+
+    private Task OnAppointmentSelect(SchedulerAppointmentSelectEventArgs<CalendarAppointment> args)
+    {
+        _error = null;
+        if (args.Data?.Entry is null)
+            return Task.CompletedTask;
+
+        _editor = Clone(args.Data.Entry);
+        _isEditMode = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task OnSlotSelect(SchedulerSlotSelectEventArgs args)
+    {
+        _error = null;
+        _editor = NewEntry();
+        _editor.StartTime = AsLocalOffset(args.Start);
+        _editor.EndTime = AsLocalOffset(args.End <= args.Start ? args.Start.AddHours(1) : args.End);
+        if (_eventTypes.Count > 0)
+            _editor.EventType = _eventTypes[0].TypeName;
+        _isEditMode = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ResetEditor()
+    {
+        _error = null;
+        _editor = NewEntry();
+        if (_eventTypes.Count > 0)
+            _editor.EventType = _eventTypes[0].TypeName;
+        _isEditMode = false;
+    }
+
+    private static CalendarEntry Clone(CalendarEntry source)
+    {
+        return new CalendarEntry
+        {
+            Id = source.Id,
+            Title = source.Title,
+            EventType = source.EventType,
+            StartTime = source.StartTime,
+            EndTime = source.EndTime,
+            IsRecurring = source.IsRecurring,
+            RecurrenceCronExpression = source.RecurrenceCronExpression,
+            TimeZoneId = source.TimeZoneId,
+            IsEnabled = source.IsEnabled,
+            MetadataJson = source.MetadataJson,
+            CreatedAtUtc = source.CreatedAtUtc,
+            UpdatedAtUtc = source.UpdatedAtUtc,
+        };
+    }
+
+    private static CalendarEntry NewEntry()
+    {
+        var now = TimeProvider.System.GetLocalNow();
+        return new CalendarEntry
+        {
+            Id = Guid.NewGuid(),
+            Title = "",
+            StartTime = now,
+            EndTime = now.AddHours(1),
+            IsRecurring = false,
+            TimeZoneId = TimeZoneInfo.Local.Id,
+            IsEnabled = true,
+            MetadataJson = "{}",
+        };
+    }
+
+    private static DateTimeOffset AsLocalOffset(DateTime localDateTime)
+    {
+        var kindAdjusted = DateTime.SpecifyKind(localDateTime, DateTimeKind.Local);
+        return new DateTimeOffset(kindAdjusted);
+    }
+
+    private sealed class CalendarAppointment
+    {
+        public Guid Id { get; init; }
+        public string Text { get; init; } = string.Empty;
+        public DateTime Start { get; init; }
+        public DateTime End { get; init; }
+        public required CalendarEntry Entry { get; init; }
+    }
+}
