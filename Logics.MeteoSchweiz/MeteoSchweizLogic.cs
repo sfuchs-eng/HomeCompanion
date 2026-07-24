@@ -1,6 +1,7 @@
 using HomeCompanion.Base.Quartz;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Events;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Quartz;
@@ -17,62 +18,38 @@ public class MeteoSchweizLogic(
     IOptions<MeteoSchweizOptions> options,
     ISchedulerFactory schedulerFactory,
     IEventSubscriber subscriber,
+    IServiceProvider serviceProvider,
+    TimeProvider timeProvider,
     ILogger<MeteoSchweizLogic> logger
-) : LogicBase(logger), IDiagnosable
+) : LogicBase(logger), IDiagnosable, IWeatherService
 {
     private readonly IOptions<MeteoSchweizOptions> options = options;
     private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
     private readonly IEventSubscriber subscriber = subscriber;
     private readonly ILogger<MeteoSchweizLogic> logger = logger;
+    private readonly IServiceProvider serviceProvider = serviceProvider;
+    private readonly TimeProvider timeProvider = timeProvider;
 
     private IWeatherForecast? latestForecast;
     public IWeatherForecast? LatestForecast => latestForecast;
-
-    // semaphore to await the completion of the MeteoSchweizPollingJob when no forecast is available yet
-    private readonly SemaphoreSlim forecastSemaphore = new(0, 1);
-
+ 
     /// <summary>
     /// Return the latest forecast available, or trigger a forecast retrieval if none is available yet and await its completion.
     /// </summary>
     public async Task<IWeatherForecast> GetForecastAsync(CancellationToken cancellationToken = default)
     {
-        if (latestForecast is not null)
+        if (latestForecast is not null && latestForecast.Received > timeProvider.GetUtcNow().Add(options.Value.CacheExpiration.Negate()))
         {
+            logger.LogTrace("Returning cached forecast.");
             return latestForecast;
         }
 
-        // retrieve the forecast from the MeteoSchweizPollingJob if none is available yet.
-        // Approach: trigger the job manually and await its completion, then return the latest forecast after receiving the event.
-        var scheduler = await schedulerFactory.GetScheduler(cancellationToken);
-        var jobKey = typeof(MeteoSchweizPollingJob).GetJobKeyFromType()
-            ?? throw new Exception("Failed to get job key for MeteoSchweizPollingJob.");
-        // run the job on the background queue
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                logger.LogTrace("Triggering MeteoSchweizPollingJob to retrieve the latest forecast.");
-                await scheduler.TriggerJob(jobKey, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to trigger MeteoSchweizPollingJob.");
-                forecastSemaphore.Release();
-            }
-        }, cancellationToken);
+        logger.LogTrace("No forecast available yet or the cached forecast has expired. Retrieving forecast...");
 
-        // await the completion of the job and the reception of the event; use a linked cancellation token with 1 min timeout to avoid deadlocks in case of misconfiguration or other issues
-        logger.LogTrace("Awaiting the completion of the MeteoSchweizPollingJob and the reception of the WeatherForecastEvent.");
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromMinutes(1));
-        await forecastSemaphore.WaitAsync(cts.Token);
-
-        if (latestForecast is not null)
-        {
-            return latestForecast;
-        }
-
-        throw new Exception("Failed to retrieve the weather forecast.");
+        // Use an activator to create a new instance of the MeteoSchweizPollingJob, which will be used to retrieve the latest forecast directly.
+        var job = ActivatorUtilities.CreateInstance<MeteoSchweizPollingJob>(serviceProvider);
+        latestForecast = await job.GetLatestForecastAsync(cancellationToken);
+        return latestForecast;
     }
 
     protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
@@ -104,7 +81,6 @@ public class MeteoSchweizLogic(
         // Handle the received weather forecast event
         var forecast = weatherForecastEvent.Forecast;
         latestForecast = forecast;
-        forecastSemaphore.Release();
     }
 
     protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
@@ -117,7 +93,8 @@ public class MeteoSchweizLogic(
         }
         else
         {
-            node.AddRecord("LatestForecast", "No forecast available yet. Triggering task to retrieve the forecast.");
+            node.AddRecord("LatestForecast", "No forecast available yet. Retrieving forecast...");
+
             var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
             await GetForecastAsync(cts.Token)
