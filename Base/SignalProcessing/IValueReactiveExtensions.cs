@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Reactive;
 using System.Reactive.Linq;
 
 namespace HomeCompanion.Base.SignalProcessing;
@@ -69,6 +70,54 @@ public static class IValueReactiveExtensions
                 }
                 return acc;
             })
+            .Select(acc => acc.current);
+    }
+
+    public static IObservable<double> FirstOrderLowPassFilter(this IObservable<double> source, TimeSpan timeConstant, TimeSpan sampleTime)
+    {
+        if (timeConstant <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeConstant), "Time constant must be greater than zero.");
+        }
+
+        var dt = sampleTime.TotalSeconds;
+        var alpha = 1 - Math.Exp(-dt / timeConstant.TotalSeconds);
+
+        return source
+            .Sample(sampleTime)
+            .Scan((previous: double.NaN, current: double.NaN), (acc, current) =>
+                {
+                    if (double.IsNaN(acc.previous) || double.IsNaN(acc.current))
+                    {
+                        return (previous: current, current: current);
+                    }
+                    var filteredValue = acc.previous * (1.0 - alpha) + current * alpha;
+                    return (previous: acc.current, current: filteredValue);
+                })
+            .Select(acc => acc.current);
+    }
+
+    public static IObservable<float> FirstOrderLowPassFilter(this IObservable<float> source, TimeSpan timeConstant, TimeSpan sampleTime)
+    {
+        if (timeConstant <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeConstant), "Time constant must be greater than zero.");
+        }
+
+        var dt = sampleTime.TotalSeconds;
+        var alpha = 1 - Math.Exp(-dt / timeConstant.TotalSeconds);
+
+        return source
+            .Sample(sampleTime)
+            .Scan((previous: float.NaN, current: float.NaN), (acc, current) =>
+                {
+                    if (float.IsNaN(acc.previous) || float.IsNaN(acc.current))
+                    {
+                        return (previous: current, current: current);
+                    }
+                    var filteredValue = (float)(acc.previous * (1.0 - alpha) + current * alpha);
+                    return (previous: acc.current, current: filteredValue);
+                })
             .Select(acc => acc.current);
     }
 }

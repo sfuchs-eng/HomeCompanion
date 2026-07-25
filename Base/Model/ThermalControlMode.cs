@@ -43,3 +43,16 @@ public enum ThermalControlMode
     /// </summary>
     CoolingPriority = 40,
 }
+
+public static class ThermalControlModeExtensions
+{
+    public static bool IsHeating(this ThermalControlMode mode)
+    {
+        return mode == ThermalControlMode.Winter || mode == ThermalControlMode.LightHeating;
+    }
+
+    public static bool IsCooling(this ThermalControlMode mode)
+    {
+        return mode == ThermalControlMode.BalancedCooling || mode == ThermalControlMode.CoolingPriority;
+    }
+}
