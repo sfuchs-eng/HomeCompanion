@@ -17,5 +17,8 @@ public class WeatherForecastExtension : IExtensionRegistration
                 .GetValue<TimeSpan>(MeteoSchweizOptions.SectionName + ":CacheExpiration", TimeSpan.FromHours(2));
             o.Language = "en";
         });
+
+        // can we do with Logics auto-registration or do we need to disable it and register here?
+        context.Builder.Services.AddSingleton<IWeatherService>((c) => c.GetRequiredService<MeteoSchweizLogic>());
     }
 }
