@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Model;
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -17,7 +18,7 @@ public class RoomShutterSceneLogic(
     IEventSubscriber eventSubscriber,
     IRuntimesProvider runtimesProvider,
     ILogger<RoomShutterSceneLogic> logger
-) : LogicBase(logger)
+) : LogicBase(logger), IDiagnosable
 {
     private readonly IEventSubscriber eventSubscriber = eventSubscriber;
     private readonly IRuntimesProvider runtimesProvider = runtimesProvider;
@@ -60,5 +61,11 @@ public class RoomShutterSceneLogic(
         {
             logger.LogWarning("No runtime found for room {RoomKey}. Cannot handle shutter automation computation trigger event.", roomKey.Key);
         }
+    }
+
+    protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        parentNode.AddRecord("RoomShutterSceneLogic", $"See {nameof(RoomRuntime.HandleShutterAutomationComputationTriggerEvent)} for details.", "The RoomShutterSceneLogic does not manage shutter positions directly, but rather delegates to the RoomRuntime for each room.");
+        return parentNode;
     }
 }

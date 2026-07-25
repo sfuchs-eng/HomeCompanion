@@ -334,7 +334,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         if ( !(mapping?.Communication.HasFlag(BusCommunication.Transmit) ?? false) )
         {
-            _logger.LogTrace("Received ValueWriteRequest for '{ValueName}', but its OpenHab mapping does not allow send communication. Skipping.", request.Source.Name);
+            //_logger.LogTrace("Received ValueWriteRequest for '{ValueName}', but its OpenHab mapping does not allow send communication. Skipping.", request.Source.Name);
             return;
         }
 
@@ -354,7 +354,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send OpenHab write request for '{ItemName}' with value '{Value}'.", itemName, request.NewValue);
+            _logger.LogWarning(ex, "Failed to send OpenHab write request for '{ItemName}' with value '{Value}'.", itemName, request.NewValue);
         }
     }
 

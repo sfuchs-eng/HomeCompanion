@@ -3,13 +3,16 @@
 
 @using HomeCompanion
 @using HomeCompanion.Values
+@using HomeCompanion.Diagnostics;
 @using HomeCompanion.Extensions
 @using HomeCompanion.Logics
 @using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.DependencyInjection
 
 @inject IEnumerable<IConnectivityProvider> ConnectivityProviders
 @inject IEnumerable<ILogic> Logics
 @inject IEnumerable<IValuesContainer> ValuesContainers
+@inject IServiceProvider ServiceProvider
 
 <PageTitle>System Status</PageTitle>
 
@@ -154,6 +157,46 @@
     }
 </div>
 
+@if (ServiceProvider.GetService<IServiceMonitor>() is IServiceMonitor serviceMonitor)
+{
+    <div class="mb-4">
+        <h4 class="mb-3">Monitored Services</h4>
+        @if (!serviceMonitor.Services.Any())
+        {
+            <p class="text-muted">No services monitored.</p>
+        }
+        else
+        {
+            <p class="text-muted">Changes require a page refresh</p>
+            <table class="table table-sm table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>Service Name</th>
+                        <th>Status</th>
+                        <th>Last Life Signal Time</th>
+                        <th>Life-signal period</th>
+                        <th>Error messages, first</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var service in serviceMonitor.Services)
+                    {
+                        var status = service.LastCheckedStatus;
+                        var lastLifeSignalTime = service.LastLifeSignalTime;
+                        <tr>
+                            <td>@service.ServiceName</td>
+                            <td>@RenderServiceStatus(status)</td>
+                            <td>@(lastLifeSignalTime?.ToString("o") ?? "N/A")</td>
+                            <td>@(service.MinLifeSignalInterval?.ToString("c") ?? "-")</td>
+                            <td>@(service.LastCheckedErrorMessages?.Length > 0 ? ($"{service.LastCheckedErrorMessages?.Length}, {service.LastCheckedErrorMessages?.FirstOrDefault()}") : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
 @code {
     private MarkupString RenderValueStatus(ValueStatus status)
     {
@@ -175,5 +218,16 @@
             badges.Append("<span class=\"badge text-bg-danger me-1\">Error</span>");
 
         return new MarkupString(badges.ToString());
+    }
+
+    private MarkupString RenderServiceStatus(ServiceStatus status)
+    {
+        return status switch
+        {
+            ServiceStatus.Up => new MarkupString("<span class=\"badge text-bg-success\">Running</span>"),
+            ServiceStatus.Down => new MarkupString("<span class=\"badge text-bg-danger\">Error</span>"),
+            ServiceStatus.Undefined => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>"),
+            _ => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>")
+        };
     }
 }

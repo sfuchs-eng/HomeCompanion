@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using HomeCompanion.Base.Diagnostics;
 using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -169,9 +170,16 @@ public class RoomRuntime : RuntimeBase, IDisposable
             return;
         }
 
-        if (RoomContext.Room.ShutterScene is not ValueBase<byte> sceneValue)
+        if (RoomContext.Room.ShutterScene is not IValue<byte> sceneValue)
         {
-            logger.LogWarning("Cannot set room shutter scene for room {RoomKey} because the ShutterScene value is not a ValueBase<byte>. LastCommanded: {LastCommanded}", RoomKey.Key, LastSceneCommanded);
+            logger.LogWarning("Cannot set room shutter scene for room {RoomKey} because the ShutterScene value is not a IValue<byte>. LastCommanded: {LastCommanded}", RoomKey.Key, LastSceneCommanded);
+            return;
+        }
+
+        // if the scene is already set to the requested value, the source might be an external logic or bus that was writing and causing us to enter the HandleRoomShutterSceneChanged method, which would then enqueue a recomputation trigger for the room shutter scene state machine. In this case, we can skip the write to avoid unnecessary recomputation triggers.
+        if (sceneValue.Value == scene)
+        {
+            // logger.LogTrace("Room shutter scene is already set to {RoomScene} for room {RoomKey}. LastCommanded: {LastCommanded}. Skipping write.", scene, RoomKey.Key, LastSceneCommanded);
             return;
         }
 
@@ -191,7 +199,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
             _sceneBurstWriteCount++;
             sceneValue.Write(scene, this);
             LastSceneCommanded = scene;
-            ExecuteRoomShuttterScene(scene);
+            ExecuteRoomShutterScene(scene);
         }
     }
 
@@ -199,7 +207,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
     /// Check for definitions of the room shutter scene and execute the corresponding actions for the scene.
     /// This method is called after the room shutter scene has been set and is responsible for executing the actions associated with the scene, such as setting shutter positions or triggering other logics.
     /// </summary>
-    private void ExecuteRoomShuttterScene(byte scene)
+    private void ExecuteRoomShutterScene(byte scene)
     {
         RoomShutterScene? roomScene = Enum.IsDefined(typeof(RoomShutterScene), scene) ? (RoomShutterScene)scene : null;
 
@@ -371,6 +379,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
         var node = DiagnosticResultNode.Create(Name);
         node.Records = [
             RoomKey.Key.AsDiagnosticRecord("RoomKey"),
+            (RoomContext.Room.ShutterScene is IValue<byte> currentScene) ? DiagnosticIValue<IValue<byte>>.Create(currentScene, this) : new DiagnosticRecord("ShutterScene", "N/A", "Room shutter scene value is not available / is of incompatible type."),
             LastSceneCommanded.AsDiagnosticRecord("LastSceneCommanded"),
             IsRoomTemperatureAboveAutoShadowThreshold.AsDiagnosticRecord("IsRoomTemperatureAboveAutoShadowThreshold"),
             FilteredRoomTemperature.AsDiagnosticRecord("FilteredRoomTemperature", "Filtered room temperature in °C, throttled to max 15 min and with hysteresis of 0.2°C."),
