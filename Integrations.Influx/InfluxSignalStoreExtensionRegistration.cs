@@ -15,17 +15,19 @@ public sealed class InfluxSignalStoreExtensionRegistration : IExtensionRegistrat
     public void RegisterServices(IExtensionRegistrationContext context)
     {
         var configuration = context.Builder.Configuration;
+        var enabled = configuration.GetValue<bool>($"{InfluxIntegrationOptions.SectionName}:Enabled");
         var url = configuration[$"{InfluxIntegrationOptions.SectionName}:Url"];
         var organization = configuration[$"{InfluxIntegrationOptions.SectionName}:Organization"];
         var token = configuration[$"{InfluxIntegrationOptions.SectionName}:Token"];
         var defaultBucket = configuration[$"{InfluxIntegrationOptions.SectionName}:DefaultBucket"];
 
-        if (string.IsNullOrWhiteSpace(url)
+        if (!enabled
+            || string.IsNullOrWhiteSpace(url)
             || string.IsNullOrWhiteSpace(organization)
             || string.IsNullOrWhiteSpace(token)
             || string.IsNullOrWhiteSpace(defaultBucket))
         {
-            Console.Error.WriteLine("Influx integration disabled: required configuration values are missing.");
+            Console.Error.WriteLine("Influx integration disabled: required configuration values are missing or integration is disabled.");
 
             context.Builder.Services.AddSingleton<DisabledInfluxSignalStore>();
             context.Builder.Services.AddSingleton<ISignalStore>(sp => sp.GetRequiredService<DisabledInfluxSignalStore>());

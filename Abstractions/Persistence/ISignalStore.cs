@@ -5,6 +5,7 @@ namespace HomeCompanion.Persistence;
 /// </summary>
 /// <remarks>
 /// The contract is transport-neutral so implementations can target different backends.
+/// First implementations targets InfluxDB, implemented by the Influx extension.
 /// </remarks>
 public interface ISignalStore
 {

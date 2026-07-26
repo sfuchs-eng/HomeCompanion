@@ -2,6 +2,7 @@ namespace HomeCompanion.Persistence;
 
 /// <summary>
 /// Transport-neutral representation of an internal signal measurement.
+/// Serves logging to influxdb and other time-series databases.
 /// </summary>
 public sealed class InternalSignalMeasurement
 {

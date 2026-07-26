@@ -7,6 +7,8 @@ namespace HomeCompanion.Integrations.Influx;
 /// </summary>
 public sealed class InfluxIntegrationOptions
 {
+    public bool Enabled { get; init; } = false;
+    
     /// <summary>
     /// Configuration section name.
     /// </summary>
