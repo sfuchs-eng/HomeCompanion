@@ -10,6 +10,8 @@ internal sealed class DisabledInfluxSignalStore(ILogger<DisabledInfluxSignalStor
 {
     private readonly ILogger<DisabledInfluxSignalStore> _logger = logger;
 
+    public bool IsEnabled => true; // exercise the Influx integration code path, but drop all measurements because the integration is disabled.
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Influx internal signal store is disabled due to incomplete configuration.");

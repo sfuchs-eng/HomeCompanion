@@ -19,6 +19,8 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     private CancellationTokenSource? _workerCancellation;
     private volatile bool _acceptWrites;
 
+    public bool IsEnabled => _acceptWrites;
+
     public InfluxSignalStore(
         IInfluxBatchWriter batchWriter,
         IOptions<InfluxIntegrationOptions> options,

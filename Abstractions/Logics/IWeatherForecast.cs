@@ -12,8 +12,14 @@ namespace HomeCompanion.Logics;
 /// </remarks>
 public interface IWeatherForecast
 {
+    /// <summary>
+    /// The timestamp when the forecast was received.
+    /// </summary>
     public DateTimeOffset Received { get; }
 
+    /// <summary>
+    /// The timestamp when the forecast was created.
+    /// </summary>
     public DateTimeOffset? Created { get; }
 
     public IReadOnlyList<IWeatherForecastDay> Forecast { get; }
@@ -22,11 +28,36 @@ public interface IWeatherForecast
 public interface IWeatherForecastDay
 {
     public DateOnly Date { get; }
+
+    /// <summary>
+    /// The average temperature in °C for the day.
+    /// </summary>
     public double TemperatureAvg { get; }
+
+    /// <summary>
+    /// The minimum temperature in °C for the day.
+    /// </summary>
     public double TemperatureMin { get; }
+
+    /// <summary>
+    /// The maximum temperature in °C for the day.
+    /// </summary>
     public double TemperatureMax { get; }
+
+    /// <summary>
+    /// The expected (50 percentile?) precipitation in mm for the day.
+    /// </summary>
     public double Precipitation { get; }
+
+    /// <summary>
+    /// The minimum (90 percentile?) precipitation in mm for the day.
+    /// </summary>
+    /// <value></value>
     public double PrecipitationMin { get; }
+
+    /// <summary>
+    /// The maximum (10 percentile?) precipitation in mm for the day.
+    /// <value></value>
     public double PrecipitationMax { get; }
 }
 

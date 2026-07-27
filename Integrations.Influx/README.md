@@ -95,5 +95,6 @@ The extension is discovered only when its assembly is loaded.
 
 - Keep HomeCompanion.Integrations.Influx.dll in the application base directory, or
 - place it in the directory configured by HomeCompanion:ExtensionsPath.
+- or reference it from your launch project
 
 If the assembly is absent, no Influx-backed ISignalStore implementation is registered.

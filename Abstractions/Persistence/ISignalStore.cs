@@ -9,6 +9,8 @@ namespace HomeCompanion.Persistence;
 /// </remarks>
 public interface ISignalStore
 {
+    bool IsEnabled { get; }
+
     /// <summary>
     /// Enqueues a single measurement for asynchronous persistence.
     /// </summary>

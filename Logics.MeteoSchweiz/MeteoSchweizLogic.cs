@@ -1,6 +1,7 @@
 using HomeCompanion.Base.Quartz;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Events;
+using HomeCompanion.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -81,6 +82,39 @@ public class MeteoSchweizLogic(
         // Handle the received weather forecast event
         var forecast = weatherForecastEvent.Forecast;
         latestForecast = forecast;
+    }
+
+    private static IEnumerable<KeyValuePair<string, object>> CreateForecastFieldsDay(IWeatherForecastDay forecastDay, int dayIndex)
+    {
+        yield return new KeyValuePair<string, object>($"Day{dayIndex}_TempMin", forecastDay.TemperatureMin);
+        yield return new KeyValuePair<string, object>($"Day{dayIndex}_TempMax", forecastDay.TemperatureMax);
+        yield return new KeyValuePair<string, object>($"Day{dayIndex}_Precipitation", forecastDay.Precipitation);
+        yield return new KeyValuePair<string, object>($"Day{dayIndex}_PrecipMin", forecastDay.PrecipitationMin);
+        yield return new KeyValuePair<string, object>($"Day{dayIndex}_PrecipMax", forecastDay.PrecipitationMax);
+    }
+
+    protected async Task TryStoreForecastAsync(IWeatherForecast forecast, CancellationToken cancellationToken = default)
+    {
+        var store = serviceProvider.GetService<Persistence.ISignalStore>();
+        if (store is null || !store.IsEnabled)
+        {
+            return;
+        }
+
+        Dictionary<string, object> fields = forecast.Forecast
+            .Take(4)
+            .SelectMany(CreateForecastFieldsDay)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+        // Create the measurement and enqueue it for persistence. Have fields for the forecasts +0, +1, +2, +3 days.
+        var measurement = new InternalSignalMeasurement()
+        {
+            Measurement = "MeteoSchweizForecast",
+            Timestamp = forecast.Received,
+            Fields = fields
+        };
+
+        await store.EnqueueAsync(measurement, cancellationToken);
     }
 
     protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
