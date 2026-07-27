@@ -1,7 +1,10 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace HomeCompanion.Persistence;
 
 /// <summary>
 /// Stores internal time-series signals produced by logic modules and other in-process components.
+/// Use `TryGetSignalStore` extension method of `IServiceProvider` to check if a signal store is available in the current service provider.
 /// </summary>
 /// <remarks>
 /// The contract is transport-neutral so implementations can target different backends.
@@ -26,4 +29,13 @@ public interface ISignalStore
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A task that completes when enqueueing has finished.</returns>
     ValueTask EnqueueRangeAsync(IEnumerable<InternalSignalMeasurement> measurements, CancellationToken cancellationToken = default);
+}
+
+public static class SignalStoreExtensions
+{
+    public static bool TryGetSignalStore(this IServiceProvider serviceProvider, out ISignalStore? signalStore)
+    {
+        signalStore = serviceProvider.GetService<ISignalStore>();
+        return signalStore is not null;
+    }
 }
