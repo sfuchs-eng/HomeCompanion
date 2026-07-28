@@ -21,19 +21,25 @@ public class LogicBaseTests
         }
     }
 
-    private sealed class FaultingInitLogic(Exception activationException) : LogicBase(NullLogger<ILogic>.Instance)
+    private sealed class FaultingInitLogic : LogicBase
     {
-        public Exception ActivationException { get; } = activationException;
+        public FaultingInitLogic(Exception activationException) : base(NullLogger<ILogic>.Instance)
+        {
+            ActivationException = activationException;
+        }
 
         protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
         {
-            return Task.FromException(ActivationException);
+            return Task.FromException(ActivationException!);
         }
     }
 
-    private sealed class FaultingEnableLogic(Exception activationException) : LogicBase(NullLogger<ILogic>.Instance)
+    private sealed class FaultingEnableLogic : LogicBase
     {
-        public Exception ActivationException { get; } = activationException;
+        public FaultingEnableLogic(Exception activationException) : base(NullLogger<ILogic>.Instance)
+        {
+            ActivationException = activationException;
+        }
 
         protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
         {
@@ -42,7 +48,7 @@ public class LogicBaseTests
 
         public override Task EnableAsync(CancellationToken cancellationToken = default)
         {
-            throw ActivationException;
+            throw ActivationException!;
         }
     }
 

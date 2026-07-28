@@ -6,6 +6,7 @@ namespace HomeCompanion.Logics.Shutters;
 public class BuildingRuntime(
     BuildingContext buildingContext,
     IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
+    RuntimeCreationContext<BuildingKey, BuildingRuntime> runtimeCreationContext,
     ILogger<BuildingRuntime> logger
 ) : RuntimeBase(logger)
 {
@@ -13,6 +14,7 @@ public class BuildingRuntime(
     public BuildingContext BuildingContext { get; } = buildingContext;
     protected ShadowingSpecial? ShadowingSpecialRegisteredWith { get; private set; } = null;
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder = queueFeeder;
+    private readonly RuntimeCreationContext<BuildingKey, BuildingRuntime> runtimeCreationContext = runtimeCreationContext;
     private readonly ILogger<BuildingRuntime> logger = logger;
 
     public override string Name => BuildingKey.ToString();
@@ -123,7 +125,7 @@ public class BuildingRuntime(
                 continue;
             }
 
-            var runtime = new BuildingRuntime(buildingContext, queueFeeder, loggerFactory.CreateLogger<BuildingRuntime>());
+            var runtime = new BuildingRuntime(buildingContext, queueFeeder, runtimeCreationContext, loggerFactory.CreateLogger<BuildingRuntime>());
             newRuntimes[buildingContext.BuildingKey] = runtime;
         }
         return newRuntimes;

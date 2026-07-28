@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-repo_root=$(cd -- "$script_dir/.." && pwd)
+repo_root=$(cd -- "$script_dir" && pwd)
 config_file="${PUBLISH_TARGET_CONFIG:-$script_dir/publish-to-remote.local}"
 
 if [[ ! -f "$config_file" ]]; then
@@ -20,7 +20,7 @@ source "$config_file"
 : "${PUBLISH_PATH:?Set PUBLISH_PATH in $config_file}"
 
 publish_configuration="${PUBLISH_CONFIGURATION:-Production}"
-project_path="$repo_root/../Server/HomeCompanion.Local.Server.csproj"
+project_path="$repo_root/Server/HomeCompanion.Local.Server.csproj"
 publish_dir=$(mktemp -d -t homecompanion-publish.XXXXXX)
 
 cleanup() {

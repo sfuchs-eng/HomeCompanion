@@ -1,6 +1,6 @@
-using System.Runtime.CompilerServices;
 using HomeCompanion.Base.Diagnostics;
 using HomeCompanion.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters;
@@ -15,8 +15,8 @@ namespace HomeCompanion.Logics.Shutters;
 /// </summary>
 /// <param name="roomKey"></param>
 /// <param name="queueFeeder"></param>
-/// <param name="logger"></param> <summary>
-/// </summary>
+/// <param name="logger"></param>
+/// <param name="serviceProvider"></param>
 /// <typeparam name="ShutterAutomationComputationTriggerContext"></typeparam>
 public class RoomRuntime : RuntimeBase, IDisposable
 {
@@ -25,6 +25,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
 
     private readonly IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder;
     private readonly TimeProvider timeProvider;
+    private readonly ISignalStore? signalStore = null;
     private readonly ILogger<RoomRuntime> logger;
 
     public virtual required RoomSceneConditionsAssessor SceneConditionsAssessor { get; init; }
@@ -34,12 +35,18 @@ public class RoomRuntime : RuntimeBase, IDisposable
 
     public override string Name => RoomKey.ToString();
 
-    public RoomRuntime(RoomContext roomContext, IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder, TimeProvider timeProvider, ILogger<RoomRuntime> logger)
+    public RoomRuntime(
+        RoomContext roomContext,
+        IQueueFeeder<ShutterAutomationComputationTriggerContext> queueFeeder,
+        TimeProvider timeProvider,
+        RuntimeCreationContext<RoomKey, RoomRuntime> runtimeCreationContext,
+        ILogger<RoomRuntime> logger)
         : base(logger)
     {
         RoomContext = roomContext;
         this.queueFeeder = queueFeeder;
         this.timeProvider = timeProvider;
+        this.signalStore = runtimeCreationContext.ServiceProvider.GetService<ISignalStore>();
         this.logger = logger;
         filteredRoomTemperatureObservableCached = new CachedValue<IObservable<float>>(Observable.Empty<float>(), () =>
         {
@@ -218,7 +225,9 @@ public class RoomRuntime : RuntimeBase, IDisposable
             return;
         }
 
-        // is it an automation scene? cause a shutter automation computation trigger event to be enqueued for the room runtime to handle it and determine whether to accept the requested scene or not.
+        // shutters are not listening to the room shutter scene --> inform them about changes
+
+        // is it an automation scene? cause a shutter automation computation trigger event to be enqueued for the concerned shutter runtimes to act accordingly.
         if (roomScene?.IsAutomationScene() == true)
         {
             logger.LogTrace("Room shutter scene is set to {RoomScene} for room {RoomKey}. Enqueuing a recomputation trigger for the room runtime to handle it.", roomScene, RoomKey.Key);
@@ -342,7 +351,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
                 continue;
             }
 
-            var runtime = new RoomRuntime(roomContext, queueFeeder, runtimeCreationContext.TimeProvider, loggerFactory.CreateLogger<RoomRuntime>())
+            var runtime = new RoomRuntime(roomContext, queueFeeder, runtimeCreationContext.TimeProvider, runtimeCreationContext, loggerFactory.CreateLogger<RoomRuntime>())
             {
                 SceneConditionsAssessor = new RoomSceneConditionsAssessor(roomContext, loggerFactory.CreateLogger<RoomSceneConditionsAssessor>()),
                 SceneResolver = new RoomSceneResolver(roomContext, loggerFactory.CreateLogger<RoomSceneResolver>())

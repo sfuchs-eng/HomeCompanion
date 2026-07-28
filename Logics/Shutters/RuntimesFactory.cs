@@ -1,4 +1,3 @@
-using HomeCompanion.Base.Utilities;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
@@ -16,6 +15,7 @@ public class RuntimesFactory(
     TimeProvider timeProvider,
     IModelProvider modelProvider,
     ISchedulerFactory schedulerFactory,
+    IServiceProvider serviceProvider,
     ILoggerFactory loggerFactory,
     ILogger<RuntimesFactory> logger
 ) : IRuntimesFactory
@@ -27,6 +27,7 @@ public class RuntimesFactory(
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly IModelProvider modelProvider = modelProvider;
     private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
+    private readonly IServiceProvider serviceProvider = serviceProvider;
     private readonly ILoggerFactory loggerFactory = loggerFactory;
     private readonly ILogger<RuntimesFactory> logger = logger;
 
@@ -44,6 +45,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        serviceProvider,
         loggerFactory
     ));
 
@@ -63,6 +65,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        serviceProvider,
         loggerFactory
     ));
 
@@ -75,6 +78,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        serviceProvider,
         loggerFactory
     ));
 }
@@ -95,6 +99,7 @@ public record class RuntimeCreationContext<TKey, TRuntime>(
     IQueueFeeder<ShutterAutomationComputationTriggerContext> ComputationTriggerQueueFeeder,
     ISchedulerFactory SchedulerFactory,
     TimeProvider TimeProvider,
+    IServiceProvider ServiceProvider,
     ILoggerFactory LoggerFactory
 ) where TKey : notnull, IThingKey
   where TRuntime : IThingRuntime;

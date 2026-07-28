@@ -98,7 +98,7 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     /// causing <see cref="IsEnabled"/> to remain false.
     /// </summary>
     /// <value></value>
-    public Exception? ActivationException { get; private set; } = null;
+    public Exception? ActivationException { get; protected set; } = null;
 
     protected void OnActivationFailed(Exception exception)
     {

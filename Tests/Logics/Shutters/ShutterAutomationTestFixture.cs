@@ -9,6 +9,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using HomeCompanion.Logics.Shutters.AutoShadow;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -240,7 +241,8 @@ public partial class ShutterAutomationTestFixture(
         //var environmentalsProvider = new StubEnvironmentalsProvider();
         var environmentalsProvider = new EnvironmentalsEvaluatorLogic(eventPublisher, modelProvider, timeProvider, NullLoggerFactory.Instance.CreateLogger<EnvironmentalsEvaluatorLogic>());
         var loggerFactory = NullLoggerFactory.Instance;
-        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, schedulerFactory, loggerFactory);
+        var serviceProvider = new ServiceCollection().BuildServiceProvider();
+        var runtimesController = new ShadowingRuntimesController(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, serviceProvider, modelProvider, schedulerFactory, loggerFactory);
         IRuntimesProvider runtimesProvider = runtimesController;
         var logger = loggerFactory.CreateLogger<ShutterAutomationTestFixture>();
 
