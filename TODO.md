@@ -8,7 +8,7 @@ Scratchpad, don't take this all for granted.
 
 ### Priority 1 — Shutter automation logic
 
-...
+... testing & fixing
 
 ### Port existing functionality from the old HomeCompanion solution into the one at hand
 

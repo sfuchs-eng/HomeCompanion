@@ -69,7 +69,7 @@
 
 <div class="mb-4">
     <h4 class="mb-3">Logic Modules</h4>
-    @if (!Logics.Any())
+    @if (!GetAllLogicReferences().Any())
     {
         <p class="text-muted">No logic modules registered.</p>
     }
@@ -85,12 +85,12 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var logic in Logics)
+                @foreach (var logicRef in GetAllLogicReferences())
                 {
                     <tr>
-                        <td><code>@logic.GetType().Name</code></td>
+                        <td><code>@logicRef.TypeName</code></td>
                         <td>
-                            @if (logic.IsActivated)
+                            @if (logicRef.IsActivated)
                             {
                                 <span class="badge text-bg-success">Yes</span>
                             }
@@ -100,7 +100,7 @@
                             }
                         </td>
                         <td>
-                            @if (logic.IsEnabled)
+                            @if (logicRef.IsEnabled)
                             {
                                 <span class="badge text-bg-success">Yes</span>
                             }
@@ -110,9 +110,9 @@
                             }
                         </td>
                         <td>
-                            @if (logic.ActivationException is not null)
+                            @if (logicRef.ActivationException is not null)
                             {
-                                <span class="text-danger">@logic.ActivationException.Message</span>
+                                <span class="text-danger">@logicRef.ActivationException.Message</span>
                             }
                         </td>
                     </tr>
@@ -229,5 +229,39 @@
             ServiceStatus.Undefined => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>"),
             _ => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>")
         };
+    }
+
+    private record LogicReference(string TypeName, bool IsLoaded, bool IsActivated, bool IsEnabled, Exception? ActivationException);
+
+    private IEnumerable<LogicReference> GetAllLogicReferences()
+    {
+        return Logics.Select(l => new LogicReference(
+            TypeName: l.GetType().FullName ?? l.GetType().Name,
+            IsLoaded: true,
+            IsActivated: l.IsActivated,
+            IsEnabled: l.IsEnabled,
+            ActivationException: l.ActivationException
+        )).Concat(GetNonLoadedLogicReferences());
+    }
+
+    private IEnumerable<LogicReference> GetNonLoadedLogicReferences()
+    {
+        // get all ILogic from loaded assemblies
+        var loadedLogicTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(a => a.GetTypes())
+            .Where(t => typeof(ILogic).IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface);
+        
+        // remove the ones that are already loaded
+        var loadedLogicHashSet = new HashSet<Type>(Logics.Select(l => l.GetType()));
+        var nonLoadedLogicTypes = loadedLogicTypes
+            .Where(t => !loadedLogicHashSet.Contains(t));
+
+        return nonLoadedLogicTypes.Select(t => new LogicReference(
+            TypeName: t.FullName ?? t.Name,
+            IsLoaded: false,
+            IsActivated: false,
+            IsEnabled: false,
+            ActivationException: new Exception("ILogic not not instantiated / not found in service container.")
+        ));
     }
 }

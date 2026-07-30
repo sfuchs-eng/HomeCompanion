@@ -143,6 +143,38 @@ The value reference resolver accepts flexible formats and normalizes internally,
 
 This enables flexible runtime wiring while preserving explicit defaults in code.
 
+### Logic loading by environment
+
+`ILogic` discovery can be restricted to specific host environments.
+Filtering happens during registration, so disallowed logics are not registered,
+not constructed, and not initialized.
+
+- attribute: `[LoadInEnvironments("Development", "Offline")]` on a logic class
+- configuration: `HomeCompanion:LogicEnvironmentRules` dictionary
+  - key: `FullLogicTypeName` or `LogicTypeName`
+  - value: string array of allowed environments
+- matching: case-insensitive exact environment name
+- precedence: attribute and configuration are merged by union
+- default: when no rule is configured (attribute nor config), logic loads in all environments
+
+Example:
+
+```json
+{
+  "HomeCompanion": {
+    "LogicEnvironmentRules": {
+      "HomeCompanion.Local.Logics.HeatPump.HeatPumpControl": ["Production"],
+      "SomeTestLogic": ["Development", "Offline"]
+    }
+  }
+}
+```
+
+Environment name comes from the host environment (`ASPNETCORE_ENVIRONMENT`).
+When a logic is skipped due to environment rules, startup emits an informational message to stderr.
+
+To prevent loading at all, use an empty array in the config rule or an attribute with no arguments.
+
 ### Quartz job registration
 
 Have `IJob` implementations register themselves with the scheduler via attribute:

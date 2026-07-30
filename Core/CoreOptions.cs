@@ -55,4 +55,20 @@ public class CoreOptions
     /// Values are parsed using <see cref="IValueProvider"/> reference formats.
     /// </remarks>
     public Dictionary<string, string> LogicValueBindings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Optional environment rules for logic discovery-time registration.
+    /// </summary>
+    /// <remarks>
+    /// Keys must use one of the following formats:
+    /// <list type="bullet">
+    /// <item><c>FullLogicTypeName</c></item>
+    /// <item><c>LogicTypeName</c></item>
+    /// </list>
+    /// Values are environment names where the logic is allowed to load.
+    /// Matching is case-insensitive and exact.
+    /// When both attribute and configuration rules exist for a logic type,
+    /// effective allowed environments are the union of both sets.
+    /// </remarks>
+    public Dictionary<string, string[]> LogicEnvironmentRules { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

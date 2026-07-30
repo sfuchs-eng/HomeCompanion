@@ -91,7 +91,8 @@ public static class HostingExtensions
         builder.AddExtensions();
         builder.Services.AddConnectivityProviders();
         builder.Services.AddValuesContainers();
-        builder.Services.AddLogics();
+        var logicEnvironmentRules = ResolveLogicEnvironmentRules(builder.Configuration);
+        builder.Services.AddLogics(builder.Environment.EnvironmentName, logicEnvironmentRules);
         builder.Services.AddLogicManager();
 
         return builder;
@@ -464,6 +465,12 @@ public static class HostingExtensions
     /// Any assembly loaded after this call will not be discovered automatically.
     /// </remarks>
     public static IServiceCollection AddLogics(this IServiceCollection services)
+        => AddLogics(services, environmentName: null, configuredEnvironmentRules: null);
+
+    internal static IServiceCollection AddLogics(
+        this IServiceCollection services,
+        string? environmentName,
+        IReadOnlyDictionary<string, string[]>? configuredEnvironmentRules)
     {
         var logicInterface = typeof(ILogic);
 
@@ -472,13 +479,152 @@ public static class HostingExtensions
             .SelectMany(GetExportedTypesSafe)
             .Where(t => t.IsClass && !t.IsAbstract && logicInterface.IsAssignableFrom(t));
 
+        var discoveredCount = 0;
+        var registeredCount = 0;
+        var skippedCount = 0;
+
         foreach (var type in logicTypes)
         {
+            discoveredCount++;
+
+            if (!ShouldRegisterLogicType(type, environmentName, configuredEnvironmentRules, out var reason))
+            {
+                skippedCount++;
+
+                if (!string.IsNullOrWhiteSpace(environmentName))
+                {
+                    Console.Error.WriteLine(
+                        $"Skipping logic registration: {type.FullName ?? type.Name} in environment '{environmentName}'. {reason}");
+                }
+
+                continue;
+            }
+
             RegisterLogicType(services, type);
+            registeredCount++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(environmentName))
+        {
+            Console.Error.WriteLine(
+                $"Logic discovery summary for environment '{environmentName}': discovered={discoveredCount}, registered={registeredCount}, skipped={skippedCount}.");
         }
 
         return services;
     }
+
+    internal static bool ShouldRegisterLogicType(
+        Type logicType,
+        string? environmentName,
+        IReadOnlyDictionary<string, string[]>? configuredEnvironmentRules,
+        out string reason)
+    {
+        if (string.IsNullOrWhiteSpace(environmentName))
+        {
+            reason = "No environment name provided; logic registration is unrestricted.";
+            return true;
+        }
+
+        var currentEnvironment = environmentName.Trim();
+        var allowedEnvironments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var hasAttributeRule = false;
+        var attribute = Attribute.GetCustomAttribute(logicType, typeof(LoadInEnvironmentsAttribute), false) as LoadInEnvironmentsAttribute;
+        if (attribute is not null)
+        {
+            hasAttributeRule = true;
+            allowedEnvironments.UnionWith(NormalizeEnvironmentNames(attribute.Environments));
+        }
+
+        var hasConfigurationRule = TryGetConfiguredLogicEnvironments(
+            logicType,
+            configuredEnvironmentRules,
+            out var configuredEnvironments,
+            out var matchedConfigurationKey);
+
+        if (hasConfigurationRule)
+            allowedEnvironments.UnionWith(NormalizeEnvironmentNames(configuredEnvironments));
+
+        if (!hasAttributeRule && !hasConfigurationRule)
+        {
+            reason = "No attribute or configuration rule defined; logic registration is unrestricted.";
+            return true;
+        }
+
+        var allowedEnvironmentList = allowedEnvironments.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+        var sourceText = hasConfigurationRule
+            ? $"attribute + configuration(key='{matchedConfigurationKey}')"
+            : "attribute";
+
+        if (!hasAttributeRule && hasConfigurationRule)
+            sourceText = $"configuration(key='{matchedConfigurationKey}')";
+
+        if (allowedEnvironmentList.Length == 0)
+        {
+            reason = $"Rule source: {sourceText}; effective environment set is empty.";
+            return false;
+        }
+
+        var isAllowed = allowedEnvironments.Contains(currentEnvironment);
+        reason = $"Rule source: {sourceText}; allowed environments: [{string.Join(", ", allowedEnvironmentList)}].";
+        return isAllowed;
+    }
+
+    internal static IReadOnlyDictionary<string, string[]> ResolveLogicEnvironmentRules(IConfiguration configuration)
+    {
+        var configuredRules = configuration
+            .GetSection(AppName)
+            .GetSection(nameof(CoreOptions.LogicEnvironmentRules))
+            .Get<Dictionary<string, string[]>>()
+            ?? [];
+
+        return new Dictionary<string, string[]>(configuredRules, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetConfiguredLogicEnvironments(
+        Type logicType,
+        IReadOnlyDictionary<string, string[]>? configuredEnvironmentRules,
+        out string[] configuredEnvironments,
+        out string? matchedConfigurationKey)
+    {
+        configuredEnvironments = [];
+        matchedConfigurationKey = null;
+
+        if (configuredEnvironmentRules is null || configuredEnvironmentRules.Count == 0)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(logicType.FullName)
+            && configuredEnvironmentRules.TryGetValue(logicType.FullName, out var fullNameEnvironments))
+        {
+            var normalized = NormalizeEnvironmentNames(fullNameEnvironments).ToArray();
+            if (normalized.Length > 0)
+            {
+                configuredEnvironments = normalized;
+                matchedConfigurationKey = logicType.FullName;
+                return true;
+            }
+        }
+
+        if (configuredEnvironmentRules.TryGetValue(logicType.Name, out var typeNameEnvironments))
+        {
+            var normalized = NormalizeEnvironmentNames(typeNameEnvironments).ToArray();
+            if (normalized.Length > 0)
+            {
+                configuredEnvironments = normalized;
+                matchedConfigurationKey = logicType.Name;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> NormalizeEnvironmentNames(IEnumerable<string>? environmentNames)
+        => environmentNames is null
+            ? []
+            : environmentNames
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim());
 
     internal static void RegisterLogicType(IServiceCollection services, Type type)
     {
