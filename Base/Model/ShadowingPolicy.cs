@@ -1,28 +1,6 @@
 namespace HomeCompanion.Base.Model;
 
 /// <summary>
-/// Global shadowing automation level.
-/// </summary>
-[Obsolete("to be reconsidered")]
-public enum ShadowingAutomationLevel
-{
-    /// <summary>
-    /// No automatic shadowing actions are performed.
-    /// </summary>
-    ManualOnly,
-
-    /// <summary>
-    /// Automatic shadowing is active; manual overrides are temporary.
-    /// </summary>
-    AutomaticWithTemporaryManualOverride,
-
-    /// <summary>
-    /// Automatic shadowing is strict and ignores manual scene overrides except safety/interlocks.
-    /// </summary>
-    AutomaticStrict,
-}
-
-/// <summary>
 /// Effective room objective profile used by policy resolution.
 /// </summary>
 public enum RoomObjectiveProfile
@@ -76,33 +54,6 @@ public enum ShadowingScheduleEngine
     /// Quartz-based schedule evaluation.
     /// </summary>
     Quartz,
-}
-
-/// <summary>
-/// Input-driven objective selector rule for future room-level objective adaptation.
-/// </summary>
-[Obsolete("to be reconsidered")]
-public class CfgObjectiveSelectorInput
-{
-    /// <summary>
-    /// Reference to the input value used by this rule.
-    /// </summary>
-    public string? ValueReference { get; set; }
-
-    /// <summary>
-    /// Rule threshold compared against input value.
-    /// </summary>
-    public double Threshold { get; set; }
-
-    /// <summary>
-    /// Objective selected when input value is greater than or equal to <see cref="Threshold"/>.
-    /// </summary>
-    public RoomObjectiveProfile ProfileAtOrAboveThreshold { get; set; } = RoomObjectiveProfile.ThermalPriority;
-
-    /// <summary>
-    /// Objective selected when input value is below <see cref="Threshold"/>.
-    /// </summary>
-    public RoomObjectiveProfile ProfileBelowThreshold { get; set; } = RoomObjectiveProfile.BalancedDefault;
 }
 
 /// <summary>

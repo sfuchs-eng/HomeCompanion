@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using HomeCompanion.Logics.ThermalControl;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Diagnostics;
+using System.Diagnostics;
 
 namespace HomeCompanion.Logics.Shutters;
 
@@ -50,7 +51,19 @@ public class RoomSceneConditionsAssessor
         {
             // building is not defined, revert back to room-level default.
             _lastRoomObjectiveProfileDecisionMessage = $"Room '{roomContext.Room.Name}' has configured RoomObjectiveProfile '{roomContext.Room.Configuration.ObjectiveProfile}', but building thermal control mode is undefined, so using room-level configuration.";
-            return roomContext.Room.Configuration.ObjectiveProfile;
+            var roomProfile = roomContext.Room.Configuration.ObjectiveProfile;
+            if ( roomProfile == RoomObjectiveProfile.InheritFromThermalControl)
+            {
+                // determine default from shutter constraints (it's a bit a weird hack though)
+                var constraints = roomContext.Room.ResolveRoomShutterSceneConstraints(roomContext.Building);
+
+                if (constraints.HasFlag(ShutterConstraints.LeaveClosed) )
+                    return RoomObjectiveProfile.ThermalPriority;
+                if (constraints.HasFlag(ShutterConstraints.KeepOpen))
+                    return RoomObjectiveProfile.DaylightPriority;
+                roomProfile = RoomObjectiveProfile.BalancedDefault;
+            }
+            return roomProfile;
         }
 
         var ret = buildingThermalControlMode switch
