@@ -246,6 +246,15 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
             throw new ObjectDisposedException(nameof(ValuesManager));
     }
 
+    /// <summary>
+    /// Checks if the inbound event can be routed based on the current application initialization stage.
+    /// If the stage <see cref="AppInitializationStage.InitValuesRegistered"/> is not completed, the event will be dropped and a warning will be logged.
+    /// This is to prevent routing events to values that may not have been registered yet, which could lead to lost updates or writes.
+    /// </summary>
+    /// <param name="target"></param>
+    /// <param name="eventName"></param>
+    /// <param name="droppedCounter"></param>
+    /// <returns></returns>
     private bool CanRouteInboundEvent(IValue? target, string eventName, ref long droppedCounter)
     {
         if (_lifeCycleSynchronization.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered))

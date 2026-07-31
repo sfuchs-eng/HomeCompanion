@@ -8,6 +8,14 @@ using System.Text.Json.Serialization;
 
 namespace HomeCompanion.Core.Persistence;
 
+/// <summary>
+/// Stages the IValue initialization and coordination with <see cref="ILogic"/>s and extensions, using <see cref="IHomeCompanionLifeCycleSynchronization"/>. 
+/// The staging is initiated by <see cref="StateInitializationManagerHostedService"/> that calls <see cref="InitializeStateAsync"/>.
+/// </summary>
+/// <remarks>
+/// While it directly encapsulates the loading from/saving to persistent storage of IValues, it allows extensions to plug
+/// into the IValue staging process via <see cref="RegisterInitialization"/> and <see cref="RemoveInitialization"/>.
+/// </remarks>
 public class StateInitializationManager : IStateInitializationManager
 {
     private const string ValueSnapshotStateSetName = "value-snapshot";
@@ -108,7 +116,7 @@ public class StateInitializationManager : IStateInitializationManager
 
         foreach (var stage in Enum.GetValues<AppInitializationStage>())
         {
-            if ( skipStages.Contains(stage)) continue;
+            if (skipStages.Contains(stage)) continue;
             if (Initializations[stage].Count == 0)
             {
                 Logger.LogTrace("Skipping stage {Stage} as it has no registered initialization delegates.", stage);
