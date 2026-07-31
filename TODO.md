@@ -2,13 +2,11 @@
 
 Scratchpad, don't take this all for granted.
 
-... and it's indeed pretty outdated right now.
-
 ## Present work focus
 
-### Priority 1 — Shutter automation logic
+### Priority 1 — Shutter automation logic & other logics
 
-... testing & fixing
+... production testing & fixing
 
 ### Port existing functionality from the old HomeCompanion solution into the one at hand
 
@@ -71,15 +69,3 @@ Have the test framework also provide all IValuesContainer implementations, but i
 - gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered`
 - keep lifecycle waits non-mutating (waiting must not signal)
 - improve startup/runtime diagnostics for dropped/routed events and stage transitions
-
----
-
-## Priority 5 — ADR Open Issues (future iterations)
-
-### 5.1 Per-value initialization timeout (ADR-0002 open issue #1)
-
-If a KNX device is offline, its group address never responds and `SendInitialReadRequestsAsync` blocks all of `IsInitializationFinished` for `InitializationReadTimeout` (30 s). Implement a per-value timeout: mark unresponded values as `ValueStatus.Error` early so the rest of the system can proceed.
-
-### 5.2 Keyed-services migration in `SRF.Network.Knx` (ADR-0002 open issue #2)
-
-`AddKnxIpRouting` now registers `IKnxBus` and `IKnxConnection` as **keyed** singletons (keyed by connection name) plus a non-keyed forwarding registration for `IEnumerable<IKnxConnection>`. Any code that previously injected `IKnxBus` or `IKnxConnection` directly (non-keyed, single instance) must be reviewed and updated.

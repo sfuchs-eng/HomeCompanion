@@ -150,3 +150,23 @@ Completed parts:
 
 HomeCompanionAutoGenEntry currently includes the ETS export name (from DomainConfiguration) and group address, which are included in the generated `KnxValues` property XML comments.
 Add the Label (to property's XML comment summary) and Description (to property's XML comment remarks) from the ETS export.
+
+---
+
+## Priority 5 — ADR Open Issues (future iterations)
+
+### ~~5.1 Per-value initialization timeout (ADR-0002 open issue #1)~~
+
+If a KNX device is offline, its group address never responds and `SendInitialReadRequestsAsync` blocks all of `IsInitializationFinished` for `InitializationReadTimeout` (30 s). Implement a per-value timeout: mark unresponded values as `ValueStatus.Error` early so the rest of the system can proceed.
+
+Decision: do NOT do this. Keep as-is. Service restart is allowed to take that time.
+Flagging uninitialized values as `ValueStatus.Error` is not a good idea. Initialization via OpenHAB or persisted values is a valid use case and should not be treated as an error. ILogic implementations must see those values as initialized, independent of which bus or storage system initialized them.
+
+### ~~5.2 Keyed-services migration in `SRF.Network.Knx` (ADR-0002 open issue #2)~~ ✓
+
+`AddKnxIpRouting` now registers `IKnxBus` and `IKnxConnection` as keyed singletons (keyed by connection name) plus a non-keyed forwarding registration for `IEnumerable<IKnxConnection>`.
+
+Reviewed usage and updated `SRF.Network.Cli` to resolve the default KNX connection via keyed DI:
+
+- `Knx.Worker` constructor now injects `IKnxConnection` with `[FromKeyedServices("default")]`.
+- Build verified with `dotnet build HomeCompanion/SRF.Network/Cli/SRF.Network.Cli.csproj`.
