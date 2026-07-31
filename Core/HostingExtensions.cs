@@ -47,6 +47,7 @@ public static class HostingExtensions
         builder.Services.AddEventBus();
         builder.Services.TryAddSingleton<ValuesManager>();
         builder.Services.TryAddSingleton<IValuesManager>(sp => sp.GetRequiredService<ValuesManager>());
+        builder.Services.AddSingleton<IDiagnosable>(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IValueProvider, ValueReferenceProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
@@ -62,6 +63,7 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
+        builder.Services.AddSingleton<IDiagnosable>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
 
         builder.Services.Configure<CalendarPersistenceOptions>(builder.Configuration.GetSection(CalendarPersistenceOptions.SectionName));
         builder.Services.AddDbContext<CalendarDbContext>((sp, db) =>

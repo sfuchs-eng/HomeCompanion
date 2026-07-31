@@ -1,4 +1,5 @@
 using HomeCompanion.Abstractions;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -7,23 +8,35 @@ using System.Collections.Concurrent;
 
 namespace HomeCompanion.Core;
 
-public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCompanionLifeCycleSynchronization
+public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCompanionLifeCycleSynchronization, IDiagnosable
 {
     private readonly IServiceProvider serviceProvider;
     private readonly ILogger<HomeCompanionLifeCycleSynchronization> logger;
+    private readonly TimeProvider timeProvider;
     private readonly ConcurrentDictionary<AppInitializationStage, TaskCompletionSource> _completedInitializationStages =
         new(Enum.GetValues<AppInitializationStage>().Select(stage =>
             new KeyValuePair<AppInitializationStage, TaskCompletionSource>(
                 stage,
                 new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))));
+    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _completedInitializationStageTimestamps =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+    private long _waitCalls;
+    private long _waitTimeouts;
+    private long _signalCalls;
+    private long _duplicateSignalCalls;
+
+    public string Name => nameof(HomeCompanionLifeCycleSynchronization);
 
     public HomeCompanionLifeCycleSynchronization(
         IServiceProvider serviceProvider,
-        ILogger<HomeCompanionLifeCycleSynchronization> logger
+        ILogger<HomeCompanionLifeCycleSynchronization> logger,
+        TimeProvider timeProvider
     ) : base()
     {
         this.serviceProvider = serviceProvider;
         this.logger = logger;
+        this.timeProvider = timeProvider;
     }
 
     /// <summary>
@@ -69,6 +82,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         TimeSpan timeout,
         CancellationToken token = default)
     {
+        Interlocked.Increment(ref _waitCalls);
         var stageCompletionSource = _completedInitializationStages[level];
         if (stageCompletionSource.Task.IsCompleted)
         {
@@ -76,6 +90,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             return;
         }
 
+        var waitStartedAt = timeProvider.GetUtcNow();
         logger.LogDebug("Waiting for initialization stage {Stage} to complete. Timeout={Timeout}.", level, timeout);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -84,10 +99,14 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         try
         {
             await stageCompletionSource.Task.WaitAsync(cts.Token).ConfigureAwait(false);
-            logger.LogDebug("Initialization stage {Stage} completed.", level);
+            logger.LogDebug(
+                "Initialization stage {Stage} completed after {ElapsedMs} ms.",
+                level,
+                (timeProvider.GetUtcNow() - waitStartedAt).TotalMilliseconds);
         }
         catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
         {
+            Interlocked.Increment(ref _waitTimeouts);
             logger.LogWarning("Timeout while waiting for initialization stage {Stage} to complete.", level);
             throw new TimeoutException($"Initialization stage {level} was not completed within the specified timeout.", ex);
         }
@@ -98,17 +117,40 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     /// </summary>
     public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
     {
+        Interlocked.Increment(ref _signalCalls);
         var tcs = _completedInitializationStages[level];
         if (tcs.TrySetResult())
         {
-            logger.LogDebug("Signaled initialization stage completion: {Stage}.", level);
+            var completedAtUtc = timeProvider.GetUtcNow();
+            _completedInitializationStageTimestamps[level] = completedAtUtc;
+            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAtUtc}.", level, completedAtUtc);
         }
         else
         {
+            Interlocked.Increment(ref _duplicateSignalCalls);
             logger.LogTrace("Initialization stage {Stage} was already completed when signal was received.", level);
         }
 
         return Task.CompletedTask;
+    }
+
+    public Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
+    {
+        var root = DiagnosticResultNode.Create(Name);
+        root.Records.Add(new DiagnosticRecord("WaitCalls", Interlocked.Read(ref _waitCalls)));
+        root.Records.Add(new DiagnosticRecord("WaitTimeouts", Interlocked.Read(ref _waitTimeouts)));
+        root.Records.Add(new DiagnosticRecord("SignalCalls", Interlocked.Read(ref _signalCalls)));
+        root.Records.Add(new DiagnosticRecord("DuplicateSignalCalls", Interlocked.Read(ref _duplicateSignalCalls)));
+
+        var stagesNode = root.AddChild("Stages");
+        foreach (var stage in Enum.GetValues<AppInitializationStage>())
+        {
+            var child = stagesNode.AddChild(stage.ToString());
+            child.Records.Add(new DiagnosticRecord("Completed", _completedInitializationStages[stage].Task.IsCompleted));
+            child.Records.Add(new DiagnosticRecord("CompletedAtUtc", _completedInitializationStageTimestamps[stage]));
+        }
+
+        return Task.FromResult<IDiagnosticResultNode>(root);
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

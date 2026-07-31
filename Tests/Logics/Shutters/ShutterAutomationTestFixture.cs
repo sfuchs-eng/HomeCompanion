@@ -250,7 +250,7 @@ public partial class ShutterAutomationTestFixture(
         var roomShutterSceneLogic = new RoomShutterSceneLogic(eventSubscriber, runtimesProvider, loggerFactory.CreateLogger<RoomShutterSceneLogic>());
 
         var lifeCycleManager = new StubLifeCycleManager();
-        var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, loggerFactory.CreateLogger<ValuesManager>());
+        var valuesManager = new ValuesManager(eventPublisher, eventSubscriber, new[] { valuesProvider1 }, lifeCycleManager, timeProvider, loggerFactory.CreateLogger<ValuesManager>());
 
         return new ShutterAutomationTestFixture(valuesProvider1, eventPublisher, eventSubscriber, timeProvider, modelProvider, runtimesProvider, runtimesController, shutterController, roomShutterSceneLogic, environmentalsProvider, valuesManager, loggerFactory, logger);
     }

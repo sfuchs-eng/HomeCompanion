@@ -62,10 +62,10 @@ Have the test framework also provide all IValuesContainer implementations, but i
 
 `LambdaHandler<T>` is defined identically in both `EventBusTests.cs` and `KnxConnectivityProviderTests.cs`. Extract to a shared `TestHelpers.cs` in `HomeCompanion.Tests`.
 
-### 4.2 Harden `IValuesManager` startup synchronization and diagnostics
+### 4.2 Harden `IValuesManager` startup synchronization and diagnostics ✅
 
 `IValuesManager` is implemented and DI-registered. Focus on startup/routing hardening:
 
-- gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered`
-- keep lifecycle waits non-mutating (waiting must not signal)
-- improve startup/runtime diagnostics for dropped/routed events and stage transitions
+- [x] gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered` (provider-side gate already in place; central defensive guard added in `ValuesManager` that drops and counts pre-stage events)
+- [x] keep lifecycle waits non-mutating (waiting must not signal) — enforced by interface contract and existing `HomeCompanionLifeCycleSynchronization` implementation; verified by test
+- [x] improve startup/runtime diagnostics for dropped/routed events and stage transitions — `ValuesManager` and `HomeCompanionLifeCycleSynchronization` now implement `IDiagnosable`, exposing per-category drop counters, routed counts, handler failures, startup timestamps, and per-stage completion state/timestamps through `IDiagnosticBrowser`; both services are registered as `IDiagnosable` in `HostingExtensions`
