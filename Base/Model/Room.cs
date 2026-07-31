@@ -77,15 +77,8 @@ public class CfgRoom : CfgEntity
     public RoomObjectiveProfile ObjectiveProfile { get; set; } = RoomObjectiveProfile.InheritFromThermalControl;
 
     /// <summary>
-    /// Optional room-level override for manual override persistence.
-    /// </summary>
-    public bool? PersistManualOverride { get; set; }
-
-    /// <summary>
     /// Optional room-level override for temporary manual override duration of room scene.
     /// </summary>
-    public TimeSpan? RoomSceneManualOverrideDuration { get; set; }
-
     public TimeSpan? ShutterMaxManualOverrideDuration { get; set; }
 
     /// <summary>
