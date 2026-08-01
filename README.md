@@ -38,6 +38,20 @@ path not only for other devices but also for integration with other home automat
 - Architecture specification: [docs/architecture/homecompanion-calendar-events-arch-spec.md](docs/architecture/homecompanion-calendar-events-arch-spec.md)
 - Architecture decision record: [docs/adr/0004-calendar-events-framework.md](docs/adr/0004-calendar-events-framework.md)
 
+Addition of calendar event / entry types is done via extension assemblies containing custom classes implementing `ICalendarEvent` and being attributed
+with `[CalendarEventType(...)]`:
+
+```csharp
+[CalendarEventType("Gardening", Description = "Some annual gardening to be done", Category = "Garden")]
+public class MyCustomEvent : ICalendarEvent
+{
+    public Guid CalendarEntryId { get; set; }
+    public string CalendarEntryTitle { get; set; } = "Plant potatoes - user editable";
+    public CalendarEventPhase Phase { get; set; }
+    public string? MetadataJson { get; set; }
+}
+```
+
 ## Structure
 
 The solution is organized into several projects:
@@ -455,6 +469,7 @@ Notes for KNX configuration:
 - `LocalIpAddress` accepts an exact host IP, a subnet base address, or CIDR notation. Examples: `192.168.200.23`, `192.168.200.0`, `192.168.200.0/24`, `fd00:1234::/64`.
 - If multiple interfaces match the same subnet hint, Ethernet is preferred over Wi-Fi.
 - If `LocalIpAddress` is omitted, HomeCompanion uses the operating system's default multicast interface.
+- Use `SRF.Network.Cli` functionality to generate `KnxDomainConfigFile` from ETS GA export files. See command and option `kc -hc` for details.
 
 The UDP multicast settings for KNX/IP Routing default to the standard multicast endpoint and usually do not need to be configured explicitly:
 
@@ -501,23 +516,20 @@ MQTT brokers are configured under `Mqtt:Brokers`. Each configured broker creates
 
 `Subscriptions` are high-level ingress filters. The value-level routing is still defined explicitly on `IValue.BusMappings` via `MqttBusEndpointMapping`.
 
-Example mapping:
+Example mapping, which can be added to a value's `BusMappings` collection:
 
 ```csharp
-BusMappings =
+new MqttBusEndpointMapping(
+    brokerName: "main",
+    stateTopicFilter: "home/living/temperature/state",
+    commandTopic: "home/living/temperature/cmd")
 {
-    [MqttBusEndpointMapping.GetBusId("main")] = new MqttBusEndpointMapping(
-        brokerName: "main",
-        stateTopicFilter: "home/living/temperature/state",
-        commandTopic: "home/living/temperature/cmd")
+    Communication = BusCommunication.Receive | BusCommunication.Transmit,
+    Config = new MqttBusMappingConfiguration
     {
-        Communication = BusCommunication.Receive | BusCommunication.Transmit,
-        Config = new MqttBusMappingConfiguration
-        {
-            PayloadFormat = MqttPayloadFormat.JsonScalar,
-            Qos = 1,
-            Retain = false
-        }
+        PayloadFormat = MqttPayloadFormat.JsonScalar,
+        Qos = 1,
+        Retain = false
     }
 }
 ```
