@@ -519,18 +519,20 @@ MQTT brokers are configured under `Mqtt:Brokers`. Each configured broker creates
 Example mapping, which can be added to a value's `BusMappings` collection:
 
 ```csharp
-new MqttBusEndpointMapping(
-    brokerName: "main",
-    stateTopicFilter: "home/living/temperature/state",
-    commandTopic: "home/living/temperature/cmd")
-{
-    Communication = BusCommunication.Receive | BusCommunication.Transmit,
-    Config = new MqttBusMappingConfiguration
-    {
-        PayloadFormat = MqttPayloadFormat.JsonScalar,
-        Qos = 1,
-        Retain = false
-    }
+BusMappings = {
+  [MqttBusEndpointMapping.GetBusId("main")] = new MqttBusEndpointMapping(
+      brokerName: "main",
+      stateTopicFilter: "home/living/temperature/state",
+      commandTopic: "home/living/temperature/cmd")
+  {
+      Communication = BusCommunication.Receive | BusCommunication.Transmit,
+      Config = new MqttBusMappingConfiguration
+      {
+          PayloadFormat = MqttPayloadFormat.JsonScalar,
+          Qos = 1,
+          Retain = false
+      }
+  }
 }
 ```
 

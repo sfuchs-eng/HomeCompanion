@@ -39,7 +39,7 @@ Additionally, there are ConnectionString properties as well as more structured p
 
 Make those improvements with focus on HomeCompanion.Server usage but pull the SRF.Network.Cli tool along to use the same approach.
 
-### 3.2 Rethink ILogic testing strategy
+### 3.2 Rethink ILogic testing strategy ✅
 
 It's foreseen that Logics inject `IValuesContainer` implementations by specific type, e.g. inject `KnxValues` directly rather than via an interface.
 This allows easy access to the full set of values including context help, code completion, etc.
@@ -53,6 +53,9 @@ The test rig should even foresee fully event bus connected IValuesContainers to 
 
 Create test framework utilities to facilitate ILogic testing for logics that interact via the event bus.
 Have the test framework also provide all IValuesContainer implementations, but initialized without bus connectivity, so that logics can be tested with real values containers but without needing a bus connection.
+Done:
+
+See `HomeCompanion.Tests.Logics.Shutters.ShutterAutomationTestFixture.Craete(...)` for an example.
 
 ---
 
