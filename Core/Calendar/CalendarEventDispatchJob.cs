@@ -60,7 +60,7 @@ internal sealed class CalendarEventDispatchJob(
             return;
         }
 
-        SetTimestamp(calendarEvent, _timeProvider.GetUtcNow());
+        SetTimestamp(calendarEvent, _timeProvider.GetLocalNow());
         calendarEvent.CalendarEntryId = entry.Id;
         calendarEvent.CalendarEntryTitle = entry.Title;
         calendarEvent.Phase = phase;

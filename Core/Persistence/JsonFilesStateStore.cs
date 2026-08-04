@@ -61,12 +61,12 @@ public class JsonFilesStateStore : IStateStore
             return result;
         }
 
-        var isRecent = fi.LastWriteTimeUtc >= _timeProvider.GetUtcNow().UtcDateTime - maxAge;
+        var isRecent = fi.LastWriteTime >= _timeProvider.GetLocalNow().UtcDateTime - maxAge;
         result.IsRecent = isRecent;
         if (!isRecent)
         {
             // too old, deserialize nevertheless
-            _logger.LogInformation("State information for {stateName} is outdated, written {stateTime}", stateSetName, fi.LastWriteTimeUtc);
+            _logger.LogInformation("State information for {stateName} is outdated, written {stateTime}", stateSetName, fi.LastWriteTime);
         }
         try
         {

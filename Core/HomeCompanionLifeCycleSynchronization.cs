@@ -90,7 +90,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             return;
         }
 
-        var waitStartedAt = timeProvider.GetUtcNow();
+        var waitStartedAt = timeProvider.GetLocalNow();
         logger.LogDebug("Waiting for initialization stage {Stage} to complete. Timeout={Timeout}.", level, timeout);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -102,7 +102,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             logger.LogDebug(
                 "Initialization stage {Stage} completed after {ElapsedMs} ms.",
                 level,
-                (timeProvider.GetUtcNow() - waitStartedAt).TotalMilliseconds);
+                (timeProvider.GetLocalNow() - waitStartedAt).TotalMilliseconds);
         }
         catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
         {
@@ -121,9 +121,9 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         var tcs = _completedInitializationStages[level];
         if (tcs.TrySetResult())
         {
-            var completedAtUtc = timeProvider.GetUtcNow();
-            _completedInitializationStageTimestamps[level] = completedAtUtc;
-            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAtUtc}.", level, completedAtUtc);
+            var completedAt = timeProvider.GetLocalNow();
+            _completedInitializationStageTimestamps[level] = completedAt;
+            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAt}.", level, completedAt);
         }
         else
         {

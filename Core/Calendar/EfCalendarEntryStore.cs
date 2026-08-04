@@ -36,7 +36,7 @@ internal sealed class EfCalendarEntryStore(
 
     public async Task<CalendarEntry> UpsertAsync(CalendarEntry entry, CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetUtcNow();
+        var now = _timeProvider.GetLocalNow();
         var existing = await _dbContext.CalendarEntries
             .SingleOrDefaultAsync(e => e.Id == entry.Id, cancellationToken)
             .ConfigureAwait(false);

@@ -1,4 +1,5 @@
 using HomeCompanion.Base.Quartz;
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
@@ -8,22 +9,19 @@ namespace HomeCompanion.Logics.Sun;
 /// Manages a periodic job that computes the sun position for each building and publishes an event with the updated sun positions.
 /// The job takes care to update the sun position in any <see cref="ShadowingSpecial"/> referencing IValues for the sun position, if present in the <see cref="Model"/>.
 /// </summary>
-public class SunLogic : LogicBase
+public class SunLogic(
+    ISchedulerFactory schedulerFactory,
+    IModelProvider modelProvider,
+    TimeProvider timeProvider,
+    IEventSubscriber subscriber,
+    ILogger<SunLogic> logger
+    ) : LogicBase(logger)
 {
-    private readonly ISchedulerFactory schedulerFactory;
-    private readonly IEventSubscriber subscriber;
-    private readonly ILogger<SunLogic> logger;
-
-    public SunLogic(
-        ISchedulerFactory schedulerFactory,
-        IEventSubscriber subscriber,
-        ILogger<SunLogic> logger
-    ) : base(logger)
-    {
-        this.schedulerFactory = schedulerFactory;
-        this.subscriber = subscriber;
-        this.logger = logger;
-    }
+    private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
+    private readonly IModelProvider modelProvider = modelProvider;
+    private readonly TimeProvider timeProvider = timeProvider;
+    private readonly IEventSubscriber subscriber = subscriber;
+    private readonly ILogger<SunLogic> logger = logger;
 
     protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
     {
@@ -42,9 +40,50 @@ public class SunLogic : LogicBase
         subscriber.Subscribe<SunPositionPerBuildingUpdateEvent>(HandleSunPositionUpdateEvent);
     }
 
+    public IReadOnlyDictionary<BuildingKey, SphericVector> LastPublishedSunPositions { get; private set; } = new Dictionary<BuildingKey, SphericVector>();
+
     private async ValueTask HandleSunPositionUpdateEvent(SunPositionPerBuildingUpdateEvent @event, CancellationToken cancellationToken)
     {
         logger.LogTrace("Received SunPositionUpdateEvent at {Time} with {Count} sun positions.", @event.Timestamp, @event.SunPositions.Count);
+        LastPublishedSunPositions = @event.SunPositions;
+    }
+
+    private async Task<DiagnosticResultNode> FillBuildingSunPositionDiagnosticsAsync(DiagnosticResultNode parentNode, IReadOnlyDictionary<BuildingKey, SphericVector> sunPositions, CancellationToken cancellationToken)
+    {
+        var node = parentNode;
+        var model = modelProvider.GetModel();
+        foreach (var kvp in sunPositions)
+        {
+            try
+            {
+                var buildingKey = kvp.Key;
+                var sunPosition = kvp.Value;
+                var building = model.GetBuilding(buildingKey);
+                var bnode = node.AddChild($"Building: {buildingKey} ({building.Name})");
+                bnode.AddRecord("Location", $"Latitude: {building.Configuration.Location?.Latitude}, Longitude: {building.Configuration.Location?.Longitude}, Altitude: {building.Configuration.Location?.Altitude}");
+                bnode.AddRecord("Sun Position", $"Azimuth: {sunPosition.Azimuth}, Elevation: {sunPosition.Elevation}");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error while populating diagnostic results for building {BuildingKey}.", kvp.Key);
+                node.AddChild($"Building: {kvp.Key}").AddRecord("Error", ex.Message);
+            }
+        }
+        return node;
+    }
+
+    protected override async Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
+    {
+        await FillBuildingSunPositionDiagnosticsAsync(parentNode.AddChild("Last published sun positions per building"), LastPublishedSunPositions, cancellationToken);
+
+        // compute present sun positions for all buildings in the model, regardless of whether they have a shadowing special or not
+        var model = modelProvider.GetModel();
+        var currentSunPositions = model.Buildings.Values
+            .Where(b => b.Configuration.Location is not null)
+            .Select(b => new { BuildingKey = new BuildingKey(b), SunPosition = SunPosition.GetPosition(timeProvider.GetLocalNow(), b.Configuration.Location!) })
+            .ToDictionary(x => x.BuildingKey, x => x.SunPosition);
+        await FillBuildingSunPositionDiagnosticsAsync(parentNode.AddChild("Current sun positions per building"), currentSunPositions, cancellationToken);
+        return parentNode;
     }
 }
 

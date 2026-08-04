@@ -57,8 +57,8 @@ internal sealed class CalendarQuartzScheduler(
                 entry.EndTime,
                 entry.IsRecurring,
                 entry.TimeZoneId,
-                _timeProvider.GetUtcNow());
-            await ScheduleEntryAsync(scheduler, jobKey, entry, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+                _timeProvider.GetLocalNow());
+            await ScheduleEntryAsync(scheduler, jobKey, entry, _timeProvider.GetLocalNow(), cancellationToken).ConfigureAwait(false);
         }
 
         _logger.LogInformation("Calendar schedule reconciled for {Count} enabled entries.", enabledEntries.Length);

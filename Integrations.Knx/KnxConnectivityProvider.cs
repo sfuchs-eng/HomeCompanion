@@ -199,7 +199,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     {
         if ( !_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReadAnswers | CommunicationPermissions.TxGroupAddressReads) )
         {
-            _logger.LogInformation("Skipping initial read requests for KNX values because communication permissions do not allow receiving read answers or read requests.");
+            _logger.LogInformation("Skipping initial read requests for KNX values because communication permissions do not allow receiving read answers or transmitting read requests.");
             _isInitializationFinished = true;
             return;
         }

@@ -242,7 +242,7 @@ public class StateInitializationManager : IStateInitializationManager
         var snapshot = new ValueSnapshotSet
         {
             Version = 1,
-            CreatedUtc = _timeProvider.GetUtcNow(),
+            Created = _timeProvider.GetLocalNow(),
         };
 
         var discovered = 0;

@@ -39,13 +39,13 @@ public interface IValue
     /// Written to by internal logics or HomeCompanion API calls.
     /// </summary>
     /// <returns></returns>
-    public bool IsActive => (Status & (ValueStatus.Live | ValueStatus.Used)) != 0;
+    public bool IsActive { get; }
 
     /// <summary>
     /// Initialized or written to by bus or API calls, and not in an error state.
     /// </summary>
     /// <returns></returns>
-    public bool IsValid => Status.IsValidAndInitialized();
+    public bool IsValid { get; }
 
     public string? Name { get; }
     public string? Label { get; }
@@ -57,13 +57,7 @@ public interface IValue
     /// </summary>
     /// <param name="culture">Culture to use for formatting. If null, current culture should be used.</param>
     /// <returns>Formatted value suitable for display.</returns>
-    public virtual string? Format(CultureInfo? culture = null)
-    {
-        culture ??= CultureInfo.CurrentCulture;
-        return OValue is IFormattable formattable
-            ? formattable.ToString(null, culture)
-            : OValue?.ToString();
-    }
+    public string? Format(CultureInfo? culture = null);
 
     /// <summary>
     /// The value as an object. The actual type of the value is given by <see cref="ValueType"/> and the strongly typed value can be accessed via <see cref="IValue{T}.Value"/>. This property is useful for generic handling of values without knowing their type at compile time, e.g. for event handlers that listen to multiple values of different types or for dynamic initialization of values based on configuration.

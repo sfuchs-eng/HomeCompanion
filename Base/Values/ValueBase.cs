@@ -78,6 +78,10 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
+    public bool IsValid => Status.IsValidAndInitialized();
+
+    public bool IsActive => (Status & (ValueStatus.Live | ValueStatus.Used)) != 0;
+
     /// <inheritdoc/>
     public virtual string? Format(CultureInfo? culture = null)
     {
@@ -189,7 +193,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = value;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Used;
-        var timeStamp = _timeProvider.GetUtcNow();
+        var timeStamp = _timeProvider.GetLocalNow();
 
         Publish(new ValueWriteRequest<T> { Source = this, NewValue = value, Timestamp = timeStamp });
         RaiseWritten(new ValueWrittenEventArgs(this, this, timeStamp, initiator));
@@ -231,7 +235,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = typed;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
-        var timeStamp = _timeProvider.GetUtcNow();
+        var timeStamp = _timeProvider.GetLocalNow();
 
         if (isFirst || !EqualityComparer<T>.Default.Equals(old, typed))
         {
@@ -261,7 +265,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         var old = Value;
         Value = typed;
         Status = (Status & ~ValueStatus.Error) | ValueStatus.Initialized | ValueStatus.Live;
-        var timeStamp = _timeProvider.GetUtcNow();
+        var timeStamp = _timeProvider.GetLocalNow();
 
         // Raise the same events as Write to ensure that entities subscribed to Written or Changed get notified
         // regardless of whether the update came from an internal Write call or an external bus event.
