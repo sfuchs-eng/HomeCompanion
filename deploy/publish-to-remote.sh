@@ -22,6 +22,15 @@ source "$config_file"
 publish_configuration="${PUBLISH_CONFIGURATION:-Production}"
 project_path="$repo_root/Server/HomeCompanion.Local.Server.csproj"
 publish_dir=$(mktemp -d -t homecompanion-publish.XXXXXX)
+remote_config_dir="/etc/homecompanion"
+
+if [[ ! -f "$project_path" ]]; then
+    cat >&2 <<EOF
+Missing local server project: $project_path
+Invoke this deploy script through the HomeCompanion.Local symlink so it resolves the local solution root.
+EOF
+    exit 1
+fi
 
 cleanup() {
     rm -rf "$publish_dir"
@@ -52,3 +61,13 @@ remote_path_quoted=$(printf '%q' "$PUBLISH_PATH")
 ssh "${ssh_args[@]}" "$ssh_target" "mkdir -p -- $remote_path_quoted"
 
 scp "${scp_args[@]}" "$publish_dir"/. "$ssh_target:$PUBLISH_PATH/"
+
+shopt -s nullglob
+config_files=("$repo_root/Config"/*.json)
+shopt -u nullglob
+
+if (( ${#config_files[@]} > 0 )); then
+    remote_config_path_quoted=$(printf '%q' "$remote_config_dir")
+    ssh "${ssh_args[@]}" "$ssh_target" "mkdir -p -- $remote_config_path_quoted"
+    scp "${scp_args[@]}" "${config_files[@]}" "$ssh_target:$remote_config_dir/"
+fi
