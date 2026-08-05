@@ -1,5 +1,11 @@
 ﻿namespace HomeCompanion.Logics.Sun;
 
+/// <summary>
+/// See https://de.wikipedia.org/wiki/Sonnenstand
+/// if I recall correctly, the original code was based on this article.
+/// But looks like either there's a similar article or the content was slightly changed meanwhile. Some formulas don't seem to match fully.
+/// Precision / correctness?
+/// </summary>
 public sealed class SunPosition
 {
 	/// <summary>
@@ -27,9 +33,9 @@ public sealed class SunPosition
 
 	static double Rem(double num, double den)
 	{
-	// Modulo or IEEERemainder? It's not the same...
-	//return Math.IEEERemainder(num, den);
-	return num % den;
+		// Modulo or IEEERemainder? It's not the same...
+		//return Math.IEEERemainder(num, den);
+		return num % den;
 	}
 
 	static double Fix(double x)
@@ -48,7 +54,7 @@ public sealed class SunPosition
 	/// <param name="atPosition">Location in WGS84 coordinates.</param>
 	public static SphericVector GetPosition(DateTimeOffset when, GeodeticCoordinateWGS84 atPosition)
 	{
-        GetPositionAsPolarRadiationVector(when, atPosition, out double azi, out double elev);
+		GetPositionAsPolarRadiationVector(when, atPosition, out double azi, out double elev);
 
 		// azi is as per the direction of radiation - normally correct.
 		// however, here we take it from an object perspective & artillery manner shooting towards the sun.

@@ -15,7 +15,7 @@ public class SunLogic(
     TimeProvider timeProvider,
     IEventSubscriber subscriber,
     ILogger<SunLogic> logger
-    ) : LogicBase(logger)
+    ) : LogicBase(logger), IDiagnosable
 {
     private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
     private readonly IModelProvider modelProvider = modelProvider;
@@ -61,7 +61,7 @@ public class SunLogic(
                 var building = model.GetBuilding(buildingKey);
                 var bnode = node.AddChild($"Building: {buildingKey} ({building.Name})");
                 bnode.AddRecord("Location", $"Latitude: {building.Configuration.Location?.Latitude}, Longitude: {building.Configuration.Location?.Longitude}, Altitude: {building.Configuration.Location?.Altitude}");
-                bnode.AddRecord("Sun Position", $"Azimuth: {sunPosition.Azimuth}, Elevation: {sunPosition.Elevation}");
+                bnode.AddRecord("Sun Position", $"Azimuth: {sunPosition.ToDegreesPair().Azimuth}, Elevation: {sunPosition.ToDegreesPair().Elevation}");
             }
             catch (Exception ex)
             {
