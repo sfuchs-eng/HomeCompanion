@@ -78,7 +78,7 @@ public class ShutterConditionsEvaluator(IEnvironmentalsProvider environmentalsPr
         bool shutterIsOpen = shutter.IsOpen;
 
         bool noisePreventionActive = IsNoiseMinimizationRequired(runtimeContext);
-        bool antiBurglarActive = shutterRuntime.EvaluateAntiBurglarState(runtimeContext, timeProvider.GetUtcNow(), out bool lastAntiBurglarState, out bool antiBurglarIndicatesOpening);
+        bool antiBurglarActive = shutterRuntime.EvaluateAntiBurglarState(runtimeContext, timeProvider.GetLocalNow(), out bool lastAntiBurglarState, out bool antiBurglarIndicatesOpening);
         bool antiBurglarHasTransitionedAndIndicatesOpening = lastAntiBurglarState && !antiBurglarActive && antiBurglarIndicatesOpening;
         bool forceOpenForPassingThrough = IsShutterForcedOpenForPassingThrough(runtimeContext);
         bool automationMustNotCloseShutter = shutterConstraints.HasFlag(ShutterConstraints.KeepOpen);
@@ -93,7 +93,7 @@ public class ShutterConditionsEvaluator(IEnvironmentalsProvider environmentalsPr
             RuntimeContext = runtimeContext,
             TriggerContext = triggerContext,
             ShadowingSpecial = shadowingSpecial,
-            EvaluatedTimestamp = timeProvider.GetUtcNow(),
+            EvaluatedTimestamp = timeProvider.GetLocalNow(),
 
             IsShutterOpen = shutterIsOpen,
             IsShutterClosed = shutterIsClosed,

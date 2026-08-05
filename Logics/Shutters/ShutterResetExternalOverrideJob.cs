@@ -61,7 +61,7 @@ public class ShutterResetExternalOverrideJob(
             scope: ShutterAutomationComputationScope.ShutterSpecific,
             triggeringValue: null,
             valueEventArgs: null,
-            timestamp: timeProvider.GetUtcNow(),
+            timestamp: timeProvider.GetLocalNow(),
             urgency: ShutterAutomationComputationTriggerUrgency.Slow
         );
         await queueFeeder.EnqueueAsync(triggerContext, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);

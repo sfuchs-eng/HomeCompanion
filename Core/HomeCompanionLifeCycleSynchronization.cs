@@ -147,7 +147,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         {
             var child = stagesNode.AddChild(stage.ToString());
             child.Records.Add(new DiagnosticRecord("Completed", _completedInitializationStages[stage].Task.IsCompleted));
-            child.Records.Add(new DiagnosticRecord("CompletedAtUtc", _completedInitializationStageTimestamps[stage]));
+            child.Records.Add(new DiagnosticRecord("CompletedAt", _completedInitializationStageTimestamps[stage]));
         }
 
         return Task.FromResult<IDiagnosticResultNode>(root);

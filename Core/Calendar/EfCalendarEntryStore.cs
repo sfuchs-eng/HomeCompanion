@@ -36,7 +36,7 @@ internal sealed class EfCalendarEntryStore(
 
     public async Task<CalendarEntry> UpsertAsync(CalendarEntry entry, CancellationToken cancellationToken = default)
     {
-        var now = _timeProvider.GetLocalNow();
+        var nowUtc = _timeProvider.GetUtcNow();
         var existing = await _dbContext.CalendarEntries
             .SingleOrDefaultAsync(e => e.Id == entry.Id, cancellationToken)
             .ConfigureAwait(false);
@@ -45,8 +45,8 @@ internal sealed class EfCalendarEntryStore(
         {
             var entity = MapToEntity(entry);
             if (entity.CreatedAtUtc == default)
-                entity.CreatedAtUtc = now;
-            entity.UpdatedAtUtc = now;
+                entity.CreatedAtUtc = nowUtc;
+            entity.UpdatedAtUtc = nowUtc;
             await _dbContext.CalendarEntries.AddAsync(entity, cancellationToken).ConfigureAwait(false);
         }
         else
@@ -60,7 +60,7 @@ internal sealed class EfCalendarEntryStore(
             existing.TimeZoneId = entry.TimeZoneId;
             existing.IsEnabled = entry.IsEnabled;
             existing.MetadataJson = entry.MetadataJson;
-            existing.UpdatedAtUtc = now;
+            existing.UpdatedAtUtc = nowUtc;
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

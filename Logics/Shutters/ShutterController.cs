@@ -114,7 +114,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
         {
             try
             {
-                var triggerCollectionStart = timeProvider.GetUtcNow();
+                var triggerCollectionStart = timeProvider.GetLocalNow();
                 var queuedTriggers = new List<ShutterAutomationComputationTriggerContext>();
 
                 // **batching loop**
@@ -123,7 +123,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
                 while (!token.IsCancellationRequested)
                 {
                     // we shall not wait in total longer than the fastest trigger we caught in the queue.
-                    var maxRemainingTime = queuedTriggers.GetRemainingTimeUntilProcessing(timeProvider.GetUtcNow());
+                    var maxRemainingTime = queuedTriggers.GetRemainingTimeUntilProcessing(timeProvider.GetLocalNow());
 
                     if (maxRemainingTime <= TimeSpan.Zero)
                         break;

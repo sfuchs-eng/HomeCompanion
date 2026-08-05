@@ -13,7 +13,7 @@ public sealed class ValueSnapshotSet
     /// <summary>
     /// UTC timestamp when this snapshot set was created.
     /// </summary>
-    public DateTimeOffset Created { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
 
     /// <summary>
     /// Stored value entries keyed by deterministic container/property key.

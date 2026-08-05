@@ -115,7 +115,7 @@ public class SunPositionPerBuildingUpdateJob(
             {
                 BuildingKey = bk.Key,
                 Building = bk.Building,
-                SunPosition = SunPosition.GetPosition(timeProvider.GetUtcNow(), bk.Building.Configuration.Location!)
+                SunPosition = SunPosition.GetPosition(timeProvider.GetLocalNow(), bk.Building.Configuration.Location!)
             }).ToList();
 
         // 2. If the building has a shadowing special referencing IValues for the sun position, update the sun position in that special.

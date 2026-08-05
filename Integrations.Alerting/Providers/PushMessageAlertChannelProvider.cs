@@ -78,7 +78,7 @@ public sealed class PushMessageAlertChannelProvider : IAlertChannelProvider
             message = request.MessageShort,
             messageLong = request.MessageLong,
             alertKey = request.AlertKey,
-            timestamp = _timeProvider.GetUtcNow(),
+            timestamp = _timeProvider.GetLocalNow(),
             correlationId = request.CorrelationId,
             metadata = request.Metadata,
         });

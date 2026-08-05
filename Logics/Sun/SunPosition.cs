@@ -11,7 +11,7 @@ public sealed class SunPosition
 	{
 		DateTime dtRef = new DateTime(2000, 1, 1, 12, 00, 00, DateTimeKind.Utc);
 		double dtRefD = dtRef.ToOADate();
-		double atTimeD = atTime.DateTime.ToOADate();
+		double atTimeD = atTime.UtcDateTime.ToOADate();
 		return atTimeD - dtRefD;
 	}
 
@@ -44,7 +44,7 @@ public sealed class SunPosition
 	/// The calculation is based on an approximation according the Wikipedia article Sonnenpfadberechnung (DE).
 	/// </summary>
 	/// <returns>The sun position [rad]</returns>
-	/// <param name="when">Date and Time, local or utc</param>
+	/// <param name="when">Date and Time, local time (UTC is derived via <see cref="DateTimeOffset.UtcDateTime"/>)</param>
 	/// <param name="atPosition">Location in WGS84 coordinates.</param>
 	public static SphericVector GetPosition(DateTimeOffset when, GeodeticCoordinateWGS84 atPosition)
 	{
