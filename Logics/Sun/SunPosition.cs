@@ -5,6 +5,7 @@
 /// if I recall correctly, the original code was based on this article.
 /// But looks like either there's a similar article or the content was slightly changed meanwhile. Some formulas don't seem to match fully.
 /// Precision / correctness?
+/// Hmm, maybe I've taken that article instead: https://en.wikipedia.org/wiki/Position_of_the_Sun#Calculations
 /// </summary>
 public sealed class SunPosition
 {
@@ -47,7 +48,6 @@ public sealed class SunPosition
 	/// <summary>
 	/// Gets the sun position in spheric coordinates in radians.
 	/// Azimuth 0 denotes north; Elevation 0 horizontal.
-	/// The calculation is based on an approximation according the Wikipedia article Sonnenpfadberechnung (DE).
 	/// </summary>
 	/// <returns>The sun position [rad]</returns>
 	/// <param name="when">Date and Time, local time (UTC is derived via <see cref="DateTimeOffset.UtcDateTime"/>)</param>
