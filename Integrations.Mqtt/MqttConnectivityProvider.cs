@@ -238,7 +238,7 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
                 {
                     Timestamp = _timeProvider.GetUtcNow(),
                     Target = selection.Value,
-                    NewValue = decodedValue,
+                    Value = decodedValue,
                 });
             }
             else

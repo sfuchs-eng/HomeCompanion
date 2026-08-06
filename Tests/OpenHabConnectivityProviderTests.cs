@@ -192,7 +192,7 @@ public class OpenHabConnectivityProviderTests
         private void Route(ValueWriteReceived @event)
         {
             if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
-                receiver.ReceiveWrite(@event.NewValue);
+                receiver.ReceiveWrite(@event.Value);
         }
 
         private sealed class ValueUpdateHandler(TestValuesManager owner) : IEventHandler<ValueUpdateReceived>
@@ -380,7 +380,7 @@ public class OpenHabConnectivityProviderTests
 
         Assert.That(specific, Is.Not.Null);
         Assert.That(specific!.RawCommand, Is.EqualTo("ON"));
-        Assert.That(specific.NewValue, Is.EqualTo(true));
+        Assert.That(specific.Value, Is.EqualTo(true));
         Assert.That(baseWrite, Is.Not.Null);
     }
 

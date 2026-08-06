@@ -10,5 +10,5 @@ public class ValueWriteReceived : ValueEvent
     public IValue? Target { get; init; }
 
     /// <summary>The decoded value received from the bus, or <see langword="null"/> if decoding failed.</summary>
-    public object? NewValue { get; init; }
+    public object? Value { get; init; }
 }

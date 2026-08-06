@@ -226,7 +226,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
                 return;
             }
 
-            receiver.ReceiveWrite(@event.NewValue);
+            receiver.ReceiveWrite(@event.Value);
             Interlocked.Increment(ref _routedWrites);
         }
         catch (Exception ex)

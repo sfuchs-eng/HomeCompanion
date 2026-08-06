@@ -179,7 +179,7 @@ public class ValuesManagerTests
 
         await RunWithBusAsync(bus, async () =>
         {
-            await bus.PublishAsync(new ValueWriteReceived { Target = container.Switch, NewValue = true });
+            await bus.PublishAsync(new ValueWriteReceived { Target = container.Switch, Value = true });
             await Task.Delay(50);
         });
 

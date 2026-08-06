@@ -7,7 +7,7 @@ namespace HomeCompanion.Integrations.Knx.Events;
 /// <summary>
 /// Published by the KNX connectivity provider when a <c>GroupValueWrite</c> telegram is received from the bus.
 /// </summary>
-public class KnxGroupWriteReceived : ValueUpdateReceived
+public class KnxGroupWriteReceived : ValueWriteReceived
 {
     /// <summary>The KNX group address the telegram was sent to.</summary>
     public required GroupAddress DestinationAddress { get; init; }

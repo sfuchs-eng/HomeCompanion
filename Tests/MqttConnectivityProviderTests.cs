@@ -98,7 +98,7 @@ public class MqttConnectivityProviderTests
 
         Assert.That(write, Is.Not.Null);
         Assert.That(write!.Target, Is.SameAs(container.MainSwitch));
-        Assert.That(write.NewValue, Is.EqualTo(false));
+        Assert.That(write.Value, Is.EqualTo(false));
         Assert.That(update, Is.Null);
     }
 
@@ -250,7 +250,7 @@ public class MqttConnectivityProviderTests
         private void Route(ValueWriteReceived @event)
         {
             if (@event.Target is IValueEventReceiver receiver && _values.ContainsKey(@event.Target))
-                receiver.ReceiveWrite(@event.NewValue);
+                receiver.ReceiveWrite(@event.Value);
         }
 
         private sealed class ValueUpdateHandler(TestValuesManager owner) : IEventHandler<ValueUpdateReceived>

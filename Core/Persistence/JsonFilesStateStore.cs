@@ -61,7 +61,7 @@ public class JsonFilesStateStore : IStateStore
             return result;
         }
 
-        var isRecent = fi.LastWriteTime >= _timeProvider.GetLocalNow().UtcDateTime - maxAge;
+        var isRecent = fi.LastWriteTime >= _timeProvider.GetLocalNow().DateTime - maxAge;
         result.IsRecent = isRecent;
         if (!isRecent)
         {

@@ -248,7 +248,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         {
             ItemName = itemName,
             RawCommand = rawCommand,
-            NewValue = decodedValue,
+            Value = decodedValue,
             Target = target?.Value,
             Timestamp = DateTimeOffset.UtcNow,
         });
