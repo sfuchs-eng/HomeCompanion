@@ -22,6 +22,8 @@ public class SunLogic(
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly IEventSubscriber subscriber = subscriber;
     private readonly ILogger<SunLogic> logger = logger;
+    private readonly ISunPositionProvider sunPositionProvider = new SunPositionV1();
+    public ISunPositionProvider SunPositionProvider => sunPositionProvider;
 
     protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
     {
@@ -80,7 +82,7 @@ public class SunLogic(
         var model = modelProvider.GetModel();
         var currentSunPositions = model.Buildings.Values
             .Where(b => b.Configuration.Location is not null)
-            .Select(b => new { BuildingKey = new BuildingKey(b), SunPosition = SunPosition.GetPosition(timeProvider.GetLocalNow(), b.Configuration.Location!) })
+            .Select(b => new { BuildingKey = new BuildingKey(b), SunPosition = sunPositionProvider.GetSunPosition(timeProvider.GetLocalNow(), b.Configuration.Location!) })
             .ToDictionary(x => x.BuildingKey, x => x.SunPosition);
         await FillBuildingSunPositionDiagnosticsAsync(parentNode.AddChild("Current sun positions per building"), currentSunPositions, cancellationToken);
         return parentNode;
@@ -94,12 +96,14 @@ public class SunLogic(
 public class SunPositionPerBuildingUpdateJob(
         IEventPublisher eventPublisher,
         IModelProvider modelProvider,
+        SunLogic sunLogic,
         TimeProvider timeProvider,
         ILogger<SunPositionPerBuildingUpdateJob> logger
 ) : IJob
 {
     private readonly IEventPublisher eventPublisher = eventPublisher;
     private readonly IModelProvider modelProvider = modelProvider;
+    private readonly SunLogic sunLogic = sunLogic;
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly ILogger<SunPositionPerBuildingUpdateJob> logger = logger;
 
@@ -115,7 +119,7 @@ public class SunPositionPerBuildingUpdateJob(
             {
                 BuildingKey = bk.Key,
                 Building = bk.Building,
-                SunPosition = SunPosition.GetPosition(timeProvider.GetLocalNow(), bk.Building.Configuration.Location!)
+                SunPosition = sunLogic.SunPositionProvider.GetSunPosition(timeProvider.GetLocalNow(), bk.Building.Configuration.Location!)
             }).ToList();
 
         // 2. If the building has a shadowing special referencing IValues for the sun position, update the sun position in that special.

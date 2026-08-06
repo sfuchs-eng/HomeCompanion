@@ -1,13 +1,9 @@
 ﻿namespace HomeCompanion.Logics.Sun;
 
 /// <summary>
-/// See https://de.wikipedia.org/wiki/Sonnenstand
-/// if I recall correctly, the original code was based on this article.
-/// But looks like either there's a similar article or the content was slightly changed meanwhile. Some formulas don't seem to match fully.
-/// Precision / correctness?
-/// Hmm, maybe I've taken that article instead: https://en.wikipedia.org/wiki/Position_of_the_Sun#Calculations
+/// Hmm, maybe I've taken that article to write this class a while back: https://en.wikipedia.org/wiki/Position_of_the_Sun#Calculations
 /// </summary>
-public sealed class SunPosition
+public sealed class SunPositionV1 : ISunPositionProvider
 {
 	/// <summary>
 	/// Gets the number of days since 2000-01-01 12:00 UT
@@ -52,7 +48,7 @@ public sealed class SunPosition
 	/// <returns>The sun position [rad]</returns>
 	/// <param name="when">Date and Time, local time (UTC is derived via <see cref="DateTimeOffset.UtcDateTime"/>)</param>
 	/// <param name="atPosition">Location in WGS84 coordinates.</param>
-	public static SphericVector GetPosition(DateTimeOffset when, GeodeticCoordinateWGS84 atPosition)
+	public SphericVector GetSunPosition(DateTimeOffset when, GeodeticCoordinateWGS84 atPosition)
 	{
 		GetPositionAsPolarRadiationVector(when, atPosition, out double azi, out double elev);
 
