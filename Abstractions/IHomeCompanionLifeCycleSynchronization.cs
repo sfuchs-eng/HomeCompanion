@@ -1,6 +1,3 @@
-using System;
-using HomeCompanion.Persistence;
-
 namespace HomeCompanion.Abstractions;
 
 /// <summary>
@@ -53,9 +50,17 @@ public interface IHomeCompanionLifeCycleSynchronization
     void RegisterRequiredSignaller(AppInitializationStage level, object signaller);
 
     /// <summary>
+    /// Registers the specified execution for the specified initialization stage as a required execution to complete that stage.
+    /// The stage is only completed when all required executions have been completed AND all required signallers have signaled completion of the stage.
+    /// If no required execution is registered, any (required) signaller can complete the stage instead.
+    /// </summary>
+    /// <param name="targetLevel">The stage reached after all required callbacks are executed.</param>
+    void RegisterRequiredExecution(AppInitializationStage targetLevel, Func<AppInitializationStage, CancellationToken, Task> execution);
+
+    /// <summary>
     /// Returns whether the specified initialization stage has been completed.
     /// </summary>
-    bool IsInitializationStageCompleted(AppInitializationStage level);
+    bool IsLifeCycleStageCompleted(AppInitializationStage level);
 
     /// <summary>
     /// Returns whether all stages up to and including the specified stage are completed.
@@ -63,6 +68,8 @@ public interface IHomeCompanionLifeCycleSynchronization
     bool IsAllUpToStageCompleted(AppInitializationStage level);
 
     event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
+
+    AppInitializationStage LastCompletedStage { get; }
 }
 
 public class AppInitializationStageCompletedEventArgs : EventArgs

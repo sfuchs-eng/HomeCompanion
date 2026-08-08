@@ -60,7 +60,12 @@ public enum AppInitializationStage
     /// <summary>
     /// Values are saved during shutdown, e.g. to a persistent store.
     /// </summary>
-    ShutDownSave
+    ShutDownSave,
+
+    /// <summary>
+    /// The application has completed its shutdown sequence.
+    /// </summary>
+    ShutDownCompleted
 }
 
 public static class AppInitializationStageExtensions
@@ -89,8 +94,18 @@ public static class AppInitializationStageExtensions
                stage == AppInitializationStage.InitBusValueReceived;
     }
 
-    public static bool IsShutdownStage(this AppInitializationStage stage)
+    public static bool IsTerminationStage(this AppInitializationStage stage)
     {
-        return stage == AppInitializationStage.TerminateLogics || stage == AppInitializationStage.ShutDownSave;
+        return stage >= FirstTerminationStage(stage);
+    }
+
+    public static AppInitializationStage FirstTerminationStage(this AppInitializationStage stage)
+    {
+        return AppInitializationStage.TerminateLogics;
+    }
+
+    public static bool IsLastStage(this AppInitializationStage stage)
+    {
+        return stage == AppInitializationStage.ShutDownCompleted;
     }
 }

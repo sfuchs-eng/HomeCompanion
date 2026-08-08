@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Events;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Integrations.Mqtt;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -172,7 +173,7 @@ public class MqttConnectivityProviderTests
     {
         var converter = new MqttPayloadConverter(NullLogger<MqttPayloadConverter>.Instance);
         var containers = container is not null ? new[] { container } : Array.Empty<IValuesContainer>();
-        var lifecycle = new StubLifecycleSync();
+        var lifecycle = new StubLifeCycleManager();
         var valuesManager = new TestValuesManager((IEventSubscriber)publisher);
         InitializeValues(containers, publisher, valuesManager);
 
@@ -217,15 +218,6 @@ public class MqttConnectivityProviderTests
                     value.Initialize(publisher, manager);
             }
         }
-    }
-
-    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
-    {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => true;
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => true;
     }
 
     private sealed class TestValuesManager : IValuesManager

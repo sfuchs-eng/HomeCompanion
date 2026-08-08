@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,15 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _completedInitializationStageTimestamps =
         new(Enum.GetValues<AppInitializationStage>().Select(stage =>
             new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+
+    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _firstSignalTimestamps =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+
+    private readonly ConcurrentDictionary<AppInitializationStage, List<Func<AppInitializationStage, CancellationToken, Task>>> _requiredExecutionsPerStage =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, List<Func<AppInitializationStage, CancellationToken, Task>>>(stage, [])));
+
     private long _waitCalls;
     private long _waitTimeouts;
     private long _signalCalls;
@@ -31,10 +41,19 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         new(Enum.GetValues<AppInitializationStage>().Select(stage =>
             new KeyValuePair<AppInitializationStage, HashSet<object>>(stage, [])));
 
+    // Tracks whether at least one explicit signal was received for a stage.
+    private readonly ConcurrentDictionary<AppInitializationStage, bool> _hasSignalPerStage =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, bool>(stage, false)));
+
     public string Name => nameof(HomeCompanionLifeCycleSynchronization);
+
+    private AppInitializationStage _lastCompletedStage = AppInitializationStage.Default;
+    public AppInitializationStage LastCompletedStage { get => _lastCompletedStage; }
 
     public HomeCompanionLifeCycleSynchronization(
         IServiceProvider serviceProvider,
+        IHostApplicationLifetime applicationLifetime,
         ILogger<HomeCompanionLifeCycleSynchronization> logger,
         TimeProvider timeProvider
     ) : base()
@@ -42,6 +61,11 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         this.serviceProvider = serviceProvider;
         this.logger = logger;
         this.timeProvider = timeProvider;
+        applicationLifetime.ApplicationStopping.Register(() =>
+        {
+            logger.LogInformation("Initiating shutdown sequence.");
+            StartTerminationSequence();
+        });
     }
 
     /// <summary>
@@ -124,31 +148,69 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     {
         Interlocked.Increment(ref _signalCalls);
 
+        var isDuplicateSignal = _hasSignalPerStage[level];
+        if (!isDuplicateSignal)
+        {
+            _hasSignalPerStage[level] = true;
+            _firstSignalTimestamps[level] = timeProvider.GetLocalNow();
+        }
+        else
+        {
+            Interlocked.Increment(ref _duplicateSignalCalls);
+        }
+
         // do we have required signallers for this stage? If so, check if the sender is one of them and remove it from the list.
         var requiredSignallers = _requiredSignallersPerStage[level];
-        if (requiredSignallers.Count > 0)
+
+        if (sender is not null)
         {
-            if (sender == null)
+            lock (requiredSignallers)
             {
-                logger.LogTrace("Initialization stage {Stage} has required signallers, but no sender was provided. Stage completion will not be signaled.", level);
-                return Task.CompletedTask;
-            }
-            if (!requiredSignallers.Remove(sender))
-            {
-                logger.LogTrace("Initialization stage {Stage} has required signallers, but the sender {Sender} is not one of them. Stage completion will not be signaled.", level, sender);
-                return Task.CompletedTask;
+                requiredSignallers.Remove(sender);
             }
         }
 
+        TriggerExecutionLoop(); // trigger the execution loop to check for stage completion
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Executes all required executions for the specified initialization stage, and then signals that the stage has been completed.
+    /// </summary>
+    protected async Task ExecuteRequiredExecutionsAsync(AppInitializationStage level, object? sender = null)
+    {
+        var requiredExecutions = _requiredExecutionsPerStage[level];
+        if (requiredExecutions.Count > 0)
+        {
+            logger.LogTrace("Executing {Count} required executions for initialization stage {Stage}.", requiredExecutions.Count, level);
+            var executionTasks = requiredExecutions.Select(execution => execution(level, CancellationToken.None));
+            try
+            {
+                await Task.WhenAll(executionTasks).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error while executing required executions for initialization stage {Stage}.", level);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marks the stage as completed and raises the event signalling that the specified initialization stage has been completed.
+    /// </summary>
+    private async Task OnStageCompletedAsync(AppInitializationStage level, object? sender = null)
+    {
         var tcs = _completedInitializationStages[level];
         if (tcs.TrySetResult())
         {
-            var completedAt = timeProvider.GetLocalNow();
+            _lastCompletedStage = level;
+            var completedAt = _firstSignalTimestamps[level] ?? timeProvider.GetLocalNow();
             _completedInitializationStageTimestamps[level] = completedAt;
-            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAt}. Sender: {Sender}", level, completedAt, sender);
+            logger.LogInformation("Life cycle stage {Stage} completed at {CompletedAt}.", level, completedAt);
+
             // call the event handlers in a fire-and-forget manner, as we don't want to block the signaling of the stage completion.
             // ensure failure of any does not affect the signaling of the stage completion and neither the other handlers.
-            Task.Run(() =>
+            await Task.Run(() =>
             {
                 foreach (var handler in InitializationStageCompleted?.GetInvocationList() ?? [])
                 {
@@ -163,17 +225,16 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
                 }
             });
         }
-        else
-        {
-            Interlocked.Increment(ref _duplicateSignalCalls);
-            logger.LogTrace("Initialization stage {Stage} was already completed when signal was received. Sender: {Sender}", level, sender);
-        }
-
-        return Task.CompletedTask;
     }
+
+    // where's the runner to chain up the stages reliably? We need to ensure that the stages are completed in order, and that the required signallers and executions are respected. This is a complex problem, and we need to ensure that we have a robust solution.
 
     public event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
 
+    /// <summary>
+    /// A stage is only completed when all required signallers have signaled completion of the stage. If no required signaller is registered, the stage is considered completed automatically after all required executions have been completed.
+    /// If no required execution is registered either, the stage is considered completed automatically.
+    /// </summary>
     public void RegisterRequiredSignaller(AppInitializationStage level, object signaller)
     {
         var signallers = _requiredSignallersPerStage[level];
@@ -181,6 +242,23 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         {
             signallers.Add(signaller);
         }
+        TriggerExecutionLoop(); // trigger the execution loop to check for stage completion
+    }
+
+    /// <summary>
+    /// A stage is only completed when all required executions have been completed AND all required signallers have signaled completion of the stage.
+    /// If no required execution is registered and signallers have either signaled completion or none are registered, the stage is considered completed automatically.
+    /// </summary>
+    /// <param name="level"></param>
+    /// <param name="execution"></param>
+    public void RegisterRequiredExecution(AppInitializationStage level, Func<AppInitializationStage, CancellationToken, Task> execution)
+    {
+        var executions = _requiredExecutionsPerStage[level];
+        lock (executions)
+        {
+            executions.Add(execution);
+        }
+        TriggerExecutionLoop(); // trigger the execution loop to check for stage completion
     }
 
     public Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
@@ -203,13 +281,62 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         return Task.FromResult<IDiagnosticResultNode>(root);
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    // awaitable external trigger for the background service to check for stage completion. This is a simple loop that checks for stages that can be completed.
+    private readonly SemaphoreSlim _executionLoopTrigger = new(0);
+    private bool _executionLoopRunTerminationSequence = false;
+
+    protected void TriggerExecutionLoop()
     {
-        SignalInitializationStageCompletedAsync(AppInitializationStage.Default); // we're running, so whatever is constructed is also in init stage default.
-        return Task.CompletedTask;
+        if (_executionLoopTrigger.CurrentCount == 0)
+            _executionLoopTrigger.Release();
     }
 
-    public bool IsInitializationStageCompleted(AppInitializationStage level)
+    protected void StartTerminationSequence()
+    {
+        _executionLoopRunTerminationSequence = true;
+        TriggerExecutionLoop();
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await OnStageCompletedAsync(AppInitializationStage.Default).ConfigureAwait(false); // bootstrap internal default stage without counting as external signal.
+
+        while (!stoppingToken.IsCancellationRequested && !LastCompletedStage.IsLastStage())
+        {
+            // wait for a verification trigger to check for signallers and executions to complete stages. This is a simple loop that checks for stages that can be completed.
+            await _executionLoopTrigger.WaitAsync(stoppingToken).ConfigureAwait(false);
+            foreach (var stage in Enum.GetValues<AppInitializationStage>())
+            {
+                if (IsLifeCycleStageCompleted(stage))
+                    continue;
+
+                // if the ramp-up stages are completed and we're not in termination sequence, we don't want to complete any further stages until the termination sequence is started.
+                if (stage.IsTerminationStage() && !_executionLoopRunTerminationSequence)
+                    break;
+
+                // executions to be run?
+                var requiredExecutions = _requiredExecutionsPerStage[stage];
+                if (requiredExecutions.Count > 0)
+                {
+                    await ExecuteRequiredExecutionsAsync(stage).ConfigureAwait(false);
+                }
+
+                // any remaining required signallers?
+                var requiredSignallers = _requiredSignallersPerStage[stage];
+                lock (requiredSignallers)
+                {
+                    if (requiredSignallers.Count > 0)
+                        break; // wait for signallers to signal completion before we can complete the stage.
+                }
+
+                // perform the stage completion
+                await OnStageCompletedAsync(stage).ConfigureAwait(false);
+            }
+        }
+        logger.LogTrace("Background service execution loop completed. StoppingToken.IsCancellationRequested={IsCancellationRequested}, LastCompletedStage={LastCompletedStage}", stoppingToken.IsCancellationRequested, LastCompletedStage);
+    }
+
+    public bool IsLifeCycleStageCompleted(AppInitializationStage level)
     {
         return _completedInitializationStages[level].Task.IsCompleted;
     }

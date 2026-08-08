@@ -3,6 +3,7 @@ using HomeCompanion.Core;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Events;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,32 +46,22 @@ public class ValuesManagerTests
         public void Advance(TimeSpan delta) => _utcNow = _utcNow.Add(delta);
     }
 
-    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class StubLifecycleSync : StubLifeCycleManager
     {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => true;
-
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => true;
     }
 
-    private sealed class BlockingSignalLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class BlockingSignalLifecycleSync : StubLifeCycleManager
     {
         private readonly TaskCompletionSource _signalEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _allowSignalCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private volatile bool _initValuesRegisteredCompleted;
 
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+        public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
 
-        public async Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        public override async Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
         {
             if (level != AppInitializationStage.InitValuesRegistered)
                 return;
@@ -78,12 +69,13 @@ public class ValuesManagerTests
             _signalEntered.TrySetResult();
             await _allowSignalCompletion.Task.WaitAsync(CancellationToken.None);
             _initValuesRegisteredCompleted = true;
+            NotifyInitializationStageCompleted(level);
         }
 
-        public bool IsInitializationStageCompleted(AppInitializationStage level)
+        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
             => level != AppInitializationStage.InitValuesRegistered || _initValuesRegisteredCompleted;
 
-        public bool IsAllUpToStageCompleted(AppInitializationStage level)
+        public override bool IsAllUpToStageCompleted(AppInitializationStage level)
             => level < AppInitializationStage.InitValuesRegistered || _initValuesRegisteredCompleted;
 
         public Task WaitUntilSignalRequestedAsync() => _signalEntered.Task;

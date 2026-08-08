@@ -257,7 +257,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
     /// <returns></returns>
     private bool CanRouteInboundEvent(IValue? target, string eventName, ref long droppedCounter)
     {
-        if (_lifeCycleSynchronization.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered))
+        if (_lifeCycleSynchronization.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered))
             return true;
 
         var dropCount = Interlocked.Increment(ref droppedCounter);
@@ -318,7 +318,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
 
     private ValuesManagerSnapshot CaptureSnapshot()
         => new(
-            _lifeCycleSynchronization.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered),
+            _lifeCycleSynchronization.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered),
             _startRequestedAtUtc,
             _valuesRegisteredStageCompletedAtUtc,
             _lastContainerCount,

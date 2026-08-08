@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Persistence;
 using HomeCompanion.Persistence;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -302,37 +303,31 @@ public class StateInitializationManagerSnapshotTests
         }
     }
 
-    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class StubLifecycleSync : StubLifeCycleManager
     {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
-
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
+        public StubLifecycleSync() : base(false, false)
+        {
+        }
     }
 
-    private sealed class RecordingLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class RecordingLifecycleSync : StubLifeCycleManager
     {
         public List<AppInitializationStage> SignaledStages { get; } = [];
 
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+        public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
+        public override bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
 
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => SignaledStages.Contains(level);
+        public override bool IsLifeCycleStageCompleted(AppInitializationStage level) => SignaledStages.Contains(level);
 
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
         {
             SignaledStages.Add(level);
+            NotifyInitializationStageCompleted(level);
             return Task.CompletedTask;
         }
 
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
     }
 

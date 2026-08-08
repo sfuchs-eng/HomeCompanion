@@ -6,6 +6,7 @@ using HomeCompanion.Core;
 using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Integrations.Knx.Events;
 using HomeCompanion.Persistence;
+using HomeCompanion.Tests.TestUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -205,27 +206,20 @@ public class KnxConnectivityProviderTests
         public IEnumerable<IValue> GetValues() => [Light];
     }
 
-    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class StubLifecycleSync : StubLifeCycleManager
     {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
-
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
+        public StubLifecycleSync() : base(false, false)
+        {
+        }
     }
 
-    private sealed class GateLifecycleSync : IHomeCompanionLifeCycleSynchronization
+    private sealed class GateLifecycleSync : StubLifeCycleManager
     {
         private readonly TaskCompletionSource _valuesRegistered = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
+        public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
         {
             if (level != AppInitializationStage.InitValuesRegistered)
                 return;
@@ -242,18 +236,21 @@ public class KnxConnectivityProviderTests
             }
         }
 
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
         {
             if (level == AppInitializationStage.InitValuesRegistered)
+            {
                 _valuesRegistered.TrySetResult();
+                NotifyInitializationStageCompleted(level);
+            }
 
             return Task.CompletedTask;
         }
 
-        public bool IsInitializationStageCompleted(AppInitializationStage level)
+        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
             => level != AppInitializationStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
 
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => IsInitializationStageCompleted(level);
+        public override bool IsAllUpToStageCompleted(AppInitializationStage level) => IsLifeCycleStageCompleted(level);
     }
 
     private sealed class StubStateInitializationManager : IStateInitializationManager

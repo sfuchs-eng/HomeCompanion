@@ -3,6 +3,7 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Core.Logics;
 using HomeCompanion.Logics;
+using HomeCompanion.Tests.TestUtilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -44,6 +45,7 @@ public class LogicManagerTests
 
         public Task EnableAsync(CancellationToken cancellationToken = default) { IsEnabled = true; return Task.CompletedTask; }
         public Task DisableAsync(CancellationToken cancellationToken = default) { IsEnabled = false; return Task.CompletedTask; }
+        public Task TerminateAsync(CancellationToken cancellationToken = default) { IsEnabled = false; return Task.CompletedTask; }
     }
 
     // Logics with varying dependency shapes (via constructor parameter types).
@@ -89,6 +91,7 @@ public class LogicManagerTests
 
         public Task EnableAsync(CancellationToken ct = default) { IsEnabled = true; return Task.CompletedTask; }
         public Task DisableAsync(CancellationToken ct = default) { IsEnabled = false; return Task.CompletedTask; }
+        public Task TerminateAsync(CancellationToken ct = default) { IsEnabled = false; return Task.CompletedTask; }
     }
 
     // Releases the semaphore on initialize — counterpart to BlockingLogic.
@@ -111,6 +114,7 @@ public class LogicManagerTests
 
         public Task EnableAsync(CancellationToken ct = default) { IsEnabled = true; return Task.CompletedTask; }
         public Task DisableAsync(CancellationToken ct = default) { IsEnabled = false; return Task.CompletedTask; }
+        public Task TerminateAsync(CancellationToken ct = default) { IsEnabled = false; return Task.CompletedTask; }
     }
 
     // Types for cycle detection — defined here but never instantiated.
@@ -124,6 +128,7 @@ public class LogicManagerTests
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task TerminateAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class CyclicTypeB : ILogic
@@ -136,10 +141,11 @@ public class LogicManagerTests
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task TerminateAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class StubLifeCycleSynchronization(IEnumerable<IConnectivityProvider> providers)
-        : IHomeCompanionLifeCycleSynchronization
+        : StubLifeCycleManager(false, false)
     {
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(10);
 
@@ -151,7 +157,7 @@ public class LogicManagerTests
             AppInitializationStage.InitModelReady,
         ];
 
-        public async Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
+        public override async Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
         {
             var enabledProviders = _providers.Where(provider => provider.IsEnabled).ToArray();
 
@@ -177,12 +183,12 @@ public class LogicManagerTests
             }
         }
 
-        public async Task WaitForInitializationStageCompletedAsync(
+        public override async Task WaitForInitializationStageCompletedAsync(
             AppInitializationStage level,
             TimeSpan timeout,
             CancellationToken token = default)
         {
-            if (IsInitializationStageCompleted(level))
+            if (IsLifeCycleStageCompleted(level))
                 return;
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -192,7 +198,7 @@ public class LogicManagerTests
             {
                 while (!timeoutCts.Token.IsCancellationRequested)
                 {
-                    if (IsInitializationStageCompleted(level))
+                    if (IsLifeCycleStageCompleted(level))
                         return;
 
                     await Task.Delay(PollInterval, timeoutCts.Token);
@@ -204,16 +210,17 @@ public class LogicManagerTests
             }
         }
 
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
         {
             _completedStages.Add(level);
+            NotifyInitializationStageCompleted(level);
             return Task.CompletedTask;
         }
 
-        public bool IsInitializationStageCompleted(AppInitializationStage level)
+        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
             => _completedStages.Contains(level);
 
-        public bool IsAllUpToStageCompleted(AppInitializationStage level)
+        public override bool IsAllUpToStageCompleted(AppInitializationStage level)
             => Enum.GetValues<AppInitializationStage>()
                 .Where(stage => stage <= level)
                 .All(_completedStages.Contains);

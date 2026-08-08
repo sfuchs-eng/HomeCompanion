@@ -3,11 +3,14 @@ using HomeCompanion.Abstractions;
 namespace HomeCompanion.Persistence;
 
 /// <summary>
-/// Coordinates and executes the initialization of values, e.g. by loading from a persistent store and/or by retrieving initial values from the environment, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.
-/// 
-/// The <see cref="IStateInitializationManager"/> is to be a singleton service invoking <see cref="IValue.InitializeValue(object, HomeCompanion.Persistence.AppInitializationStage)"/> of the registered values.
-/// The initialization is executed in stages defined by <see cref="AppInitializationStage"/> to allow for a flexible and extensible initialization process.
+/// <param>Coordinates and executes the initialization of values, e.g. by loading from a persistent store and/or by retrieving initial values from the environment, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.</param>
+/// <param name="manager">The <see cref="IStateInitializationManager"/> is to be a singleton service invoking <see cref="IValue.InitializeValue(object, HomeCompanion.Persistence.AppInitializationStage)"/> of the registered values.
+/// The initialization is executed in stages defined by <see cref="AppInitializationStage"/> to allow for a flexible and extensible initialization process.</param>
 /// </summary>
+/// <remarks>
+/// Typically, the state initialization manager bases on <see cref="IHomeCompanionLifeCycleSynchronization"/> to coordinate the initialization stages and to allow for a flexible and extensible initialization process.
+/// The initialization service needs to directly initialize the values in the respective stages by calling their <see cref="IValue.InitializeValue(object, AppInitializationStage)"/> method, which will execute the value-specific initialization logic implemented in the concrete value class.
+/// </remarks>
 public interface IStateInitializationManager
 {
     /// <summary>

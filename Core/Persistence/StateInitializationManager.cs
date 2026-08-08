@@ -51,12 +51,18 @@ public class StateInitializationManager : IStateInitializationManager
         StateStore = stateStore;
         _valuesContainers = valuesContainers;
         _timeProvider = timeProvider ?? TimeProvider.System;
+
+        // setup internal dictionary of initialization delegates for each stage, and register the default value snapshot load/save delegates
         Initializations = Enum.GetValues<AppInitializationStage>()
             .ToDictionary(stage => stage, stage => new List<StateInitializationDelegate>());
         Initializations[AppInitializationStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
         Initializations[AppInitializationStage.ShutDownSave].Add(SaveValuesStateAsync);
-        // that first step is done by the StateInitializationManagerHostedService, so we don't need to do it here - actuall must not do it here, otherwise we would signal the stage completed before the hosted service has started
-        //lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.Default).GetAwaiter().GetResult();
+
+        // register the ExecuteStateAsync method as trigger for the required stages, so that the registered initialization delegates are executed in order to reach stage completion.
+        foreach (var stage in Enum.GetValues<AppInitializationStage>().Where(s => s != AppInitializationStage.Default && s != AppInitializationStage.ShutDownCompleted))
+        {
+            lifeCycleSynchronization.RegisterRequiredExecution(stage, ExecuteStateAsync);
+        }
     }
 
     public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
@@ -101,11 +107,31 @@ public class StateInitializationManager : IStateInitializationManager
         }
     }
 
+    public async Task ExecuteStateAsync(AppInitializationStage stage, CancellationToken token = default)
+    {
+        lock (this)
+        {
+            if (stage <= CurrentStage)
+            {
+                Logger.LogWarning("Skipping execution of state initialization stage {Stage} as a higher stage {CurrentStage} has already been completed.", stage, CurrentStage);
+                return;
+            }
+            CurrentStage = stage;
+        }
+        if (!Initializations.TryGetValue(stage, out var initializations) || initializations.Count == 0)
+        {
+            //Logger.LogTrace("Skipping stage {Stage} as it has no registered initialization delegates.", stage);
+            return;
+        }
+        await ExecuteInitializationDelegatesAsync(Initializations[stage].ToAsyncEnumerable(), token).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Trigger initialization
     /// </summary>
     /// <param name="token"></param>
     /// <returns></returns>
+    [Obsolete("Use ExecuteStateAsync called from an IHomeCompanionLifeCycleSynchronization instead.")]
     public async Task InitializeStateAsync(CancellationToken token = default)
     {
         Logger.LogInformation("Starting values initialization.");

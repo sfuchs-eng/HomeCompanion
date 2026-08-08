@@ -52,7 +52,6 @@ public static class HostingExtensions
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
         builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
-        builder.Services.AddHostedService<StateInitializationManagerHostedService>();
         builder.Services.TryAddSingleton<IModelFactory, ModelFactory>();
         builder.Services.TryAddSingleton<ModelValueBinder>();
         builder.Services.TryAddSingleton<ModelProvider>();
@@ -60,11 +59,14 @@ public static class HostingExtensions
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ModelProvider>());
         builder.Services.TryAddSingleton<LogicValueBinder>();
         builder.Services.TryAddSingleton<IMcpIntrospectionService, McpIntrospectionService>();
+
+        // Life cycle synchronization
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.AddSingleton<IDiagnosable>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
 
+        // Calendar services
         builder.Services.Configure<CalendarPersistenceOptions>(builder.Configuration.GetSection(CalendarPersistenceOptions.SectionName));
         builder.Services.AddDbContext<CalendarDbContext>((sp, db) =>
         {

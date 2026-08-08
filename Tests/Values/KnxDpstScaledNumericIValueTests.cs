@@ -6,6 +6,7 @@ using HomeCompanion.Core.Events;
 using HomeCompanion.Events;
 using HomeCompanion.Integrations.Knx;
 using HomeCompanion.Persistence;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -182,7 +183,7 @@ public class KnxDpstScaledNumericIValueTests
             bus,
             bus,
             [container],
-            new StubLifecycleSync(),
+            new StubLifeCycleManager(false, false),
             new StubStateInitializationManager(),
             resolver,
             NullLogger<KnxConnectivityProvider>.Instance);
@@ -358,20 +359,6 @@ public class KnxDpstScaledNumericIValueTests
             gaConfig = null;
             return false;
         }
-    }
-
-    private sealed class StubLifecycleSync : IHomeCompanionLifeCycleSynchronization
-    {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-
-        public bool IsInitializationStageCompleted(AppInitializationStage level) => false;
-
-        public bool IsAllUpToStageCompleted(AppInitializationStage level) => false;
     }
 
     private sealed class StubStateInitializationManager : IStateInitializationManager

@@ -2,30 +2,52 @@ using HomeCompanion.Abstractions;
 
 namespace HomeCompanion.Tests.TestUtilities;
 
-internal class StubLifeCycleManager : IHomeCompanionLifeCycleSynchronization
+internal class StubLifeCycleManager(
+    bool isInitializationStageCompleted = true,
+    bool isAllUpToStageCompleted = true)
+    : IHomeCompanionLifeCycleSynchronization
 {
-    public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
+    public virtual AppInitializationStage LastCompletedStage => throw new NotImplementedException();
+
+    public event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
+
+    public virtual Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
     {
         return Task.CompletedTask;
     }
 
-    public bool IsAllUpToStageCompleted(AppInitializationStage level)
+    public virtual bool IsAllUpToStageCompleted(AppInitializationStage level)
     {
-        return true;
+        return isAllUpToStageCompleted;
     }
 
-    public bool IsInitializationStageCompleted(AppInitializationStage level)
+    public virtual bool IsLifeCycleStageCompleted(AppInitializationStage level)
     {
-        return true;
+        return isInitializationStageCompleted;
     }
 
-    public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+    public virtual Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
+    {
+        NotifyInitializationStageCompleted(level);
+        return Task.CompletedTask;
+    }
+
+    public virtual void RegisterRequiredSignaller(AppInitializationStage level, object signaller)
+    {
+    }
+
+    public virtual Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
     {
         return Task.CompletedTask;
     }
 
-    public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+    protected void NotifyInitializationStageCompleted(AppInitializationStage level)
     {
-        return Task.CompletedTask;
+        InitializationStageCompleted?.Invoke(this, new AppInitializationStageCompletedEventArgs(level));
+    }
+
+    public virtual void RegisterRequiredExecution(AppInitializationStage targetLevel, Func<AppInitializationStage, CancellationToken, Task> execution)
+    {
+        // nop
     }
 }

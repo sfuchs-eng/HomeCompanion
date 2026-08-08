@@ -50,6 +50,12 @@ public class McpIntrospectionServiceTests
             IsEnabled = false;
             return Task.CompletedTask;
         }
+
+        public Task TerminateAsync(CancellationToken cancellationToken = default)
+        {
+            IsEnabled = false;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestBusMappingConfig(string? valueFormat = null) : IBusMappingConfiguration

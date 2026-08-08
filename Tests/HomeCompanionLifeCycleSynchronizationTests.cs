@@ -2,7 +2,9 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace HomeCompanion.Tests;
 
@@ -25,8 +27,12 @@ public class HomeCompanionLifeCycleSynchronizationTests
         foreach (var provider in providers)
             services.AddSingleton(provider);
 
+        var lifeTimeMock = new Mock<IHostApplicationLifetime>();
+        //var cts = new CancellationTokenSource();
+
         return new HomeCompanionLifeCycleSynchronization(
             services.BuildServiceProvider(),
+            lifeTimeMock.Object,
             NullLogger<HomeCompanionLifeCycleSynchronization>.Instance,
             timeProvider ?? TimeProvider.System);
     }
@@ -37,7 +43,7 @@ public class HomeCompanionLifeCycleSynchronizationTests
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero));
         var sync = CreateSync(timeProvider);
 
-        Assert.That(sync.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
 
         var ex = Assert.ThrowsAsync<TimeoutException>(async () =>
             await sync.WaitForInitializationStageCompletedAsync(
@@ -46,7 +52,7 @@ public class HomeCompanionLifeCycleSynchronizationTests
                 CancellationToken.None));
 
         Assert.That(ex, Is.Not.Null);
-        Assert.That(sync.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
 
         var diagnosis = await sync.GetDiagnosisAsync(CancellationToken.None);
         var stages = GetChild(diagnosis, "Stages");
@@ -65,12 +71,21 @@ public class HomeCompanionLifeCycleSynchronizationTests
     {
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 7, 31, 11, 0, 0, TimeSpan.Zero));
         var sync = CreateSync(timeProvider);
+        var signaller = new object();
 
-        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        sync.RegisterRequiredSignaller(AppInitializationStage.InitValuesRegistered, signaller);
+
+        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, signaller);
         timeProvider.Advance(TimeSpan.FromMinutes(5));
-        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, signaller);
 
-        Assert.That(sync.IsInitializationStageCompleted(AppInitializationStage.InitValuesRegistered), Is.True);
+        var bgRunner = sync.StartAsync(CancellationToken.None); // start the background runner to process the stage completion
+        await sync.WaitForInitializationStageCompletedAsync(
+            AppInitializationStage.InitValuesRegistered,
+            TimeSpan.FromMilliseconds(200),
+            CancellationToken.None);
+
+        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.True);
 
         var diagnosis = await sync.GetDiagnosisAsync(CancellationToken.None);
         var stages = GetChild(diagnosis, "Stages");

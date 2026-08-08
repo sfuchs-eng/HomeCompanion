@@ -32,6 +32,12 @@ public class HostingExtensionsLogicRegistrationTests
             IsEnabled = false;
             return Task.CompletedTask;
         }
+
+        public Task TerminateAsync(CancellationToken cancellationToken = default)
+        {
+            IsEnabled = false;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class UnrestrictedLogic : TestLogicBase;
@@ -65,6 +71,12 @@ public class HostingExtensionsLogicRegistrationTests
         }
 
         public Task DisableAsync(CancellationToken cancellationToken = default)
+        {
+            IsEnabled = false;
+            return Task.CompletedTask;
+        }
+
+        public Task TerminateAsync(CancellationToken cancellationToken = default)
         {
             IsEnabled = false;
             return Task.CompletedTask;

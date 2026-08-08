@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Integrations.OpenHab;
 using HomeCompanion.Persistence;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -176,7 +177,7 @@ public class OpenHabExtensionRegistrationTests
             NullLogger<OpenHabStateConverter>.Instance);
 
         return new OpenHabExtensionRegistrationBackgroundService(
-            new StubLifeCycleSync(),
+            new StubLifeCycleManager(false, false),
             stateManager,
             containers,
             restApiClient,
@@ -202,26 +203,6 @@ public class OpenHabExtensionRegistrationTests
     private class StubMasterDataProvider : IKnxMasterDataProvider
     {
         public KnxMasterData GetMasterData() => new KnxMasterData();
-    }
-
-    private sealed class StubLifeCycleSync : IHomeCompanionLifeCycleSynchronization
-    {
-        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
-
-        public Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public Task SignalInitializationStageCompletedAsync(AppInitializationStage level) => Task.CompletedTask;
-
-        public bool IsInitializationStageCompleted(AppInitializationStage level)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool IsAllUpToStageCompleted(AppInitializationStage level)
-        {
-            throw new NotImplementedException();
-        }
     }
 
     private sealed class CapturingStateInitializationManager : HomeCompanion.Persistence.IStateInitializationManager

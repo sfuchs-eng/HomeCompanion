@@ -81,6 +81,7 @@ public class LogicValueBinderTests
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task TerminateAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
         public bool IsActivated => true;
         public Exception? ActivationException => null;
@@ -96,6 +97,7 @@ public class LogicValueBinderTests
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task TerminateAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
         public bool IsActivated => true;
         public Exception? ActivationException => null;
@@ -111,6 +113,7 @@ public class LogicValueBinderTests
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task EnableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DisableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task TerminateAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public bool IsEnabled => true;
         public bool IsActivated => true;
         public Exception? ActivationException => null;

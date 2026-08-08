@@ -53,6 +53,7 @@ internal sealed class LogicManager : BackgroundService
         _logger = logger;
         _timeProvider = timeProvider;
         lifeCycleSynchronization.RegisterRequiredSignaller(AppInitializationStage.InitLogics, this);
+        lifeCycleSynchronization.RegisterRequiredSignaller(AppInitializationStage.TerminateLogics, this);
     }
 
     public LogicManager(
