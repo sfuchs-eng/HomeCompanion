@@ -10,6 +10,15 @@ namespace HomeCompanion.Abstractions;
 /// e.g. due to circular dependencies, by allowing components to subscribe to life cycle events and execute their initialization and cleanup logic at the appropriate times.
 /// Principle is to await the release of / signal the achievement of initialization / shutdown milestones.
 /// </summary>
+/// <remarks>
+/// This interface is intended to be used by components that need to synchronize their initialization and shutdown processes with the overall life cycle of the Home Companion application.
+/// There are 2 main use cases for this interface:
+/// <list type="bullet">
+/// <item>Inject this interface and register itself as a required signaller for the relevant initialization stages, and then signal completion of those stages when its own initialization is complete.</item>
+/// <item>Await the completion of specific initialization stages to ensure that dependent components are fully initialized before proceeding.</item>
+/// </list>
+/// Pitfall: there needs to be something for each stage that signals the completion of the stage, otherwise the stage will never be completed and any awaiters will wait forever.
+/// </remarks>
 public interface IHomeCompanionLifeCycleSynchronization
 {
     /// <summary>
@@ -26,9 +35,22 @@ public interface IHomeCompanionLifeCycleSynchronization
 
     /// <summary>
     /// Signals that the specified initialization stage has been completed.
-    /// Signaling should be idempotent.
+    /// Signaling must be idempotent.
     /// </summary>
-    Task SignalInitializationStageCompletedAsync(AppInitializationStage level);
+    /// <remarks>
+    /// If a stage has required signallers registered, the stage is only completed when all required signallers have signaled completion of the stage.
+    /// If no required signaller is registered, any signaler can complete the stage.
+    /// </remarks>
+    Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null);
+
+    /// <summary>
+    /// This method registers the specified signaller for the specified stage as a required signaller to complete that stage.
+    /// The stage is only completed when all required signallers have signaled completion of the stage.
+    /// If no required signaller is registered, any signaler can complete the stage.
+    /// </summary>
+    /// <param name="level"></param>
+    /// <param name="signaller"></param>
+    void RegisterRequiredSignaller(AppInitializationStage level, object signaller);
 
     /// <summary>
     /// Returns whether the specified initialization stage has been completed.
@@ -39,4 +61,16 @@ public interface IHomeCompanionLifeCycleSynchronization
     /// Returns whether all stages up to and including the specified stage are completed.
     /// </summary>
     bool IsAllUpToStageCompleted(AppInitializationStage level);
+
+    event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
+}
+
+public class AppInitializationStageCompletedEventArgs : EventArgs
+{
+    public AppInitializationStageCompletedEventArgs(AppInitializationStage stage)
+    {
+        Stage = stage;
+    }
+
+    public AppInitializationStage Stage { get; }
 }

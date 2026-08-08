@@ -43,12 +43,54 @@ public enum AppInitializationStage
     InitModelReady,
 
     /// <summary>
+    /// Logic modules are initialized and ready for operation.
+    /// </summary>
+    InitLogics,
+
+    /// <summary>
     /// A value has been received from the bus, e.g. from OpenHAB via <see cref="OpenHabConnector"/>.
     /// </summary>
     InitBusValueReceived,
 
     /// <summary>
+    /// <see cref="ILogic"/> components are terminated during shutdown.
+    /// </summary>
+    TerminateLogics,
+
+    /// <summary>
     /// Values are saved during shutdown, e.g. to a persistent store.
     /// </summary>
     ShutDownSave
+}
+
+public static class AppInitializationStageExtensions
+{
+    public static bool IsBefore(this AppInitializationStage stage, AppInitializationStage otherStage)
+    {
+        return stage < otherStage;
+    }
+
+    public static bool IsAfter(this AppInitializationStage stage, AppInitializationStage otherStage)
+    {
+        return stage > otherStage;
+    }
+
+    public static bool IsPreRunStage(this AppInitializationStage stage)
+    {
+        return stage == AppInitializationStage.PreBuild || stage == AppInitializationStage.PreRun;
+    }
+
+    public static bool IsInitializationStage(this AppInitializationStage stage)
+    {
+        return stage == AppInitializationStage.InitValuesRegistered ||
+               stage == AppInitializationStage.InitLoadFromStore ||
+               stage == AppInitializationStage.InitRetrieveFromEnvironment ||
+               stage == AppInitializationStage.InitModelReady ||
+               stage == AppInitializationStage.InitBusValueReceived;
+    }
+
+    public static bool IsShutdownStage(this AppInitializationStage stage)
+    {
+        return stage == AppInitializationStage.TerminateLogics || stage == AppInitializationStage.ShutDownSave;
+    }
 }

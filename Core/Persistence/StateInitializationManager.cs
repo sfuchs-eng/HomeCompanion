@@ -55,7 +55,8 @@ public class StateInitializationManager : IStateInitializationManager
             .ToDictionary(stage => stage, stage => new List<StateInitializationDelegate>());
         Initializations[AppInitializationStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
         Initializations[AppInitializationStage.ShutDownSave].Add(SaveValuesStateAsync);
-        lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.Default).GetAwaiter().GetResult();
+        // that first step is done by the StateInitializationManagerHostedService, so we don't need to do it here - actuall must not do it here, otherwise we would signal the stage completed before the hosted service has started
+        //lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.Default).GetAwaiter().GetResult();
     }
 
     public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)

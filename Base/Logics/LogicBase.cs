@@ -23,6 +23,7 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     // Semaphore to ensure that InitializeAsyncLatched is only called once, even if InitializeAsync is called multiple times.
     private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
     private bool _isInitialized = false;
+    private bool _isTerminated = false;
 
     /// <summary>
     /// Initializes the logic. For convenience, this method calls <see cref="InitializeAsyncLatched"/> only
@@ -70,21 +71,19 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     protected abstract Task InitializeAsyncLatched(CancellationToken cancellationToken = default);
 
     /// <inheritdoc/>
-    public virtual Task EnableAsync(CancellationToken cancellationToken = default)
+    public virtual async Task EnableAsync(CancellationToken cancellationToken = default)
     {
         if ( IsActivationFailed )
             throw new InvalidOperationException("Cannot enable logic because activation failed.", ActivationException);
         IsEnabled = true;
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public virtual Task DisableAsync(CancellationToken cancellationToken = default)
+    public virtual async Task DisableAsync(CancellationToken cancellationToken = default)
     {
         if (!IsEnabled)
-            return Task.CompletedTask;
+            return;
         IsEnabled = false;
-        return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
@@ -118,5 +117,19 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     public virtual async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
     {
         return await PopulateDiagnosticResultsAsync(DiagnosticResultNode.Create(Name), cancellationToken);
+    }
+
+    /// <summary>
+    /// Terminates the logic component, allowing it to clean up resources and perform any necessary shutdown procedures.
+    /// Calls <see cref="DisableAsync(CancellationToken)"/> before terminating if the logic is currently enabled.
+    /// </summary>
+    public virtual async Task TerminateAsync(CancellationToken cancellationToken = default)
+    {
+        if (_isTerminated)
+            return;
+
+        await DisableAsync(cancellationToken);
+        _isTerminated = true;
+        Logger.LogTrace("Logic {LogicName} terminated.", Name);
     }
 }

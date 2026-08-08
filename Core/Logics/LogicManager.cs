@@ -1,5 +1,6 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Logics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,7 @@ internal sealed class LogicManager : BackgroundService
     private readonly ILogger<LogicManager> _logger;
     private readonly TimeProvider _timeProvider;
 
+    [ActivatorUtilitiesConstructor]
     public LogicManager(
         IEnumerable<ILogic> logics,
         IOptions<CoreOptions> options,
@@ -50,6 +52,7 @@ internal sealed class LogicManager : BackgroundService
         this.lifeCycleSynchronization = lifeCycleSynchronization;
         _logger = logger;
         _timeProvider = timeProvider;
+        lifeCycleSynchronization.RegisterRequiredSignaller(AppInitializationStage.InitLogics, this);
     }
 
     public LogicManager(

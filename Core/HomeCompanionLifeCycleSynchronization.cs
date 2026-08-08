@@ -26,6 +26,11 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     private long _signalCalls;
     private long _duplicateSignalCalls;
 
+    // tracker for required signallers per stage
+    private readonly ConcurrentDictionary<AppInitializationStage, HashSet<object>> _requiredSignallersPerStage =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, HashSet<object>>(stage, [])));
+
     public string Name => nameof(HomeCompanionLifeCycleSynchronization);
 
     public HomeCompanionLifeCycleSynchronization(
@@ -115,23 +120,67 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     /// <summary>
     /// Signals that the specified initialization stage has been completed.
     /// </summary>
-    public Task SignalInitializationStageCompletedAsync(AppInitializationStage level)
+    public Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? sender = null)
     {
         Interlocked.Increment(ref _signalCalls);
+
+        // do we have required signallers for this stage? If so, check if the sender is one of them and remove it from the list.
+        var requiredSignallers = _requiredSignallersPerStage[level];
+        if (requiredSignallers.Count > 0)
+        {
+            if (sender == null)
+            {
+                logger.LogTrace("Initialization stage {Stage} has required signallers, but no sender was provided. Stage completion will not be signaled.", level);
+                return Task.CompletedTask;
+            }
+            if (!requiredSignallers.Remove(sender))
+            {
+                logger.LogTrace("Initialization stage {Stage} has required signallers, but the sender {Sender} is not one of them. Stage completion will not be signaled.", level, sender);
+                return Task.CompletedTask;
+            }
+        }
+
         var tcs = _completedInitializationStages[level];
         if (tcs.TrySetResult())
         {
             var completedAt = timeProvider.GetLocalNow();
             _completedInitializationStageTimestamps[level] = completedAt;
-            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAt}.", level, completedAt);
+            logger.LogDebug("Signaled initialization stage completion: {Stage} at {CompletedAt}. Sender: {Sender}", level, completedAt, sender);
+            // call the event handlers in a fire-and-forget manner, as we don't want to block the signaling of the stage completion.
+            // ensure failure of any does not affect the signaling of the stage completion and neither the other handlers.
+            Task.Run(() =>
+            {
+                foreach (var handler in InitializationStageCompleted?.GetInvocationList() ?? [])
+                {
+                    try
+                    {
+                        handler.DynamicInvoke(this, new AppInitializationStageCompletedEventArgs(level));
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Error while invoking InitializationStageCompleted event handler for stage {Stage}.", level);
+                    }
+                }
+            });
         }
         else
         {
             Interlocked.Increment(ref _duplicateSignalCalls);
-            logger.LogTrace("Initialization stage {Stage} was already completed when signal was received.", level);
+            logger.LogTrace("Initialization stage {Stage} was already completed when signal was received. Sender: {Sender}", level, sender);
         }
 
         return Task.CompletedTask;
+    }
+
+    public event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
+
+    public void RegisterRequiredSignaller(AppInitializationStage level, object signaller)
+    {
+        var signallers = _requiredSignallersPerStage[level];
+        lock (signallers)
+        {
+            signallers.Add(signaller);
+        }
     }
 
     public Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
@@ -148,6 +197,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             var child = stagesNode.AddChild(stage.ToString());
             child.Records.Add(new DiagnosticRecord("Completed", _completedInitializationStages[stage].Task.IsCompleted));
             child.Records.Add(new DiagnosticRecord("CompletedAt", _completedInitializationStageTimestamps[stage]));
+            child.Records.Add(new DiagnosticRecord("Remaining RequiredSignallers", _requiredSignallersPerStage[stage].Count));
         }
 
         return Task.FromResult<IDiagnosticResultNode>(root);
