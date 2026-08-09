@@ -72,6 +72,7 @@ internal sealed class LogicManager : BackgroundService
         if (_logics.Count == 0)
         {
             _logger.LogDebug("No ILogic instances registered; skipping initialization.");
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitLogics, this);
             return;
         }
 
@@ -86,6 +87,21 @@ internal sealed class LogicManager : BackgroundService
 
         var levels = BuildInitializationLevels(_logics);
         await InitializeLevelsAsync(levels, stoppingToken);
+        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitLogics, this);
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.TerminateLogics, this);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to signal termination stage {Stage} during shutdown.", AppInitializationStage.TerminateLogics);
+        }
+
+        await base.StopAsync(cancellationToken);
     }
 
     /// <summary>

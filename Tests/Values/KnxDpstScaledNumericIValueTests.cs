@@ -361,12 +361,8 @@ public class KnxDpstScaledNumericIValueTests
         }
     }
 
-    private sealed class StubStateInitializationManager : IStateInitializationManager
+    private sealed class StubStateInitializationManager : IStateInitializationRegistrar
     {
-        public AppInitializationStage CurrentStage => AppInitializationStage.Default;
-
-        public Task InitializeStateAsync(CancellationToken token = default) => Task.CompletedTask;
-
         public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
 
         public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
@@ -374,8 +370,6 @@ public class KnxDpstScaledNumericIValueTests
         public void RegisterSave(StateInitializationDelegate save) { }
 
         public void RemoveSave(StateInitializationDelegate save) { }
-
-        public Task SaveStateAsync(CancellationToken token = default) => Task.CompletedTask;
     }
 
     private sealed class KnxMasterDataProviderStub(KnxMasterData masterData) : IKnxMasterDataProvider

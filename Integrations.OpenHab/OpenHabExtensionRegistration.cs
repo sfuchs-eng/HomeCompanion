@@ -62,7 +62,7 @@ public class OpenHabExtensionRegistration(
 internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
 {
     private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization;
-    private readonly IStateInitializationManager stateInitializationManager;
+    private readonly IStateInitializationRegistrar stateInitializationManager;
     private readonly IEnumerable<IValuesContainer> valueContainers;
     private readonly IRestApiClient restApiClient;
     private readonly EventBusClientOptions openHabOptions;
@@ -73,7 +73,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
 
     public OpenHabExtensionRegistrationBackgroundService(
         IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
-        IStateInitializationManager stateInitializationManager,
+        IStateInitializationRegistrar stateInitializationManager,
         IEnumerable<IValuesContainer> valueContainers,
         IRestApiClient restApiClient,
         IOptions<EventBusClientOptions> openHabOptions,

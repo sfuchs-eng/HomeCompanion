@@ -30,7 +30,7 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
             {
                 foreach (var handler in handlers)
                 {
-                    logger.LogTrace("Publishing event {EventType} to test handler.", type.Name);
+                    //logger.LogTrace("Publishing event {EventType} to test handler.", type.Name); // log causes test warnings
                     try
                     {
                         await handler(@event, cancellationToken);

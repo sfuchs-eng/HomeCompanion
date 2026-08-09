@@ -63,6 +63,11 @@ public enum AppInitializationStage
     ShutDownSave,
 
     /// <summary>
+    /// Backend services shutdown phase, e.g. InfluxDB, OpenHAB connector, etc. are being shut down.
+    /// </summary>
+    BackendShutdown,
+
+    /// <summary>
     /// The application has completed its shutdown sequence.
     /// </summary>
     ShutDownCompleted

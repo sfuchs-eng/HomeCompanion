@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,7 @@ namespace HomeCompanion.Integrations.Influx;
 internal sealed class InfluxSignalStore : ISignalStore, IHostedService
 {
     private readonly IInfluxBatchWriter _batchWriter;
+    private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization;
     private readonly InfluxIntegrationOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InfluxSignalStore> _logger;
@@ -24,10 +26,12 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     public InfluxSignalStore(
         IInfluxBatchWriter batchWriter,
         IOptions<InfluxIntegrationOptions> options,
+        IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
         TimeProvider timeProvider,
         ILogger<InfluxSignalStore> logger)
     {
         _batchWriter = batchWriter;
+        this.lifeCycleSynchronization = lifeCycleSynchronization;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -64,6 +68,8 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     {
         Task? workerTask;
         CancellationTokenSource? workerCancellation;
+
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave, TimeSpan.FromSeconds(30), cancellationToken);
 
         lock (_lifecycleLock)
         {

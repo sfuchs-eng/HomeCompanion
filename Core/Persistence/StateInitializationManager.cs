@@ -16,7 +16,7 @@ namespace HomeCompanion.Core.Persistence;
 /// While it directly encapsulates the loading from/saving to persistent storage of IValues, it allows extensions to plug
 /// into the IValue staging process via <see cref="RegisterInitialization"/> and <see cref="RemoveInitialization"/>.
 /// </remarks>
-public class StateInitializationManager : IStateInitializationManager
+public class StateInitializationManager : IStateInitializationRegistrar
 {
     private const string ValueSnapshotStateSetName = "value-snapshot";
     private static readonly TimeSpan ValueSnapshotMaxAge = TimeSpan.FromMinutes(10);
@@ -107,55 +107,36 @@ public class StateInitializationManager : IStateInitializationManager
         }
     }
 
-    public async Task ExecuteStateAsync(AppInitializationStage stage, CancellationToken token = default)
+    protected async Task ExecuteStateAsync(AppInitializationStage stage, CancellationToken token = default)
     {
         lock (this)
         {
             if (stage <= CurrentStage)
             {
-                Logger.LogWarning("Skipping execution of state initialization stage {Stage} as a higher stage {CurrentStage} has already been completed.", stage, CurrentStage);
+                Logger.LogDebug("Skipping execution of state initialization stage {Stage} ({StageValue}) as {CurrentStage} ({CurrentStageValue}) has already been completed.", stage, (int)stage, CurrentStage, (int)CurrentStage);
                 return;
             }
             CurrentStage = stage;
         }
         if (!Initializations.TryGetValue(stage, out var initializations) || initializations.Count == 0)
         {
-            //Logger.LogTrace("Skipping stage {Stage} as it has no registered initialization delegates.", stage);
+            Logger.LogTrace("Skipping stage {Stage} ({StageValue}) as it has no registered initialization delegates.", stage, (int)stage);
             return;
         }
         await ExecuteInitializationDelegatesAsync(Initializations[stage].ToAsyncEnumerable(), token).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Trigger initialization
-    /// </summary>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    [Obsolete("Use ExecuteStateAsync called from an IHomeCompanionLifeCycleSynchronization instead.")]
     public async Task InitializeStateAsync(CancellationToken token = default)
     {
-        Logger.LogInformation("Starting values initialization.");
-        var skipStages = new HashSet<AppInitializationStage>()
+        foreach (var stage in new[]
+                 {
+                     AppInitializationStage.InitLoadFromStore,
+                     AppInitializationStage.InitRetrieveFromEnvironment,
+                     AppInitializationStage.InitModelReady,
+                 })
         {
-            AppInitializationStage.Default,
-            AppInitializationStage.ShutDownSave
-        };
-
-        foreach (var stage in Enum.GetValues<AppInitializationStage>())
-        {
-            if (skipStages.Contains(stage)) continue;
-            if (Initializations[stage].Count == 0)
-            {
-                Logger.LogTrace("Skipping stage {Stage} as it has no registered initialization delegates.", stage);
-                CurrentStage = stage;
-                await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(stage).ConfigureAwait(false);
-                continue;
-            }
-
-            await ExecuteInitializationDelegatesAsync(Initializations[stage].ToAsyncEnumerable(), token).ConfigureAwait(false);
-            CurrentStage = stage;
-            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(stage).ConfigureAwait(false);
-            Logger.LogInformation("Completed state initialization stage {Stage}.", stage);
+            await ExecuteStateAsync(stage, token).ConfigureAwait(false);
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(stage, this).ConfigureAwait(false);
         }
     }
 
@@ -167,7 +148,7 @@ public class StateInitializationManager : IStateInitializationManager
     public async Task SaveStateAsync(CancellationToken token = default)
     {
         await ExecuteInitializationDelegatesAsync(Initializations[AppInitializationStage.ShutDownSave].ToAsyncEnumerable(), token).ConfigureAwait(false);
-        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave);
+        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave, this).ConfigureAwait(false);
     }
 
     protected virtual async Task InitializeValuesFromStoreAsync(CancellationToken token = default)

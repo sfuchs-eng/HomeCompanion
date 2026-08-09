@@ -1,7 +1,5 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Diagnostics;
-using HomeCompanion.Persistence;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,7 +7,7 @@ using System.Collections.Concurrent;
 
 namespace HomeCompanion.Core;
 
-public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCompanionLifeCycleSynchronization, IDiagnosable
+public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IHomeCompanionLifeCycleSynchronization, IDiagnosable
 {
     private readonly IServiceProvider serviceProvider;
     private readonly ILogger<HomeCompanionLifeCycleSynchronization> logger;
@@ -40,6 +38,12 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
     private readonly ConcurrentDictionary<AppInitializationStage, HashSet<object>> _requiredSignallersPerStage =
         new(Enum.GetValues<AppInitializationStage>().Select(stage =>
             new KeyValuePair<AppInitializationStage, HashSet<object>>(stage, [])));
+
+    private static readonly TimeSpan PendingSignallerGracePeriod = TimeSpan.FromSeconds(10);
+
+    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _pendingSignallerWaitStartedAt =
+        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
+            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
 
     // Tracks whether at least one explicit signal was received for a stage.
     private readonly ConcurrentDictionary<AppInitializationStage, bool> _hasSignalPerStage =
@@ -275,7 +279,7 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
             var child = stagesNode.AddChild(stage.ToString());
             child.Records.Add(new DiagnosticRecord("Completed", _completedInitializationStages[stage].Task.IsCompleted));
             child.Records.Add(new DiagnosticRecord("CompletedAt", _completedInitializationStageTimestamps[stage]));
-            child.Records.Add(new DiagnosticRecord("Remaining RequiredSignallers", _requiredSignallersPerStage[stage].Count));
+            child.Records.Add(new DiagnosticRecord("Remaining RequiredSignallers", _requiredSignallersPerStage[stage].Count, "Pending: " + string.Join(", ", _requiredSignallersPerStage[stage].Select(s => s.GetType().FullName))));
         }
 
         return Task.FromResult<IDiagnosticResultNode>(root);
@@ -297,14 +301,54 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         TriggerExecutionLoop();
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    private bool TryAdvancePendingSignallers(AppInitializationStage stage, HashSet<object> signallers)
+    {
+        if (signallers.Count == 0)
+        {
+            _pendingSignallerWaitStartedAt[stage] = null;
+            return true;
+        }
+
+        var waitStartedAt = _pendingSignallerWaitStartedAt[stage];
+        if (waitStartedAt is null)
+        {
+            waitStartedAt = timeProvider.GetLocalNow();
+            _pendingSignallerWaitStartedAt[stage] = waitStartedAt;
+            logger.LogDebug(
+                "Waiting for {Count} required signaller(s) for stage {Stage}. Grace period={GracePeriod}.",
+                signallers.Count,
+                stage,
+                PendingSignallerGracePeriod);
+            return false;
+        }
+
+        var elapsed = timeProvider.GetLocalNow() - waitStartedAt.Value;
+        if (elapsed < PendingSignallerGracePeriod)
+        {
+            return false;
+        }
+
+        logger.LogWarning(
+            "Timed out waiting for {Count} required signaller(s) for phase {Stage} after {ElapsedSeconds} seconds. Skipping remaining signaller(s).",
+            signallers.Count,
+            stage,
+            elapsed.TotalSeconds);
+        signallers.Clear();
+        _pendingSignallerWaitStartedAt[stage] = null;
+        return true;
+    }
+
+    protected async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await OnStageCompletedAsync(AppInitializationStage.Default).ConfigureAwait(false); // bootstrap internal default stage without counting as external signal.
 
         while (!stoppingToken.IsCancellationRequested && !LastCompletedStage.IsLastStage())
         {
             // wait for a verification trigger to check for signallers and executions to complete stages. This is a simple loop that checks for stages that can be completed.
-            await _executionLoopTrigger.WaitAsync(stoppingToken).ConfigureAwait(false);
+            var triggerTask = _executionLoopTrigger.WaitAsync(stoppingToken);
+            var pendingSignallerTimeoutTask = Task.Delay(PendingSignallerGracePeriod, stoppingToken);
+            await Task.WhenAny(triggerTask, pendingSignallerTimeoutTask).ConfigureAwait(false);
+
             foreach (var stage in Enum.GetValues<AppInitializationStage>())
             {
                 if (IsLifeCycleStageCompleted(stage))
@@ -326,7 +370,12 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
                 lock (requiredSignallers)
                 {
                     if (requiredSignallers.Count > 0)
-                        break; // wait for signallers to signal completion before we can complete the stage.
+                    {
+                        if (!TryAdvancePendingSignallers(stage, requiredSignallers))
+                        {
+                            break; // wait for signallers to signal completion before we can complete the stage.
+                        }
+                    }
                 }
 
                 // perform the stage completion
@@ -346,5 +395,84 @@ public class HomeCompanionLifeCycleSynchronization : BackgroundService, IHomeCom
         return Enum.GetValues<AppInitializationStage>()
             .Where(stage => stage <= level)
             .All(stage => _completedInitializationStages[stage].Task.IsCompleted);
+    }
+
+    private Task _executeAsyncTask = Task.CompletedTask;
+    private CancellationTokenSource? _executeAsyncCts;
+    private int _startupTriggered;
+    private int _shutdownTriggered;
+
+    private Task StartExecutionLoop(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _startupTriggered, 1) != 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        // launch the background service execution loop in a fire-and-forget manner, as we don't want to block the startup of the hosted service.
+        _executeAsyncCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _executeAsyncTask = ExecuteAsync(_executeAsyncCts.Token);
+        TriggerExecutionLoop();
+        return Task.CompletedTask;
+    }
+
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        return StartExecutionLoop(cancellationToken);
+    }
+
+    public Task StartedAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    private async Task StopExecutionLoop(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _shutdownTriggered, 1) != 0)
+        {
+            return;
+        }
+
+        // trigger termination sequence and wait for the background service execution loop to complete.
+        StartTerminationSequence();
+
+        // give it a timeout
+        var timeout = TimeSpan.FromSeconds(30);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeout);
+
+        try
+        {
+            await _executeAsyncTask.WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            logger.LogWarning("Timeout while waiting for background service execution loop to complete during stopping. Timeout={Timeout}.", timeout);
+        }
+    }
+
+    public Task StoppingAsync(CancellationToken cancellationToken)
+    {
+        return StopExecutionLoop(cancellationToken);
+    }
+
+    public Task StoppedAsync(CancellationToken cancellationToken)
+    {
+        // have we reached the final stage?
+        if (!IsLifeCycleStageCompleted(AppInitializationStage.ShutDownCompleted))
+        {
+            logger.LogWarning("Background service execution loop completed without reaching the final stage. LastCompletedStage={LastCompletedStage}.", LastCompletedStage);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        return StartExecutionLoop(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return StopExecutionLoop(cancellationToken);
     }
 }

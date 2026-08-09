@@ -10,7 +10,7 @@ namespace HomeCompanion.Integrations.Alerting.Named;
 /// </summary>
 public sealed class NamedAlertStateInitializationHostedService : BackgroundService
 {
-    private readonly IStateInitializationManager _stateInitializationManager;
+    private readonly IStateInitializationRegistrar _stateInitializationManager;
     private readonly NamedAlertPersistenceAdapter _persistenceAdapter;
     private readonly ILogger<NamedAlertStateInitializationHostedService> _logger;
 
@@ -18,7 +18,7 @@ public sealed class NamedAlertStateInitializationHostedService : BackgroundServi
     /// Initializes a new instance.
     /// </summary>
     public NamedAlertStateInitializationHostedService(
-        IStateInitializationManager stateInitializationManager,
+        IStateInitializationRegistrar stateInitializationManager,
         NamedAlertPersistenceAdapter persistenceAdapter,
         ILogger<NamedAlertStateInitializationHostedService> logger)
     {

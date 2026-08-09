@@ -51,7 +51,8 @@ public static class HostingExtensions
         builder.Services.TryAddSingleton<IValueProvider, ValueReferenceProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ValuesManager>());
         builder.Services.TryAddSingleton<IStateStore, JsonFilesStateStore>();
-        builder.Services.TryAddSingleton<IStateInitializationManager, StateInitializationManager>();
+        builder.Services.TryAddSingleton<StateInitializationManager>();
+        builder.Services.TryAddSingleton<IStateInitializationRegistrar>(sp => sp.GetRequiredService<StateInitializationManager>());
         builder.Services.TryAddSingleton<IModelFactory, ModelFactory>();
         builder.Services.TryAddSingleton<ModelValueBinder>();
         builder.Services.TryAddSingleton<ModelProvider>();
@@ -62,7 +63,8 @@ public static class HostingExtensions
 
         // Life cycle synchronization
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
-        builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
+        //builder.Services.AddHostedService(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
+        builder.Services.AddHostedService<IHostedLifecycleService>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.TryAddSingleton<IHomeCompanionLifeCycleSynchronization>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
         builder.Services.AddSingleton<IDiagnosable>(sp => sp.GetRequiredService<HomeCompanionLifeCycleSynchronization>());
 

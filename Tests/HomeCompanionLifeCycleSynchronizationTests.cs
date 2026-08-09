@@ -102,6 +102,19 @@ public class HomeCompanionLifeCycleSynchronizationTests
     }
 
     [Test]
+    public async Task StopAsync_CompletesTerminationStageEvenWhenRequiredSignallerNeverSignals()
+    {
+        var sync = CreateSync();
+        var signaller = new object();
+        sync.RegisterRequiredSignaller(AppInitializationStage.TerminateLogics, signaller);
+
+        await sync.StartAsync(CancellationToken.None);
+        await sync.StopAsync(CancellationToken.None);
+
+        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.TerminateLogics), Is.True);
+    }
+
+    [Test]
     public async Task AwaitBusesConnectedAsync_NoEnabledProviders_Completes()
     {
         var sync = CreateSync();

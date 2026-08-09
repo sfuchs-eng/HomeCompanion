@@ -205,13 +205,9 @@ public class OpenHabExtensionRegistrationTests
         public KnxMasterData GetMasterData() => new KnxMasterData();
     }
 
-    private sealed class CapturingStateInitializationManager : HomeCompanion.Persistence.IStateInitializationManager
+    private sealed class CapturingStateInitializationManager : IStateInitializationRegistrar
     {
         public StateInitializationDelegate? Initialization { get; private set; }
-
-        public AppInitializationStage CurrentStage => AppInitializationStage.Default;
-
-        public Task InitializeStateAsync(CancellationToken token = default) => Task.CompletedTask;
 
         public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
         {
@@ -224,8 +220,6 @@ public class OpenHabExtensionRegistrationTests
         public void RegisterSave(StateInitializationDelegate save) { }
 
         public void RemoveSave(StateInitializationDelegate save) { }
-
-        public Task SaveStateAsync(CancellationToken token = default) => Task.CompletedTask;
     }
 
     private sealed class StubRestApiClient(Item[] items) : IRestApiClient

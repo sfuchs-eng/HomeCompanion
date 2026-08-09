@@ -57,7 +57,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     private readonly IEventSubscriber _subscriber;
     private readonly IEnumerable<IValuesContainer> containers;
     private readonly IHomeCompanionLifeCycleSynchronization lifeCycleSync;
-    private readonly IStateInitializationManager stateInitializationManager;
+    private readonly IStateInitializationRegistrar stateInitializationManager;
     private readonly IReadOnlyList<IValuesContainer> _containers;
     private readonly IDptResolver _dptResolver;
     private readonly ILogger<KnxConnectivityProvider> _logger;
@@ -90,7 +90,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         IEventSubscriber subscriber,
         IEnumerable<IValuesContainer> containers,
         IHomeCompanionLifeCycleSynchronization lifeCycleSync,
-        IStateInitializationManager stateInitializationManager,
+        IStateInitializationRegistrar stateInitializationManager,
         IDptResolver dptResolver,
         ILogger<KnxConnectivityProvider> logger)
     {
