@@ -95,11 +95,15 @@ internal sealed class LogicManager : BackgroundService
     {
         try
         {
-            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.TerminateLogics, this);
+            await TerminateLogicsAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to signal termination stage {Stage} during shutdown.", AppLifeCycleStage.TerminateLogics);
+        }
+        finally
+        {
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.TerminateLogics, this);
         }
 
         await base.StopAsync(cancellationToken);
@@ -211,6 +215,35 @@ internal sealed class LogicManager : BackgroundService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Unhandled exception initializing {LogicType}.", logic.GetType().Name);
+        }
+    }
+
+    private async Task TerminateLogicsAsync(CancellationToken cancellationToken)
+    {
+        var levels = BuildInitializationLevels(_logics);
+        await TerminateLevelsAsync(levels, cancellationToken);
+    }
+
+    private async Task TerminateLevelsAsync(IReadOnlyList<IReadOnlyList<ILogic>> levels, CancellationToken cancellationToken)
+    {
+        for (int i = levels.Count - 1; i >= 0; i--)
+        {
+            var level = levels[i];
+            _logger.LogDebug("Terminating logics at dependency level {Level}/{Total} ({Count} logic(s)).", i + 1, levels.Count, level.Count);
+            await Task.WhenAll(level.Select(l => TerminateSafeAsync(l, cancellationToken)));
+        }
+    }
+
+    private async Task TerminateSafeAsync(ILogic logic, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogTrace("Terminating {LogicType}.", logic.GetType().Name);
+            await logic.TerminateAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unhandled exception terminating {LogicType}.", logic.GetType().Name);
         }
     }
 }

@@ -4,6 +4,21 @@ using System.Reactive.Linq;
 
 namespace HomeCompanion.Base.SignalProcessing;
 
+public sealed record FirstOrderLowPassFilterStateDouble
+{
+    public int Version { get; init; } = 1;
+    public double Previous { get; init; } = double.NaN;
+    public double Current { get; init; } = double.NaN;
+}
+
+
+public sealed record FirstOrderLowPassFilterStateFloat
+{
+    public int Version { get; init; } = 1;
+    public float Previous { get; init; } = float.NaN;
+    public float Current { get; init; } = float.NaN;
+}
+
 /// <summary>
 /// <para>IValue helpers to convert IValue to IObservable&lt;T&gt; using System.Reactive.</para>
 /// <para>See https://github.com/dotnet/reactive</para>
@@ -75,29 +90,15 @@ public static class IValueReactiveExtensions
 
     public static IObservable<double> FirstOrderLowPassFilter(this IObservable<double> source, TimeSpan timeConstant, TimeSpan sampleTime)
     {
-        if (timeConstant <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeConstant), "Time constant must be greater than zero.");
-        }
-
-        var dt = sampleTime.TotalSeconds;
-        var alpha = 1 - Math.Exp(-dt / timeConstant.TotalSeconds);
-
-        return source
-            .Sample(sampleTime)
-            .Scan((previous: double.NaN, current: double.NaN), (acc, current) =>
-                {
-                    if (double.IsNaN(acc.previous) || double.IsNaN(acc.current))
-                    {
-                        return (previous: current, current: current);
-                    }
-                    var filteredValue = acc.previous * (1.0 - alpha) + current * alpha;
-                    return (previous: acc.current, current: filteredValue);
-                })
-            .Select(acc => acc.current);
+        return source.FirstOrderLowPassFilter(timeConstant, sampleTime, null, null);
     }
 
-    public static IObservable<float> FirstOrderLowPassFilter(this IObservable<float> source, TimeSpan timeConstant, TimeSpan sampleTime)
+    public static IObservable<double> FirstOrderLowPassFilter(
+        this IObservable<double> source,
+        TimeSpan timeConstant,
+        TimeSpan sampleTime,
+        FirstOrderLowPassFilterStateDouble? initialState,
+        Action<FirstOrderLowPassFilterStateDouble>? onStateChanged = null)
     {
         if (timeConstant <= TimeSpan.Zero)
         {
@@ -107,17 +108,57 @@ public static class IValueReactiveExtensions
         var dt = sampleTime.TotalSeconds;
         var alpha = 1 - Math.Exp(-dt / timeConstant.TotalSeconds);
 
+        var seed = initialState ?? new FirstOrderLowPassFilterStateDouble();
+
         return source
             .Sample(sampleTime)
-            .Scan((previous: float.NaN, current: float.NaN), (acc, current) =>
+            .Scan(seed, (state, current) =>
                 {
-                    if (float.IsNaN(acc.previous) || float.IsNaN(acc.current))
+                    if (double.IsNaN(state.Previous) || double.IsNaN(state.Current))
                     {
-                        return (previous: current, current: current);
+                        return state with { Previous = current, Current = current };
                     }
-                    var filteredValue = (float)(acc.previous * (1.0 - alpha) + current * alpha);
-                    return (previous: acc.current, current: filteredValue);
+                    var filteredValue = state.Previous * (1.0 - alpha) + current * alpha;
+                    return state with { Previous = state.Current, Current = filteredValue };
                 })
-            .Select(acc => acc.current);
+            .Do(state => onStateChanged?.Invoke(state))
+            .Select(state => state.Current);
+    }
+
+    public static IObservable<float> FirstOrderLowPassFilter(this IObservable<float> source, TimeSpan timeConstant, TimeSpan sampleTime)
+    {
+        return source.FirstOrderLowPassFilter(timeConstant, sampleTime, null, null);
+    }
+
+    public static IObservable<float> FirstOrderLowPassFilter(
+        this IObservable<float> source,
+        TimeSpan timeConstant,
+        TimeSpan sampleTime,
+        FirstOrderLowPassFilterStateFloat? initialState,
+        Action<FirstOrderLowPassFilterStateFloat>? onStateChanged = null)
+    {
+        if (timeConstant <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeConstant), "Time constant must be greater than zero.");
+        }
+
+        var dt = sampleTime.TotalSeconds;
+        var alpha = 1 - Math.Exp(-dt / timeConstant.TotalSeconds);
+
+        var seed = initialState ?? new FirstOrderLowPassFilterStateFloat();
+
+        return source
+            .Sample(sampleTime)
+            .Scan(seed, (state, current) =>
+                {
+                    if (float.IsNaN(state.Previous) || float.IsNaN(state.Current))
+                    {
+                        return state with { Previous = current, Current = current };
+                    }
+                    var filteredValue = (float)(state.Previous * (1.0 - alpha) + current * alpha);
+                    return state with { Previous = state.Current, Current = filteredValue };
+                })
+            .Do(state => onStateChanged?.Invoke(state))
+            .Select(state => state.Current);
     }
 }
