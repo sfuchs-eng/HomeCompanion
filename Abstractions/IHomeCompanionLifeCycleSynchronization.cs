@@ -28,7 +28,7 @@ public interface IHomeCompanionLifeCycleSynchronization
     /// Waits for completion of the specified initialization stage.
     /// This method must not signal or complete stages.
     /// </summary>
-    Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default);
+    Task WaitForInitializationStageCompletedAsync(AppLifeCycleStage level, TimeSpan timeout, CancellationToken token = default);
 
     /// <summary>
     /// Signals that the specified initialization stage has been completed.
@@ -38,7 +38,7 @@ public interface IHomeCompanionLifeCycleSynchronization
     /// If a stage has required signallers registered, the stage is only completed when all required signallers have signaled completion of the stage.
     /// If no required signaller is registered, any signaler can complete the stage.
     /// </remarks>
-    Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null);
+    Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null);
 
     /// <summary>
     /// This method registers the specified signaller for the specified stage as a required signaller to complete that stage.
@@ -47,7 +47,7 @@ public interface IHomeCompanionLifeCycleSynchronization
     /// </summary>
     /// <param name="level"></param>
     /// <param name="signaller"></param>
-    void RegisterRequiredSignaller(AppInitializationStage level, object signaller);
+    void RegisterRequiredSignaller(AppLifeCycleStage level, object signaller);
 
     /// <summary>
     /// Registers the specified execution for the specified initialization stage as a required execution to complete that stage.
@@ -55,29 +55,29 @@ public interface IHomeCompanionLifeCycleSynchronization
     /// If no required execution is registered, any (required) signaller can complete the stage instead.
     /// </summary>
     /// <param name="targetLevel">The stage reached after all required callbacks are executed.</param>
-    void RegisterRequiredExecution(AppInitializationStage targetLevel, Func<AppInitializationStage, CancellationToken, Task> execution);
+    void RegisterRequiredExecution(AppLifeCycleStage targetLevel, Func<AppLifeCycleStage, CancellationToken, Task> execution);
 
     /// <summary>
     /// Returns whether the specified initialization stage has been completed.
     /// </summary>
-    bool IsLifeCycleStageCompleted(AppInitializationStage level);
+    bool IsLifeCycleStageCompleted(AppLifeCycleStage level);
 
     /// <summary>
     /// Returns whether all stages up to and including the specified stage are completed.
     /// </summary>
-    bool IsAllUpToStageCompleted(AppInitializationStage level);
+    bool IsAllUpToStageCompleted(AppLifeCycleStage level);
 
     event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
 
-    AppInitializationStage LastCompletedStage { get; }
+    AppLifeCycleStage LastCompletedStage { get; }
 }
 
 public class AppInitializationStageCompletedEventArgs : EventArgs
 {
-    public AppInitializationStageCompletedEventArgs(AppInitializationStage stage)
+    public AppInitializationStageCompletedEventArgs(AppLifeCycleStage stage)
     {
         Stage = stage;
     }
 
-    public AppInitializationStage Stage { get; }
+    public AppLifeCycleStage Stage { get; }
 }

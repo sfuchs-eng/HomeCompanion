@@ -43,20 +43,20 @@ public class HomeCompanionLifeCycleSynchronizationTests
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero));
         var sync = CreateSync(timeProvider);
 
-        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppLifeCycleStage.InitValuesRegistered), Is.False);
 
         var ex = Assert.ThrowsAsync<TimeoutException>(async () =>
             await sync.WaitForInitializationStageCompletedAsync(
-                AppInitializationStage.InitValuesRegistered,
+                AppLifeCycleStage.InitValuesRegistered,
                 TimeSpan.FromMilliseconds(20),
                 CancellationToken.None));
 
         Assert.That(ex, Is.Not.Null);
-        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.False);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppLifeCycleStage.InitValuesRegistered), Is.False);
 
         var diagnosis = await sync.GetDiagnosisAsync(CancellationToken.None);
         var stages = GetChild(diagnosis, "Stages");
-        var initValuesRegistered = GetChild(stages, AppInitializationStage.InitValuesRegistered.ToString());
+        var initValuesRegistered = GetChild(stages, AppLifeCycleStage.InitValuesRegistered.ToString());
 
         Assert.Multiple(() =>
         {
@@ -73,23 +73,23 @@ public class HomeCompanionLifeCycleSynchronizationTests
         var sync = CreateSync(timeProvider);
         var signaller = new object();
 
-        sync.RegisterRequiredSignaller(AppInitializationStage.InitValuesRegistered, signaller);
+        sync.RegisterRequiredSignaller(AppLifeCycleStage.InitValuesRegistered, signaller);
 
-        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, signaller);
+        await sync.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitValuesRegistered, signaller);
         timeProvider.Advance(TimeSpan.FromMinutes(5));
-        await sync.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered, signaller);
+        await sync.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitValuesRegistered, signaller);
 
         var bgRunner = sync.StartAsync(CancellationToken.None); // start the background runner to process the stage completion
         await sync.WaitForInitializationStageCompletedAsync(
-            AppInitializationStage.InitValuesRegistered,
+            AppLifeCycleStage.InitValuesRegistered,
             TimeSpan.FromMilliseconds(200),
             CancellationToken.None);
 
-        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered), Is.True);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppLifeCycleStage.InitValuesRegistered), Is.True);
 
         var diagnosis = await sync.GetDiagnosisAsync(CancellationToken.None);
         var stages = GetChild(diagnosis, "Stages");
-        var initValuesRegistered = GetChild(stages, AppInitializationStage.InitValuesRegistered.ToString());
+        var initValuesRegistered = GetChild(stages, AppLifeCycleStage.InitValuesRegistered.ToString());
 
         Assert.Multiple(() =>
         {
@@ -106,12 +106,12 @@ public class HomeCompanionLifeCycleSynchronizationTests
     {
         var sync = CreateSync();
         var signaller = new object();
-        sync.RegisterRequiredSignaller(AppInitializationStage.TerminateLogics, signaller);
+        sync.RegisterRequiredSignaller(AppLifeCycleStage.TerminateLogics, signaller);
 
         await sync.StartAsync(CancellationToken.None);
         await sync.StopAsync(CancellationToken.None);
 
-        Assert.That(sync.IsLifeCycleStageCompleted(AppInitializationStage.TerminateLogics), Is.True);
+        Assert.That(sync.IsLifeCycleStageCompleted(AppLifeCycleStage.TerminateLogics), Is.True);
     }
 
     [Test]

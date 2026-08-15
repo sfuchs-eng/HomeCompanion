@@ -83,7 +83,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
         _lastDiscoveredCount = discoveredCount;
         _lastInitializedCount = initializedCount;
 
-        await _lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await _lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitValuesRegistered);
         _valuesRegisteredStageCompletedAtUtc = _timeProvider.GetUtcNow();
 
         _logger.LogInformation(
@@ -91,7 +91,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
             initializedCount,
             discoveredCount,
             containerCount,
-            AppInitializationStage.InitValuesRegistered,
+            AppLifeCycleStage.InitValuesRegistered,
             _registeredValues.Count,
             _startRequestedAtUtc,
             _valuesRegisteredStageCompletedAtUtc);
@@ -248,7 +248,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
 
     /// <summary>
     /// Checks if the inbound event can be routed based on the current application initialization stage.
-    /// If the stage <see cref="AppInitializationStage.InitValuesRegistered"/> is not completed, the event will be dropped and a warning will be logged.
+    /// If the stage <see cref="AppLifeCycleStage.InitValuesRegistered"/> is not completed, the event will be dropped and a warning will be logged.
     /// This is to prevent routing events to values that may not have been registered yet, which could lead to lost updates or writes.
     /// </summary>
     /// <param name="target"></param>
@@ -257,7 +257,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
     /// <returns></returns>
     private bool CanRouteInboundEvent(IValue? target, string eventName, ref long droppedCounter)
     {
-        if (_lifeCycleSynchronization.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered))
+        if (_lifeCycleSynchronization.IsLifeCycleStageCompleted(AppLifeCycleStage.InitValuesRegistered))
             return true;
 
         var dropCount = Interlocked.Increment(ref droppedCounter);
@@ -266,7 +266,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
             _logger.LogWarning(
                 "Dropping {EventName} before stage {Stage} completed. Target={TargetName}, TargetType={TargetType}, DropCount={DropCount}.",
                 eventName,
-                AppInitializationStage.InitValuesRegistered,
+                AppLifeCycleStage.InitValuesRegistered,
                 target?.Name ?? "<null>",
                 target?.ValueType.Name ?? "<unknown>",
                 dropCount);
@@ -276,7 +276,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
             _logger.LogTrace(
                 "Dropping {EventName} before stage {Stage} completed. Target={TargetName}, TargetType={TargetType}, DropCount={DropCount}.",
                 eventName,
-                AppInitializationStage.InitValuesRegistered,
+                AppLifeCycleStage.InitValuesRegistered,
                 target?.Name ?? "<null>",
                 target?.ValueType.Name ?? "<unknown>",
                 dropCount);
@@ -318,7 +318,7 @@ public sealed class ValuesManager : IValuesManager, IHostedService, IDisposable,
 
     private ValuesManagerSnapshot CaptureSnapshot()
         => new(
-            _lifeCycleSynchronization.IsLifeCycleStageCompleted(AppInitializationStage.InitValuesRegistered),
+            _lifeCycleSynchronization.IsLifeCycleStageCompleted(AppLifeCycleStage.InitValuesRegistered),
             _startRequestedAtUtc,
             _valuesRegisteredStageCompletedAtUtc,
             _lastContainerCount,

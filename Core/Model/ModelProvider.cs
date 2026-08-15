@@ -33,7 +33,7 @@ internal sealed class ModelProvider(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await _lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(
-            AppInitializationStage.InitValuesRegistered,
+            AppLifeCycleStage.InitValuesRegistered,
             _coreOptions.BusInitializationTimeout,
             cancellationToken);
 
@@ -41,11 +41,11 @@ internal sealed class ModelProvider(
         _model = _modelFactory.CreateModel(config);
         _modelValueBinder.Bind(_model);
 
-        await _lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitModelReady);
+        await _lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitModelReady);
         _logger.LogInformation(
             "Model initialized with {BuildingCount} building(s) and signaled stage {Stage}.",
             _model.Buildings.Count,
-            AppInitializationStage.InitModelReady);
+            AppLifeCycleStage.InitModelReady);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

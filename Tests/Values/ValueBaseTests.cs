@@ -312,7 +312,7 @@ public class ValueBaseTests
     {
         var value = CreateValue<int>();
 
-        var result = value.InitializeValue(42, AppInitializationStage.InitLoadFromStore);
+        var result = value.InitializeValue(42, AppLifeCycleStage.InitLoadFromStore);
 
         Assert.Multiple(() =>
         {
@@ -327,7 +327,7 @@ public class ValueBaseTests
     {
         var value = CreateValue<bool>();
 
-        var result = value.InitializeValue("True", AppInitializationStage.InitLoadFromStore);
+        var result = value.InitializeValue("True", AppLifeCycleStage.InitLoadFromStore);
 
         Assert.Multiple(() =>
         {
@@ -341,7 +341,7 @@ public class ValueBaseTests
     {
         var value = CreateValue<int>();
 
-        var result = value.InitializeValue("123", AppInitializationStage.InitLoadFromStore);
+        var result = value.InitializeValue("123", AppLifeCycleStage.InitLoadFromStore);
 
         Assert.Multiple(() =>
         {
@@ -354,10 +354,10 @@ public class ValueBaseTests
     public void InitializeValue_RejectsStageDowngrade()
     {
         var value = CreateValue<int>();
-        value.InitializeValue(1, AppInitializationStage.InitRetrieveFromEnvironment);
+        value.InitializeValue(1, AppLifeCycleStage.InitRetrieveFromEnvironment);
 
         // Try to initialize with a lower stage — should be rejected
-        var result = value.InitializeValue(2, AppInitializationStage.InitLoadFromStore);
+        var result = value.InitializeValue(2, AppLifeCycleStage.InitLoadFromStore);
 
         Assert.That(result, Is.False);
         Assert.That(value.Value, Is.EqualTo(1)); // unchanged
@@ -367,9 +367,9 @@ public class ValueBaseTests
     public void InitializeValue_AllowsStageUpgrade()
     {
         var value = CreateValue<int>();
-        value.InitializeValue(1, AppInitializationStage.InitLoadFromStore);
+        value.InitializeValue(1, AppLifeCycleStage.InitLoadFromStore);
 
-        var result = value.InitializeValue(2, AppInitializationStage.InitRetrieveFromEnvironment);
+        var result = value.InitializeValue(2, AppLifeCycleStage.InitRetrieveFromEnvironment);
 
         Assert.That(result, Is.True);
         Assert.That(value.Value, Is.EqualTo(2));
@@ -380,7 +380,7 @@ public class ValueBaseTests
     {
         var value = CreateValue<int>();
 
-        value.InitializeValue(5, AppInitializationStage.InitLoadFromStore);
+        value.InitializeValue(5, AppLifeCycleStage.InitLoadFromStore);
 
         Assert.Multiple(() =>
         {
@@ -426,7 +426,7 @@ public class ValueBaseTests
     public void Format_PrefersFirstCapableFormatter()
     {
         var value = CreateValue<int>();
-        value.InitializeValue(42, AppInitializationStage.InitLoadFromStore);
+        value.InitializeValue(42, AppLifeCycleStage.InitLoadFromStore);
         value.AddBusEndpoint("one", new PrefixFormatterMapping("first", canFormat: false));
         value.AddBusEndpoint("two", new PrefixFormatterMapping("second", canFormat: true));
         value.AddBusEndpoint("three", new PrefixFormatterMapping("third", canFormat: true));
@@ -440,7 +440,7 @@ public class ValueBaseTests
     public void Format_UsesCultureWhenFallingBackToRawValue()
     {
         var value = CreateValue<decimal>();
-        value.InitializeValue(1234.56m, AppInitializationStage.InitLoadFromStore);
+        value.InitializeValue(1234.56m, AppLifeCycleStage.InitLoadFromStore);
 
         var formatted = value.Format(new CultureInfo("de-DE"));
 
@@ -451,7 +451,7 @@ public class ValueBaseTests
     public void Format_FallsBackToRawValueWhenFormatterReturnsNull()
     {
         var value = CreateValue<int>();
-        value.InitializeValue(7, AppInitializationStage.InitLoadFromStore);
+        value.InitializeValue(7, AppLifeCycleStage.InitLoadFromStore);
         value.AddBusEndpoint("one", new NullFormatterMapping(canFormat: true));
 
         var display = value.Format();

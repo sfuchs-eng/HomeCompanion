@@ -26,10 +26,10 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     private bool _isTerminated = false;
 
     /// <summary>
-    /// Initializes the logic. For convenience, this method calls <see cref="InitializeAsyncLatched"/> only
+    /// Initializes the logic. For convenience, this method calls <see cref="InitializeLatchedAsync"/> only
     /// once, even if called multiple times. Subsequent calls wait until the first initialization completes and then return immediately.
     /// This allows dependent logics to call <c>InitializeAsync</c> on their dependencies without risking multiple initializations or deadlocks.
-    /// Inheriting classes should override <see cref="InitializeAsyncLatched"/> to perform their initialization logic, which is guaranteed to only run once.
+    /// Inheriting classes should override <see cref="InitializeLatchedAsync"/> to perform their initialization logic, which is guaranteed to only run once.
     /// </summary>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
@@ -43,7 +43,7 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
                 if (_isInitialized)
                     return;
 
-                await InitializeAsyncLatched(cancellationToken);
+                await InitializeLatchedAsync(cancellationToken);
                 _isInitialized = true;
             }
             catch
@@ -62,18 +62,30 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
             throw;
         }
     }
-    
+
     /// <summary>
     /// Internal initialization method that is guaranteed to only be called once, even if <see cref="InitializeAsync"/> is called multiple times.
+    /// This method is called in life cycle phase <see cref="HomeCompanion.Abstractions.AppLifeCycleStage.InitLogics"/> to initialize the logic.
     /// </summary>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    protected abstract Task InitializeAsyncLatched(CancellationToken cancellationToken = default);
+    protected abstract Task InitializeLatchedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Terminates the logic. This method is guaranteed to only be called once, even if <see cref="TerminateAsync"/> is called multiple times.
+    /// This method is called in life cycle phase <see cref="HomeCompanion.Abstractions.AppLifeCycleStage.TerminateLogics"/> to terminate the logic.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    protected virtual Task TerminateLatchedAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc/>
     public virtual async Task EnableAsync(CancellationToken cancellationToken = default)
     {
-        if ( IsActivationFailed )
+        if (IsActivationFailed)
             throw new InvalidOperationException("Cannot enable logic because activation failed.", ActivationException);
         IsEnabled = true;
     }
@@ -93,7 +105,7 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     public bool IsActivated => !IsActivationFailed && _isInitialized;
 
     /// <summary>
-    /// Should be set in case <see cref="InitializeAsyncLatched(CancellationToken)"/> or <see cref="EnableAsync(CancellationToken)"/> fail,
+    /// Should be set in case <see cref="InitializeLatchedAsync(CancellationToken)"/> or <see cref="EnableAsync(CancellationToken)"/> fail,
     /// causing <see cref="IsEnabled"/> to remain false.
     /// </summary>
     /// <value></value>
@@ -125,11 +137,30 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     /// </summary>
     public virtual async Task TerminateAsync(CancellationToken cancellationToken = default)
     {
-        if (_isTerminated)
-            return;
+        lock (this)
+        {
+            if (_isTerminated)
+                return;
+            _isTerminated = true;
+        }
 
-        await DisableAsync(cancellationToken);
-        _isTerminated = true;
-        Logger.LogTrace("Logic {LogicName} terminated.", Name);
+        try
+        {
+            await DisableAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Error while disabling logic {LogicName} during termination.", Name);
+        }
+
+        try
+        {
+            await TerminateLatchedAsync(cancellationToken);
+            Logger.LogTrace("Logic {LogicName} terminated.", Name);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Error while terminating logic {LogicName}.", Name);
+        }
     }
 }

@@ -52,8 +52,8 @@ internal sealed class LogicManager : BackgroundService
         this.lifeCycleSynchronization = lifeCycleSynchronization;
         _logger = logger;
         _timeProvider = timeProvider;
-        lifeCycleSynchronization.RegisterRequiredSignaller(AppInitializationStage.InitLogics, this);
-        lifeCycleSynchronization.RegisterRequiredSignaller(AppInitializationStage.TerminateLogics, this);
+        lifeCycleSynchronization.RegisterRequiredSignaller(AppLifeCycleStage.InitLogics, this);
+        lifeCycleSynchronization.RegisterRequiredSignaller(AppLifeCycleStage.TerminateLogics, this);
     }
 
     public LogicManager(
@@ -72,33 +72,34 @@ internal sealed class LogicManager : BackgroundService
         if (_logics.Count == 0)
         {
             _logger.LogDebug("No ILogic instances registered; skipping initialization.");
-            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitLogics, this);
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitLogics, this);
             return;
         }
 
-        _logger.LogTrace("LogicManager awaiting bus connection value initialization. {LogicCount} logic(s) pending initialization.", _logics.Count);
-
+        //_logger.LogTrace("LogicManager awaiting bus connection value initialization. {LogicCount} logic(s) pending initialization.", _logics.Count);
         await lifeCycleSynchronization.AwaitBusesConnectedAsync(_options.BusInitializationTimeout, stoppingToken);
-        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitRetrieveFromEnvironment, _options.BusInitializationTimeout, stoppingToken);
-        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitModelReady, _options.BusInitializationTimeout, stoppingToken);
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppLifeCycleStage.InitRetrieveFromEnvironment, _options.BusInitializationTimeout, stoppingToken);
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppLifeCycleStage.InitModelReady, _options.BusInitializationTimeout, stoppingToken);
 
         if (stoppingToken.IsCancellationRequested)
             return;
 
+        _logger.LogInformation("Initializing {LogicCount} ILogic instance(s) in dependency order.", _logics.Count);
         var levels = BuildInitializationLevels(_logics);
         await InitializeLevelsAsync(levels, stoppingToken);
-        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.InitLogics, this);
+        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitLogics, this);
+        _logger.LogInformation("All {LogicCount} ILogic instance(s) initialized.", _logics.Count);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.TerminateLogics, this);
+            await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.TerminateLogics, this);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to signal termination stage {Stage} during shutdown.", AppInitializationStage.TerminateLogics);
+            _logger.LogWarning(ex, "Failed to signal termination stage {Stage} during shutdown.", AppLifeCycleStage.TerminateLogics);
         }
 
         await base.StopAsync(cancellationToken);
@@ -192,16 +193,24 @@ internal sealed class LogicManager : BackgroundService
 
     private async Task InitializeSafeAsync(ILogic logic, CancellationToken cancellationToken)
     {
-        _logicValueBinder?.Bind(logic);
+        try
+        {
+            _logicValueBinder?.Bind(logic);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unhandled exception binding values for {LogicType}. Skipping logic initialization.", logic.GetType().Name);
+            return;
+        }
 
         try
         {
-            _logger.LogDebug("Initializing {LogicType}.", logic.GetType().Name);
+            _logger.LogTrace("Initializing {LogicType}.", logic.GetType().Name);
             await logic.InitializeAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception initializing {LogicType}.", logic.GetType().Name);
+            _logger.LogWarning(ex, "Unhandled exception initializing {LogicType}.", logic.GetType().Name);
         }
     }
 }

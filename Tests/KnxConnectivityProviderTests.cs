@@ -219,9 +219,9 @@ public class KnxConnectivityProviderTests
 
         public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public override async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override async Task WaitForInitializationStageCompletedAsync(AppLifeCycleStage level, TimeSpan timeout, CancellationToken token = default)
         {
-            if (level != AppInitializationStage.InitValuesRegistered)
+            if (level != AppLifeCycleStage.InitValuesRegistered)
                 return;
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -236,9 +236,9 @@ public class KnxConnectivityProviderTests
             }
         }
 
-        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
+        public override Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null)
         {
-            if (level == AppInitializationStage.InitValuesRegistered)
+            if (level == AppLifeCycleStage.InitValuesRegistered)
             {
                 _valuesRegistered.TrySetResult();
                 NotifyInitializationStageCompleted(level);
@@ -247,17 +247,17 @@ public class KnxConnectivityProviderTests
             return Task.CompletedTask;
         }
 
-        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
-            => level != AppInitializationStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
+        public override bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
+            => level != AppLifeCycleStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
 
-        public override bool IsAllUpToStageCompleted(AppInitializationStage level) => IsLifeCycleStageCompleted(level);
+        public override bool IsAllUpToStageCompleted(AppLifeCycleStage level) => IsLifeCycleStageCompleted(level);
     }
 
     private sealed class StubStateInitializationManager : IStateInitializationRegistrar
     {
-        public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RegisterInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization) { }
 
-        public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RemoveInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization) { }
 
         public void RegisterSave(StateInitializationDelegate save) { }
 
@@ -314,7 +314,7 @@ public class KnxConnectivityProviderTests
         Assert.That(startTask.IsCompleted, Is.False);
         Assert.That(provider.IsConnected, Is.False);
 
-        await lifecycle.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await lifecycle.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitValuesRegistered);
         await startTask;
 
         Assert.That(provider.IsConnected, Is.True);
@@ -327,7 +327,7 @@ public class KnxConnectivityProviderTests
         var knxBus = new StubKnxBus();
         var connection = CreateConnection(knxBus);
         var container = new TestContainer();
-        container.Light.InitializeValue(true, AppInitializationStage.InitBusValueReceived);
+        container.Light.InitializeValue(true, AppLifeCycleStage.InitBusValueReceived);
         var provider = CreateProvider(connection, bus, container);
 
         KnxGroupReadReceived? received = null;

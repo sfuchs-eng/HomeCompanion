@@ -24,7 +24,7 @@ public class RoomShutterSceneLogic(
     private readonly IRuntimesProvider runtimesProvider = runtimesProvider;
     private readonly ILogger<RoomShutterSceneLogic> logger = logger;
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         eventSubscriber.Subscribe<ShutterAutomationComputationTriggerEvent>(HandleShutterAutomationComputationTriggerEventAsync);
     }

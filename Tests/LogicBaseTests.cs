@@ -8,13 +8,13 @@ public class LogicBaseTests
 {
     /// <summary>
     /// Minimal concrete <see cref="LogicBase"/> that counts how many times
-    /// <see cref="InitializeAsyncLatched"/> is invoked.
+    /// <see cref="InitializeLatchedAsync"/> is invoked.
     /// </summary>
     private sealed class CountingLogic() : LogicBase(NullLogger<ILogic>.Instance)
     {
         public int InitCount { get; private set; }
 
-        protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+        protected override Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
         {
             InitCount++;
             return Task.CompletedTask;
@@ -28,7 +28,7 @@ public class LogicBaseTests
             ActivationException = activationException;
         }
 
-        protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+        protected override Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromException(ActivationException!);
         }
@@ -41,7 +41,7 @@ public class LogicBaseTests
             ActivationException = activationException;
         }
 
-        protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+        protected override Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

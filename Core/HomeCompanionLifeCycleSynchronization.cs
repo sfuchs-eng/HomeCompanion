@@ -12,22 +12,22 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     private readonly IServiceProvider serviceProvider;
     private readonly ILogger<HomeCompanionLifeCycleSynchronization> logger;
     private readonly TimeProvider timeProvider;
-    private readonly ConcurrentDictionary<AppInitializationStage, TaskCompletionSource> _completedInitializationStages =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, TaskCompletionSource>(
+    private readonly ConcurrentDictionary<AppLifeCycleStage, TaskCompletionSource> _completedInitializationStages =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, TaskCompletionSource>(
                 stage,
                 new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))));
-    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _completedInitializationStageTimestamps =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, DateTimeOffset?> _completedInitializationStageTimestamps =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, DateTimeOffset?>(stage, null)));
 
-    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _firstSignalTimestamps =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, DateTimeOffset?> _firstSignalTimestamps =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, DateTimeOffset?>(stage, null)));
 
-    private readonly ConcurrentDictionary<AppInitializationStage, List<Func<AppInitializationStage, CancellationToken, Task>>> _requiredExecutionsPerStage =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, List<Func<AppInitializationStage, CancellationToken, Task>>>(stage, [])));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, List<Func<AppLifeCycleStage, CancellationToken, Task>>> _requiredExecutionsPerStage =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, List<Func<AppLifeCycleStage, CancellationToken, Task>>>(stage, [])));
 
     private long _waitCalls;
     private long _waitTimeouts;
@@ -35,25 +35,25 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     private long _duplicateSignalCalls;
 
     // tracker for required signallers per stage
-    private readonly ConcurrentDictionary<AppInitializationStage, HashSet<object>> _requiredSignallersPerStage =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, HashSet<object>>(stage, [])));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, HashSet<object>> _requiredSignallersPerStage =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, HashSet<object>>(stage, [])));
 
     private static readonly TimeSpan PendingSignallerGracePeriod = TimeSpan.FromSeconds(10);
 
-    private readonly ConcurrentDictionary<AppInitializationStage, DateTimeOffset?> _pendingSignallerWaitStartedAt =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, DateTimeOffset?>(stage, null)));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, DateTimeOffset?> _pendingSignallerWaitStartedAt =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, DateTimeOffset?>(stage, null)));
 
     // Tracks whether at least one explicit signal was received for a stage.
-    private readonly ConcurrentDictionary<AppInitializationStage, bool> _hasSignalPerStage =
-        new(Enum.GetValues<AppInitializationStage>().Select(stage =>
-            new KeyValuePair<AppInitializationStage, bool>(stage, false)));
+    private readonly ConcurrentDictionary<AppLifeCycleStage, bool> _hasSignalPerStage =
+        new(Enum.GetValues<AppLifeCycleStage>().Select(stage =>
+            new KeyValuePair<AppLifeCycleStage, bool>(stage, false)));
 
     public string Name => nameof(HomeCompanionLifeCycleSynchronization);
 
-    private AppInitializationStage _lastCompletedStage = AppInitializationStage.Default;
-    public AppInitializationStage LastCompletedStage { get => _lastCompletedStage; }
+    private AppLifeCycleStage _lastCompletedStage = AppLifeCycleStage.Default;
+    public AppLifeCycleStage LastCompletedStage { get => _lastCompletedStage; }
 
     public HomeCompanionLifeCycleSynchronization(
         IServiceProvider serviceProvider,
@@ -111,7 +111,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// Waits until the specified initialization stage has been completed.
     /// </summary>
     public async Task WaitForInitializationStageCompletedAsync(
-        AppInitializationStage level,
+        AppLifeCycleStage level,
         TimeSpan timeout,
         CancellationToken token = default)
     {
@@ -148,7 +148,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// <summary>
     /// Signals that the specified initialization stage has been completed.
     /// </summary>
-    public Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? sender = null)
+    public Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? sender = null)
     {
         Interlocked.Increment(ref _signalCalls);
 
@@ -181,7 +181,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// <summary>
     /// Executes all required executions for the specified initialization stage, and then signals that the stage has been completed.
     /// </summary>
-    protected async Task ExecuteRequiredExecutionsAsync(AppInitializationStage level, object? sender = null)
+    protected async Task ExecuteRequiredExecutionsAsync(AppLifeCycleStage level, object? sender = null)
     {
         var requiredExecutions = _requiredExecutionsPerStage[level];
         if (requiredExecutions.Count > 0)
@@ -202,7 +202,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// <summary>
     /// Marks the stage as completed and raises the event signalling that the specified initialization stage has been completed.
     /// </summary>
-    private async Task OnStageCompletedAsync(AppInitializationStage level, object? sender = null)
+    private async Task OnStageCompletedAsync(AppLifeCycleStage level, object? sender = null)
     {
         var tcs = _completedInitializationStages[level];
         if (tcs.TrySetResult())
@@ -239,7 +239,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// A stage is only completed when all required signallers have signaled completion of the stage. If no required signaller is registered, the stage is considered completed automatically after all required executions have been completed.
     /// If no required execution is registered either, the stage is considered completed automatically.
     /// </summary>
-    public void RegisterRequiredSignaller(AppInitializationStage level, object signaller)
+    public void RegisterRequiredSignaller(AppLifeCycleStage level, object signaller)
     {
         var signallers = _requiredSignallersPerStage[level];
         lock (signallers)
@@ -255,7 +255,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     /// </summary>
     /// <param name="level"></param>
     /// <param name="execution"></param>
-    public void RegisterRequiredExecution(AppInitializationStage level, Func<AppInitializationStage, CancellationToken, Task> execution)
+    public void RegisterRequiredExecution(AppLifeCycleStage level, Func<AppLifeCycleStage, CancellationToken, Task> execution)
     {
         var executions = _requiredExecutionsPerStage[level];
         lock (executions)
@@ -274,7 +274,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
         root.Records.Add(new DiagnosticRecord("DuplicateSignalCalls", Interlocked.Read(ref _duplicateSignalCalls)));
 
         var stagesNode = root.AddChild("Stages");
-        foreach (var stage in Enum.GetValues<AppInitializationStage>())
+        foreach (var stage in Enum.GetValues<AppLifeCycleStage>())
         {
             var child = stagesNode.AddChild(stage.ToString());
             child.Records.Add(new DiagnosticRecord("Completed", _completedInitializationStages[stage].Task.IsCompleted));
@@ -301,7 +301,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
         TriggerExecutionLoop();
     }
 
-    private bool TryAdvancePendingSignallers(AppInitializationStage stage, HashSet<object> signallers)
+    private bool TryAdvancePendingSignallers(AppLifeCycleStage stage, HashSet<object> signallers)
     {
         if (signallers.Count == 0)
         {
@@ -340,7 +340,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
 
     protected async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await OnStageCompletedAsync(AppInitializationStage.Default).ConfigureAwait(false); // bootstrap internal default stage without counting as external signal.
+        await OnStageCompletedAsync(AppLifeCycleStage.Default).ConfigureAwait(false); // bootstrap internal default stage without counting as external signal.
 
         while (!stoppingToken.IsCancellationRequested && !LastCompletedStage.IsLastStage())
         {
@@ -349,7 +349,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
             var pendingSignallerTimeoutTask = Task.Delay(PendingSignallerGracePeriod, stoppingToken);
             await Task.WhenAny(triggerTask, pendingSignallerTimeoutTask).ConfigureAwait(false);
 
-            foreach (var stage in Enum.GetValues<AppInitializationStage>())
+            foreach (var stage in Enum.GetValues<AppLifeCycleStage>())
             {
                 if (IsLifeCycleStageCompleted(stage))
                     continue;
@@ -385,14 +385,14 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
         logger.LogTrace("Background service execution loop completed. StoppingToken.IsCancellationRequested={IsCancellationRequested}, LastCompletedStage={LastCompletedStage}", stoppingToken.IsCancellationRequested, LastCompletedStage);
     }
 
-    public bool IsLifeCycleStageCompleted(AppInitializationStage level)
+    public bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
     {
         return _completedInitializationStages[level].Task.IsCompleted;
     }
 
-    public bool IsAllUpToStageCompleted(AppInitializationStage level)
+    public bool IsAllUpToStageCompleted(AppLifeCycleStage level)
     {
-        return Enum.GetValues<AppInitializationStage>()
+        return Enum.GetValues<AppLifeCycleStage>()
             .Where(stage => stage <= level)
             .All(stage => _completedInitializationStages[stage].Task.IsCompleted);
     }
@@ -459,7 +459,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
     public Task StoppedAsync(CancellationToken cancellationToken)
     {
         // have we reached the final stage?
-        if (!IsLifeCycleStageCompleted(AppInitializationStage.ShutDownCompleted))
+        if (!IsLifeCycleStageCompleted(AppLifeCycleStage.ShutDownCompleted))
         {
             logger.LogWarning("Background service execution loop completed without reaching the final stage. LastCompletedStage={LastCompletedStage}.", LastCompletedStage);
         }

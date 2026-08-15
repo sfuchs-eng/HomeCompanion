@@ -53,7 +53,7 @@ public class MeteoSchweizLogic(
         return latestForecast;
     }
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         // Listen to weather forecast events
         subscriber.Subscribe<WeatherForecastEvent>(HandleWeatherForecastEventAsync);

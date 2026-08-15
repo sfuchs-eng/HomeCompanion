@@ -211,7 +211,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         }
 
         // wait until the right initialization level is reached.
-        await lifeCycleSync.WaitForInitializationStageCompletedAsync(AppInitializationStage.InitLoadFromStore, TimeSpan.FromSeconds(10), cancellationToken);
+        await lifeCycleSync.WaitForInitializationStageCompletedAsync(AppLifeCycleStage.InitLoadFromStore, TimeSpan.FromSeconds(10), cancellationToken);
 
         // wait until all KNX connections are established before sending initial read requests
         while (!_connections.All(c => c.IsConnected))
@@ -320,7 +320,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 {
                     try
                     {
-                        mapping.Value.InitializeValue(e.KnxMessageContext.DecodedValue, AppInitializationStage.InitBusValueReceived);
+                        mapping.Value.InitializeValue(e.KnxMessageContext.DecodedValue, AppLifeCycleStage.InitBusValueReceived);
                     }
                     catch (Exception ex)
                     {

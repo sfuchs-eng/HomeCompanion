@@ -77,9 +77,9 @@ public class OpenHabConnectivityProviderTests
 
         public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public override async Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override async Task WaitForInitializationStageCompletedAsync(AppLifeCycleStage level, TimeSpan timeout, CancellationToken token = default)
         {
-            if (level != AppInitializationStage.InitValuesRegistered)
+            if (level != AppLifeCycleStage.InitValuesRegistered)
                 return;
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -94,9 +94,9 @@ public class OpenHabConnectivityProviderTests
             }
         }
 
-        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
+        public override Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null)
         {
-            if (level == AppInitializationStage.InitValuesRegistered)
+            if (level == AppLifeCycleStage.InitValuesRegistered)
             {
                 _valuesRegistered.TrySetResult();
                 NotifyInitializationStageCompleted(level);
@@ -105,10 +105,10 @@ public class OpenHabConnectivityProviderTests
             return Task.CompletedTask;
         }
 
-        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
-            => level != AppInitializationStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
+        public override bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
+            => level != AppLifeCycleStage.InitValuesRegistered || _valuesRegistered.Task.IsCompleted;
 
-        public override bool IsAllUpToStageCompleted(AppInitializationStage level) => IsLifeCycleStageCompleted(level);
+        public override bool IsAllUpToStageCompleted(AppLifeCycleStage level) => IsLifeCycleStageCompleted(level);
     }
 
     [Test]
@@ -124,7 +124,7 @@ public class OpenHabConnectivityProviderTests
         await Task.Delay(50);
         Assert.That(startTask.IsCompleted, Is.False);
 
-        await lifecycle.SignalInitializationStageCompletedAsync(AppInitializationStage.InitValuesRegistered);
+        await lifecycle.SignalInitializationStageCompletedAsync(AppLifeCycleStage.InitValuesRegistered);
         await startTask;
 
         Assert.That(provider.IsConnected, Is.True);

@@ -64,9 +64,9 @@ public sealed class AlertingValues : ValueContainerBase
             valueSet = GetOrCreateValueSet(state.AlertKey);
         }
 
-        valueSet.Status.InitializeValue(state.Status.ToString(), AppInitializationStage.InitLoadFromStore);
-        valueSet.LastChange.InitializeValue(state.LastChangeUtc, AppInitializationStage.InitLoadFromStore);
-        valueSet.Disabled.InitializeValue(state.Status == NamedAlertStatus.Disabled, AppInitializationStage.InitLoadFromStore);
+        valueSet.Status.InitializeValue(state.Status.ToString(), AppLifeCycleStage.InitLoadFromStore);
+        valueSet.LastChange.InitializeValue(state.LastChangeUtc, AppLifeCycleStage.InitLoadFromStore);
+        valueSet.Disabled.InitializeValue(state.Status == NamedAlertStatus.Disabled, AppLifeCycleStage.InitLoadFromStore);
     }
 
     private NamedAlertValueSet GetOrCreateValueSet(string alertKey)
@@ -93,10 +93,10 @@ public sealed class AlertingValues : ValueContainerBase
             name: $"{prefix}_LastChange",
             label: $"{alertKey} last change");
 
-        ack.InitializeValue(false, AppInitializationStage.Default);
-        disabled.InitializeValue(false, AppInitializationStage.Default);
-        status.InitializeValue(NamedAlertStatus.Monitoring.ToString(), AppInitializationStage.Default);
-        lastChange.InitializeValue(_timeProvider.GetUtcNow(), AppInitializationStage.Default);
+        ack.InitializeValue(false, AppLifeCycleStage.Default);
+        disabled.InitializeValue(false, AppLifeCycleStage.Default);
+        status.InitializeValue(NamedAlertStatus.Monitoring.ToString(), AppLifeCycleStage.Default);
+        lastChange.InitializeValue(_timeProvider.GetUtcNow(), AppLifeCycleStage.Default);
 
         ack.Written += (_, _) => OnAcknowledgeWritten(alertKey, ack);
         disabled.Written += (_, _) => OnDisabledWritten(alertKey, disabled);
@@ -131,7 +131,7 @@ public sealed class AlertingValues : ValueContainerBase
             Message = "Acknowledged via value write.",
         }, _timeProvider.GetUtcNow(), TimeSpan.FromMinutes(15));
 
-        acknowledge.InitializeValue(false, AppInitializationStage.InitBusValueReceived);
+        acknowledge.InitializeValue(false, AppLifeCycleStage.InitBusValueReceived);
     }
 
     private void OnDisabledWritten(string alertKey, ValueBase<bool> disabled)

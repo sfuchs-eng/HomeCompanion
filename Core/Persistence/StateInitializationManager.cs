@@ -35,7 +35,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
     private readonly IEnumerable<IValuesContainer> _valuesContainers;
     private readonly TimeProvider _timeProvider;
 
-    private readonly Dictionary<AppInitializationStage, List<StateInitializationDelegate>> Initializations;
+    private readonly Dictionary<AppLifeCycleStage, List<StateInitializationDelegate>> Initializations;
     private readonly object _initializationLock = new();
 
     public StateInitializationManager(
@@ -53,19 +53,19 @@ public class StateInitializationManager : IStateInitializationRegistrar
         _timeProvider = timeProvider ?? TimeProvider.System;
 
         // setup internal dictionary of initialization delegates for each stage, and register the default value snapshot load/save delegates
-        Initializations = Enum.GetValues<AppInitializationStage>()
+        Initializations = Enum.GetValues<AppLifeCycleStage>()
             .ToDictionary(stage => stage, stage => new List<StateInitializationDelegate>());
-        Initializations[AppInitializationStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
-        Initializations[AppInitializationStage.ShutDownSave].Add(SaveValuesStateAsync);
+        Initializations[AppLifeCycleStage.InitLoadFromStore].Add(InitializeValuesFromStoreAsync);
+        Initializations[AppLifeCycleStage.ShutDownSave].Add(SaveValuesStateAsync);
 
         // register the ExecuteStateAsync method as trigger for the required stages, so that the registered initialization delegates are executed in order to reach stage completion.
-        foreach (var stage in Enum.GetValues<AppInitializationStage>().Where(s => s != AppInitializationStage.Default && s != AppInitializationStage.ShutDownCompleted))
+        foreach (var stage in Enum.GetValues<AppLifeCycleStage>().Where(s => s != AppLifeCycleStage.Default && s != AppLifeCycleStage.ShutDownCompleted))
         {
             lifeCycleSynchronization.RegisterRequiredExecution(stage, ExecuteStateAsync);
         }
     }
 
-    public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
+    public void RegisterInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization)
     {
         ArgumentNullException.ThrowIfNull(initialization);
         lock (_initializationLock)
@@ -74,7 +74,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
         }
     }
 
-    public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
+    public void RemoveInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization)
     {
         ArgumentNullException.ThrowIfNull(initialization);
         lock (_initializationLock)
@@ -107,7 +107,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
         }
     }
 
-    protected async Task ExecuteStateAsync(AppInitializationStage stage, CancellationToken token = default)
+    protected async Task ExecuteStateAsync(AppLifeCycleStage stage, CancellationToken token = default)
     {
         lock (this)
         {
@@ -130,9 +130,9 @@ public class StateInitializationManager : IStateInitializationRegistrar
     {
         foreach (var stage in new[]
                  {
-                     AppInitializationStage.InitLoadFromStore,
-                     AppInitializationStage.InitRetrieveFromEnvironment,
-                     AppInitializationStage.InitModelReady,
+                     AppLifeCycleStage.InitLoadFromStore,
+                     AppLifeCycleStage.InitRetrieveFromEnvironment,
+                     AppLifeCycleStage.InitModelReady,
                  })
         {
             await ExecuteStateAsync(stage, token).ConfigureAwait(false);
@@ -147,8 +147,8 @@ public class StateInitializationManager : IStateInitializationRegistrar
     /// <returns></returns>
     public async Task SaveStateAsync(CancellationToken token = default)
     {
-        await ExecuteInitializationDelegatesAsync(Initializations[AppInitializationStage.ShutDownSave].ToAsyncEnumerable(), token).ConfigureAwait(false);
-        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave, this).ConfigureAwait(false);
+        await ExecuteInitializationDelegatesAsync(Initializations[AppLifeCycleStage.ShutDownSave].ToAsyncEnumerable(), token).ConfigureAwait(false);
+        await lifeCycleSynchronization.SignalInitializationStageCompletedAsync(AppLifeCycleStage.ShutDownSave, this).ConfigureAwait(false);
     }
 
     protected virtual async Task InitializeValuesFromStoreAsync(CancellationToken token = default)
@@ -210,7 +210,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
             try
             {
                 var deserialized = JsonSerializer.Deserialize(stateEntry.PayloadJson, binding.Value.ValueType, SnapshotJsonOptions);
-                if (!binding.Value.InitializeValue(deserialized!, AppInitializationStage.InitLoadFromStore))
+                if (!binding.Value.InitializeValue(deserialized!, AppLifeCycleStage.InitLoadFromStore))
                 {
                     failed++;
                     Logger.LogWarning(
@@ -359,7 +359,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
         ArgumentNullException.ThrowIfNull(save);
         lock (_initializationLock)
         {
-            Initializations[AppInitializationStage.ShutDownSave].Add(save);
+            Initializations[AppLifeCycleStage.ShutDownSave].Add(save);
         }
     }
 
@@ -368,9 +368,9 @@ public class StateInitializationManager : IStateInitializationRegistrar
         ArgumentNullException.ThrowIfNull(save);
         lock (_initializationLock)
         {
-            Initializations[AppInitializationStage.ShutDownSave].Remove(save);
+            Initializations[AppLifeCycleStage.ShutDownSave].Remove(save);
         }
     }
 
-    public AppInitializationStage CurrentStage { get; private set; }
+    public AppLifeCycleStage CurrentStage { get; private set; }
 }

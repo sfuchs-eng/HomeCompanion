@@ -209,13 +209,13 @@ public class OpenHabExtensionRegistrationTests
     {
         public StateInitializationDelegate? Initialization { get; private set; }
 
-        public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization)
+        public void RegisterInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization)
         {
-            if (stage == AppInitializationStage.InitRetrieveFromEnvironment)
+            if (stage == AppLifeCycleStage.InitRetrieveFromEnvironment)
                 Initialization = initialization;
         }
 
-        public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RemoveInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization) { }
 
         public void RegisterSave(StateInitializationDelegate save) { }
 
@@ -240,7 +240,7 @@ public class OpenHabExtensionRegistrationTests
     {
         public int InitializeCalls { get; private set; }
 
-        public override bool InitializeValue(object value, AppInitializationStage stage)
+        public override bool InitializeValue(object value, AppLifeCycleStage stage)
         {
             InitializeCalls++;
             return base.InitializeValue(value, stage);

@@ -304,7 +304,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         return energyBalanceObs;
     }
 
-    protected override Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         var m = modelProvider.GetModel();
         var shadowingSpecial = m.GetAllSpecials<ShadowingSpecial>().SingleOrDefault()

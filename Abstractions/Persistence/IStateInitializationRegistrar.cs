@@ -7,8 +7,8 @@ namespace HomeCompanion.Persistence;
 /// </summary>
 public interface IStateInitializationRegistrar
 {
-    void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization);
-    void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization);
+    void RegisterInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization);
+    void RemoveInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization);
     void RegisterSave(StateInitializationDelegate save);
     void RemoveSave(StateInitializationDelegate save);
 }

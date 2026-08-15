@@ -1,6 +1,6 @@
 namespace HomeCompanion.Abstractions;
 
-public enum AppInitializationStage
+public enum AppLifeCycleStage
 {
     /// <summary>
     /// The application is being built, but the final service provider is not yet available.
@@ -75,42 +75,42 @@ public enum AppInitializationStage
 
 public static class AppInitializationStageExtensions
 {
-    public static bool IsBefore(this AppInitializationStage stage, AppInitializationStage otherStage)
+    public static bool IsBefore(this AppLifeCycleStage stage, AppLifeCycleStage otherStage)
     {
         return stage < otherStage;
     }
 
-    public static bool IsAfter(this AppInitializationStage stage, AppInitializationStage otherStage)
+    public static bool IsAfter(this AppLifeCycleStage stage, AppLifeCycleStage otherStage)
     {
         return stage > otherStage;
     }
 
-    public static bool IsPreRunStage(this AppInitializationStage stage)
+    public static bool IsPreRunStage(this AppLifeCycleStage stage)
     {
-        return stage == AppInitializationStage.PreBuild || stage == AppInitializationStage.PreRun;
+        return stage == AppLifeCycleStage.PreBuild || stage == AppLifeCycleStage.PreRun;
     }
 
-    public static bool IsInitializationStage(this AppInitializationStage stage)
+    public static bool IsInitializationStage(this AppLifeCycleStage stage)
     {
-        return stage == AppInitializationStage.InitValuesRegistered ||
-               stage == AppInitializationStage.InitLoadFromStore ||
-               stage == AppInitializationStage.InitRetrieveFromEnvironment ||
-               stage == AppInitializationStage.InitModelReady ||
-               stage == AppInitializationStage.InitBusValueReceived;
+        return stage == AppLifeCycleStage.InitValuesRegistered ||
+               stage == AppLifeCycleStage.InitLoadFromStore ||
+               stage == AppLifeCycleStage.InitRetrieveFromEnvironment ||
+               stage == AppLifeCycleStage.InitModelReady ||
+               stage == AppLifeCycleStage.InitBusValueReceived;
     }
 
-    public static bool IsTerminationStage(this AppInitializationStage stage)
+    public static bool IsTerminationStage(this AppLifeCycleStage stage)
     {
         return stage >= FirstTerminationStage(stage);
     }
 
-    public static AppInitializationStage FirstTerminationStage(this AppInitializationStage stage)
+    public static AppLifeCycleStage FirstTerminationStage(this AppLifeCycleStage stage)
     {
-        return AppInitializationStage.TerminateLogics;
+        return AppLifeCycleStage.TerminateLogics;
     }
 
-    public static bool IsLastStage(this AppInitializationStage stage)
+    public static bool IsLastStage(this AppLifeCycleStage stage)
     {
-        return stage == AppInitializationStage.ShutDownCompleted;
+        return stage == AppLifeCycleStage.ShutDownCompleted;
     }
 }

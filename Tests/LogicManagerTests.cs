@@ -150,11 +150,11 @@ public class LogicManagerTests
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(10);
 
         private readonly IConnectivityProvider[] _providers = [.. providers];
-        private readonly HashSet<AppInitializationStage> _completedStages =
+        private readonly HashSet<AppLifeCycleStage> _completedStages =
         [
-            AppInitializationStage.Default,
-            AppInitializationStage.InitRetrieveFromEnvironment,
-            AppInitializationStage.InitModelReady,
+            AppLifeCycleStage.Default,
+            AppLifeCycleStage.InitRetrieveFromEnvironment,
+            AppLifeCycleStage.InitModelReady,
         ];
 
         public override async Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
@@ -184,7 +184,7 @@ public class LogicManagerTests
         }
 
         public override async Task WaitForInitializationStageCompletedAsync(
-            AppInitializationStage level,
+            AppLifeCycleStage level,
             TimeSpan timeout,
             CancellationToken token = default)
         {
@@ -210,18 +210,18 @@ public class LogicManagerTests
             }
         }
 
-        public override Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
+        public override Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null)
         {
             _completedStages.Add(level);
             NotifyInitializationStageCompleted(level);
             return Task.CompletedTask;
         }
 
-        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
+        public override bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
             => _completedStages.Contains(level);
 
-        public override bool IsAllUpToStageCompleted(AppInitializationStage level)
-            => Enum.GetValues<AppInitializationStage>()
+        public override bool IsAllUpToStageCompleted(AppLifeCycleStage level)
+            => Enum.GetValues<AppLifeCycleStage>()
                 .Where(stage => stage <= level)
                 .All(_completedStages.Contains);
     }

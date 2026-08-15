@@ -82,11 +82,11 @@ public abstract class ConnectivityProviderBase<TAddresses, TEndPointMapping>
         logger.LogDebug(
             "{ProviderName} waiting for stage {Stage} before enabling inbound processing. Timeout={Timeout}.",
             providerName,
-            AppInitializationStage.InitValuesRegistered,
+            AppLifeCycleStage.InitValuesRegistered,
             timeout);
 
         await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(
-            AppInitializationStage.InitValuesRegistered,
+            AppLifeCycleStage.InitValuesRegistered,
             timeout,
             cancellationToken);
 
@@ -97,7 +97,7 @@ public abstract class ConnectivityProviderBase<TAddresses, TEndPointMapping>
             "{ProviderName} startup gate released after {ElapsedMs} ms (stage {Stage}).",
             providerName,
             (_inboundGateReleasedAt.Value - waitStartedAt).TotalMilliseconds,
-            AppInitializationStage.InitValuesRegistered);
+            AppLifeCycleStage.InitValuesRegistered);
     }
 
     protected void LogFirstInboundAfterStartupGate(

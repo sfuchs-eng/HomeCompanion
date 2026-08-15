@@ -91,7 +91,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         this.knxConfig = knxConfig.Value;
         this.stateConverter = stateConverter;
         this.logger = logger;
-        stateInitializationManager.RegisterInitialization(AppInitializationStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
+        stateInitializationManager.RegisterInitialization(AppLifeCycleStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -152,7 +152,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
             // Try DPT-aware conversion first if value has KNX mapping
             if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
             {
-                if (value.InitializeValue(convertedValue, AppInitializationStage.InitRetrieveFromEnvironment))
+                if (value.InitializeValue(convertedValue, AppLifeCycleStage.InitRetrieveFromEnvironment))
                 {
                     initializedValues.Add(value);
                     initializedByMapping++;
@@ -162,7 +162,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                     logger.LogDebug("Failed to initialize value '{PropertyName}' from OpenHAB item '{ItemName}'.", propertyName, item.Name);
                 }
             }
-            else if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
+            else if (value.InitializeValue(preparedState, AppLifeCycleStage.InitRetrieveFromEnvironment))
             {
                 initializedValues.Add(value);
                 initializedByMapping++;
@@ -190,7 +190,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                 // Try DPT-aware conversion first if value has KNX mapping
                 if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
                 {
-                    if (value.InitializeValue(convertedValue, AppInitializationStage.InitRetrieveFromEnvironment))
+                    if (value.InitializeValue(convertedValue, AppLifeCycleStage.InitRetrieveFromEnvironment))
                     {
                         initializedByPropertyName++;
                     }
@@ -199,7 +199,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                         logger.LogDebug("Failed to initialize value '{PropertyName}' from property-name matched OpenHAB item '{ItemName}'.", propertyName, item.Name);
                     }
                 }
-                else if (value.InitializeValue(preparedState, AppInitializationStage.InitRetrieveFromEnvironment))
+                else if (value.InitializeValue(preparedState, AppLifeCycleStage.InitRetrieveFromEnvironment))
                 {
                     initializedByPropertyName++;
                 }

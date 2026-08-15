@@ -30,7 +30,7 @@ public class MotorizedWindowsLogic(
 
     private Dictionary<string, MotorizedWindow> windows = [];
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         // we should already be in a life-cycle state that allows to initialize the logic when this here is called.
 

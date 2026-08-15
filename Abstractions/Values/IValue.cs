@@ -101,7 +101,7 @@ public interface IValue
     /// <param name="value">The value to initialize.</param>
     /// <param name="stage">The initialization stage.</param>
     /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
-    bool InitializeValue(object value, AppInitializationStage stage);
+    bool InitializeValue(object value, AppLifeCycleStage stage);
 }
 
 /// <inheritdoc cref="IValue"/>
@@ -129,5 +129,5 @@ public interface IValue<T> : IValue
     /// <param name="value">The value to initialize.</param>
     /// <param name="stage">The initialization stage.</param>
     /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
-    bool InitializeValue(T value, AppInitializationStage stage);
+    bool InitializeValue(T value, AppLifeCycleStage stage);
 }

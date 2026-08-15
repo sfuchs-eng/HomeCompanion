@@ -19,7 +19,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     public abstract Type ValueType { get; }
     public abstract object? OValue { get; }
     public ValueStatus Status { get; protected set; } = ValueStatus.Default;
-    public AppInitializationStage InitializationStage { get; protected set; } = AppInitializationStage.Default;
+    public AppLifeCycleStage InitializationStage { get; protected set; } = AppLifeCycleStage.Default;
     public string? Name { get; set; }
     public string? Label { get; set; }
 
@@ -173,7 +173,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         return false;
     }
 
-    public abstract bool InitializeValue(object value, AppInitializationStage stage);
+    public abstract bool InitializeValue(object value, AppLifeCycleStage stage);
 }
 
 public class ValueBase<T> : ValueBase, IValue<T>
@@ -280,10 +280,10 @@ public class ValueBase<T> : ValueBase, IValue<T>
     }
 
     /// <summary>
-    /// Implemented as type aware proxy to <see cref="ValueBase{T}.InitializeValue(T, AppInitializationStage)"/> incl. typical conversion paths.
+    /// Implemented as type aware proxy to <see cref="ValueBase{T}.InitializeValue(T, AppLifeCycleStage)"/> incl. typical conversion paths.
     /// Yet missing: abilitty to register custom conversion functions, e.g. for complex types or special string formats.
     /// </summary>
-    public override bool InitializeValue(object value, AppInitializationStage stage)
+    public override bool InitializeValue(object value, AppLifeCycleStage stage)
     {
         // nullable?
         if (value is null)
@@ -341,7 +341,7 @@ public class ValueBase<T> : ValueBase, IValue<T>
         return false;
     }
 
-    public virtual bool InitializeValue(T value, AppInitializationStage stage)
+    public virtual bool InitializeValue(T value, AppLifeCycleStage stage)
     {
         if (Status.HasFlag(ValueStatus.Initialized))
         {

@@ -113,7 +113,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         }
     }
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         await MaterializeRuntime(cancellationToken);
     }

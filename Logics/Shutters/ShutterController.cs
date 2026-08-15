@@ -73,7 +73,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
         shutterTargetProcessingLoop = new BackgroundRunner<ShutterTarget>(ProcessShutterTargetsAsync);
     }
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         // starting the background runners is done at the end of initialization to ensure that the full setup is in place before any triggers are processed, as the runners will start processing triggers as soon as they are started, and we want to avoid processing triggers before the setup is complete to prevent errors and ensure that all triggers are processed correctly.
         shutterAutomationTriggerCollector.Start(cancellationToken);

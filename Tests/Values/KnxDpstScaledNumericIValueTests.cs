@@ -363,9 +363,9 @@ public class KnxDpstScaledNumericIValueTests
 
     private sealed class StubStateInitializationManager : IStateInitializationRegistrar
     {
-        public void RegisterInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RegisterInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization) { }
 
-        public void RemoveInitialization(AppInitializationStage stage, StateInitializationDelegate initialization) { }
+        public void RemoveInitialization(AppLifeCycleStage stage, StateInitializationDelegate initialization) { }
 
         public void RegisterSave(StateInitializationDelegate save) { }
 

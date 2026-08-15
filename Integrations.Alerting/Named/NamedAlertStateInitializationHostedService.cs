@@ -26,7 +26,7 @@ public sealed class NamedAlertStateInitializationHostedService : BackgroundServi
         _persistenceAdapter = persistenceAdapter;
         _logger = logger;
 
-        _stateInitializationManager.RegisterInitialization(AppInitializationStage.InitLoadFromStore, LoadAsync);
+        _stateInitializationManager.RegisterInitialization(AppLifeCycleStage.InitLoadFromStore, LoadAsync);
         _stateInitializationManager.RegisterSave(SaveAsync);
     }
 

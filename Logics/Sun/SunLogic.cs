@@ -25,7 +25,7 @@ public class SunLogic(
     private readonly ISunPositionProvider sunPositionProvider = new SunPositionV1();
     public ISunPositionProvider SunPositionProvider => sunPositionProvider;
 
-    protected override async Task InitializeAsyncLatched(CancellationToken cancellationToken = default)
+    protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
     {
         // install a periodic trigger for the sun position update job, firing every 5 minutes and upfront
         var jobKey = typeof(SunPositionPerBuildingUpdateJob).GetJobKeyFromType()

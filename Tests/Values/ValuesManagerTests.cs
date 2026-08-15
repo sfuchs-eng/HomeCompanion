@@ -58,12 +58,12 @@ public class ValuesManagerTests
 
         public override Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default) => Task.CompletedTask;
 
-        public override Task WaitForInitializationStageCompletedAsync(AppInitializationStage level, TimeSpan timeout, CancellationToken token = default)
+        public override Task WaitForInitializationStageCompletedAsync(AppLifeCycleStage level, TimeSpan timeout, CancellationToken token = default)
             => Task.CompletedTask;
 
-        public override async Task SignalInitializationStageCompletedAsync(AppInitializationStage level, object? signaller = null)
+        public override async Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null)
         {
-            if (level != AppInitializationStage.InitValuesRegistered)
+            if (level != AppLifeCycleStage.InitValuesRegistered)
                 return;
 
             _signalEntered.TrySetResult();
@@ -72,11 +72,11 @@ public class ValuesManagerTests
             NotifyInitializationStageCompleted(level);
         }
 
-        public override bool IsLifeCycleStageCompleted(AppInitializationStage level)
-            => level != AppInitializationStage.InitValuesRegistered || _initValuesRegisteredCompleted;
+        public override bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
+            => level != AppLifeCycleStage.InitValuesRegistered || _initValuesRegisteredCompleted;
 
-        public override bool IsAllUpToStageCompleted(AppInitializationStage level)
-            => level < AppInitializationStage.InitValuesRegistered || _initValuesRegisteredCompleted;
+        public override bool IsAllUpToStageCompleted(AppLifeCycleStage level)
+            => level < AppLifeCycleStage.InitValuesRegistered || _initValuesRegisteredCompleted;
 
         public Task WaitUntilSignalRequestedAsync() => _signalEntered.Task;
 

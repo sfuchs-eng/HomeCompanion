@@ -69,7 +69,7 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         Task? workerTask;
         CancellationTokenSource? workerCancellation;
 
-        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppInitializationStage.ShutDownSave, TimeSpan.FromSeconds(30), cancellationToken);
+        await lifeCycleSynchronization.WaitForInitializationStageCompletedAsync(AppLifeCycleStage.ShutDownSave, TimeSpan.FromSeconds(30), cancellationToken);
 
         lock (_lifecycleLock)
         {
