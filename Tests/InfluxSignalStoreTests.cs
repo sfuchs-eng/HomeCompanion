@@ -1,3 +1,4 @@
+using HomeCompanion.Abstractions;
 using HomeCompanion.Integrations.Influx;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -137,6 +138,7 @@ public class InfluxSignalStoreTests
         return new InfluxSignalStore(
             writer,
             Options.Create(options),
+            new NoopLifecycleSynchronization(),
             TimeProvider.System,
             NullLogger<InfluxSignalStore>.Instance);
     }
@@ -151,6 +153,36 @@ public class InfluxSignalStoreTests
 
             await Task.Delay(20);
         }
+    }
+
+    private sealed class NoopLifecycleSynchronization : IHomeCompanionLifeCycleSynchronization
+    {
+        public AppLifeCycleStage LastCompletedStage => AppLifeCycleStage.Default;
+
+        public event EventHandler<AppInitializationStageCompletedEventArgs>? InitializationStageCompleted;
+
+        public Task AwaitBusesConnectedAsync(TimeSpan timeout, CancellationToken token = default)
+            => Task.CompletedTask;
+
+        public Task WaitForInitializationStageCompletedAsync(AppLifeCycleStage level, TimeSpan timeout, CancellationToken token = default)
+            => Task.CompletedTask;
+
+        public Task SignalInitializationStageCompletedAsync(AppLifeCycleStage level, object? signaller = null)
+            => Task.CompletedTask;
+
+        public void RegisterRequiredSignaller(AppLifeCycleStage level, object signaller)
+        {
+        }
+
+        public void RegisterRequiredExecution(AppLifeCycleStage targetLevel, Func<AppLifeCycleStage, CancellationToken, Task> execution)
+        {
+        }
+
+        public bool IsLifeCycleStageCompleted(AppLifeCycleStage level)
+            => true;
+
+        public bool IsAllUpToStageCompleted(AppLifeCycleStage level)
+            => true;
     }
 
     private sealed class RecordingBatchWriter : IInfluxBatchWriter

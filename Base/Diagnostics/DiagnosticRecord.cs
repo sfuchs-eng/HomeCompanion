@@ -38,6 +38,11 @@ public class DiagnosticRecord : IDiagnosticRecord
         {
             get
             {
+                if (Value is IValue iValue)
+                {
+                    return iValue.Format() ?? string.Empty;
+                }
+
                 var valueType = Value.GetType();
                 if (valueType.IsPrimitive || valueType == typeof(string) || valueType == typeof(decimal))
                 {
@@ -65,7 +70,7 @@ public class DiagnosticRecord : IDiagnosticRecord
 
 public static class DiagnosticRecordExtensions
 {
-    public static DiagnosticIValue<T> AsDiagnosticRecord<T>(this T value, IDiagnosable owner, string scopeIdentifier)
+    public static DiagnosticIValue<T> AsDiagnosticRecord<T>(this T value, IDiagnosable owner, string? scopeIdentifier = null)
         where T : IValue
     {
         return DiagnosticIValue<T>.Create(value, owner);
@@ -74,6 +79,11 @@ public static class DiagnosticRecordExtensions
     public static DiagnosticRecord AsDiagnosticRecord<T>(this T value, string name, string? explanation = null) where T : Enum
     {
         return new DiagnosticRecord(name, new DiagnosticValue(() => value.ToString() ?? ""), explanation);
+    }
+
+    public static DiagnosticRecord AsDiagnosticRecord(this IValue value, string name, string? explanation = null)
+    {
+        return new DiagnosticRecord(name, new DiagnosticValue(() => value?.Format() ?? string.Empty), explanation);
     }
 
     public static DiagnosticRecord AsDiagnosticRecord<T>(this T value, string name, Func<T, string>? formatter, string? explanation = null)

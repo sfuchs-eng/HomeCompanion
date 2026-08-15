@@ -1,6 +1,7 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core;
 using HomeCompanion.Core.Events;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Events;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
@@ -171,6 +172,17 @@ public class ValueBaseTests
             Assert.That(value.Status.HasFlag(ValueStatus.Initialized), Is.True);
             Assert.That(value.Status.HasFlag(ValueStatus.Used), Is.True);
         });
+    }
+
+    [Test]
+    public void AsDiagnosticRecord_ForValueBase_UsesContainedValue()
+    {
+        var value = CreateValue<bool>();
+        value.Write(true);
+
+        var record = value.AsDiagnosticRecord("Switch");
+
+        Assert.That(record.Value?.FormattedValue, Is.EqualTo("True"));
     }
 
     // ── Tests: ReceiveUpdate ─────────────────────────────────────────────────

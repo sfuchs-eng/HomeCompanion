@@ -100,15 +100,23 @@ public class ShutterRuntime(
                 await scheduler.UnscheduleJob(triggerKey);
             }
 
-            var jobDetail = JobBuilder.Create<ShutterResetExternalOverrideJob>()
-                .WithIdentity(jobKey)
-                .UsingJobData("ShutterKey", ShutterKey.Key)
-                .Build();
+            // figure out whether job already exists and only the trigger needs to be fixed, or whether the job needs to be created as well. The job is a singleton, so we only need to create it once.
+            if (!await scheduler.CheckExists(jobKey))
+            {
+                var jobDetail = JobBuilder.Create<ShutterResetExternalOverrideJob>()
+                    .WithIdentity(jobKey)
+                    .UsingJobData("ShutterKey", ShutterKey.Key)
+                    .StoreDurably(true)
+                    .Build();
+                await scheduler.AddJob(jobDetail, true, cancellationToken);
+                // if we would allow config changes at runtime, this could lead to left over jobs being stored. But paradigm is to restart the service after significant config changes, so this should be fine.
+            }
             var trigger = TriggerBuilder.Create()
                 .WithIdentity(triggerKey)
+                .ForJob(jobKey)
                 .StartAt(DateTimeOffset.UtcNow.Add(GetPermittedManualOverrideDuration())) // reset after the permitted manual override duration
                 .Build();
-            await scheduler.ScheduleJob(jobDetail, trigger);
+            await scheduler.ScheduleJob(trigger, cancellationToken);
         }
         catch (Exception ex)
         {
