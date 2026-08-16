@@ -16,6 +16,8 @@ internal class ThreeWireControl(
     private readonly ILogger<ThreeWireControl> logger = logger;
 
     private ThreeWireControlState state = ThreeWireControlState.Undefined;
+    private bool MyOpenCommandState = false;
+    private bool MyCloseCommandState = false;
 
     Task _transitionRunner = Task.CompletedTask;
     CancellationTokenSource? _transitionRunnerTokenSource;
@@ -37,14 +39,31 @@ internal class ThreeWireControl(
 
         context.PositionRequest?.Changed += HandlePositionRequestChanged;
         context.CommandAcknowledgment?.Written += HandleCommandAcknowledgment;
+        context.OpenCommand?.Written += HandleExternalCommands;
+        context.CloseCommand?.Written += HandleExternalCommands;
 
         await Task.CompletedTask;
+    }
+
+    private void HandleExternalCommands(object? sender, ValueWrittenEventArgs e)
+    {
+        // written by us? exit
+        if (sender == this || e.Initiator == this)
+            return;
+
+        if ( MyCloseCommandState != context.CloseCommand.Value || MyOpenCommandState != context.OpenCommand.Value )
+        {
+            // external command written to the control, which may interfere with our logic; log it
+            logger.LogWarning("External command written to {Name} by {Initiator}. This may interfere with the logic. OpenCommand: {OpenCommand}, CloseCommand: {CloseCommand}", context.Name, e.Initiator?.ToString() ?? "unknown", context.OpenCommand.Value, context.CloseCommand.Value);
+            // TOOD: stop interfering, enter external override mode (new) for a defined duration.
+        }
     }
 
     private void HandleCommandAcknowledgment(object? sender, ValueWrittenEventArgs e)
     {
         if ( context.CommandAcknowledgment.Value )
         {
+            EndDriveSuccessfullyAsync(CancellationToken.None).Wait();
             _commandAcknowledgmentReceived = true;
             _commandAcknowledgmentSemaphore.Release();
         }
@@ -52,7 +71,26 @@ internal class ThreeWireControl(
 
     private void HandlePositionRequestChanged(object? sender, ValueChangedEventArgs e)
     {
-        _commandQueue.Enqueue(context.PositionRequest.Value ? ThreeWireControlRequest.Close : ThreeWireControlRequest.Open);
+        _commandQueue.Clear(i => i != ThreeWireControlRequest.ForceOpen && i != ThreeWireControlRequest.Release);
+        // clear any pending commands, we only care about the latest position request; but keep ForceOpen and Release commands, they are not related to the position request
+        if (state == ThreeWireControlState.Opening || state == ThreeWireControlState.Closing)
+        {
+            InitiateCommandAbortion();
+        }
+        if (!context.PositionRequest?.IsValid ?? false)
+        {
+            logger.LogWarning("Position request for {Name} is not valid. Ignoring.", context.Name);
+            return;
+        }
+
+        if (context.PositionRequest!.Value)
+        {
+            InitiateClose();
+        }
+        else
+        {
+            InitiateOpen();
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -69,8 +107,147 @@ internal class ThreeWireControl(
                 // expected when the token is cancelled, ignore
             }
         }
+
+        context.PositionRequest?.Changed -= HandlePositionRequestChanged;
+        context.CommandAcknowledgment?.Written -= HandleCommandAcknowledgment;
+        context.OpenCommand?.Written -= HandleExternalCommands;
+        context.CloseCommand?.Written -= HandleExternalCommands;
     }
 
+    #region Interface to background runner
+
+    private void InitiateOpen()
+    {
+        _commandQueue.Enqueue(ThreeWireControlRequest.Open);
+    }
+
+    private void InitiateClose()
+    {
+        _commandQueue.Enqueue(ThreeWireControlRequest.Close);
+    }
+
+    private void InitiateCommandAbortion()
+    {
+        // Enqueue an abort which will be processed by the background runner
+        _commandQueue.Enqueue(ThreeWireControlRequest.Abort);
+        // Release the semaphore in case the background runner is waiting for an acknowledgment, so it can process the abort command
+        _commandAcknowledgmentSemaphore.Release();
+    }
+
+    #endregion Interface to background runner
+
+
+    #region Background runner
+    // executes open/close commands in the background, one at a time, and waits for acknowledgment or timeout
+
+    private async Task ResetDriveCommandsAsync(CancellationToken token)
+    {
+        lock (this)
+        {
+            context.OpenCommand.Write(false, this);
+            context.CloseCommand.Write(false, this);
+            MyOpenCommandState = false;
+            MyCloseCommandState = false;
+        }
+    }
+
+    private async Task EndDriveSuccessfullyAsync(CancellationToken token)
+    {
+        await ResetDriveCommandsAsync(token);
+        switch (state)
+        {
+            case ThreeWireControlState.Opening:
+                state = ThreeWireControlState.Open;
+                break;
+            case ThreeWireControlState.Closing:
+                state = ThreeWireControlState.Closed;
+                break;
+            case ThreeWireControlState.OpeningTimeOut:
+            case ThreeWireControlState.ClosingTimeOut:
+                // do not change state, keep it in timeout state
+                break;
+            default:
+                logger.LogDebug("Unexpected state {State} when ending drive successfully for {Name}.", state, context.Name);
+                break;
+        }
+        context.PositionStatus.Write(state == ThreeWireControlState.Closed ? true : false, this);
+    }
+
+    private async Task AbortDriveAsync(CancellationToken token)
+    {
+        await ResetDriveCommandsAsync(token);
+        switch (state)
+        {
+            case ThreeWireControlState.Opening:
+            case ThreeWireControlState.Closing:
+            case ThreeWireControlState.ForcedOpen:
+                state = ThreeWireControlState.Open; // we are in an undefined state, somehow somewhat open is more likely and really closed which needs to be certain.
+                break;
+            case ThreeWireControlState.OpeningTimeOut:
+            case ThreeWireControlState.ClosingTimeOut:
+                break;
+            default:
+                logger.LogDebug("Unexpected state {State} when aborting drive for {Name}.", state, context.Name);
+                break;
+        }
+        context.PositionStatus.Write(state == ThreeWireControlState.Closed ? true : false, this);
+    }
+
+    /// <summary>
+    /// Executes the opening sequence unconditionally
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    private async Task DriveOpenAsync(CancellationToken token)
+    {
+        state = ThreeWireControlState.Opening;
+        context.CloseCommand.Write(false, this);
+        context.OpenCommand.Write(true, this);
+        MyOpenCommandState = true;
+        MyCloseCommandState = false;
+        // wait for acknowledgment or timeout
+        _commandAcknowledgmentReceived = false;
+        await _commandAcknowledgmentSemaphore.WaitAsync(context.Timing.OpenDuration + context.Timing.ExcessTime, token);
+        state = _commandAcknowledgmentReceived ? (_forceOpenRequested ? ThreeWireControlState.ForcedOpen : ThreeWireControlState.Open) : ThreeWireControlState.OpeningTimeOut;
+        if (state == ThreeWireControlState.OpeningTimeOut)
+        {
+            logger.LogWarning("Opening of {Name} timed out after {Duration} without acknowledgment.", context.Name, context.Timing.OpenDuration + context.Timing.ExcessTime);
+        }
+    }
+
+    /// <summary>
+    /// Executes the closing sequence unconditionally
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    private async Task DriveCloseAsync(CancellationToken token)
+    {
+        state = ThreeWireControlState.Closing;
+        context.OpenCommand.Write(false, this);
+        context.CloseCommand.Write(true, this);
+        MyOpenCommandState = false;
+        MyCloseCommandState = true;
+        // wait for acknowledgment or timeout
+        _commandAcknowledgmentReceived = false;
+        await _commandAcknowledgmentSemaphore.WaitAsync(context.Timing.CloseDuration + context.Timing.ExcessTime, token);
+        state = _commandAcknowledgmentReceived ? ThreeWireControlState.Closed : ThreeWireControlState.ClosingTimeOut;
+
+        if (state == ThreeWireControlState.Closed)
+            await EndDriveSuccessfullyAsync(token);
+        else
+            await AbortDriveAsync(token);
+
+        if (state == ThreeWireControlState.ClosingTimeOut)
+        {
+            logger.LogWarning("Closing of {Name} timed out after {Duration} without acknowledgment.", context.Name, context.Timing.CloseDuration + context.Timing.ExcessTime);
+        }
+        else if (context.RequireOpenPriorToOpening != null)
+        {
+            // after successfully closing, we can release the required control if it is currently forced open
+            await context.RequireOpenPriorToOpening.ReleaseAsync(token);
+        }
+    }
+    
     private async Task TransitionRunnerAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -85,8 +262,12 @@ internal class ThreeWireControl(
             switch (request)
             {
                 case ThreeWireControlRequest.Open:
-                    if (state == ThreeWireControlState.Open)
+                    if (state == ThreeWireControlState.Open || state == ThreeWireControlState.ForcedOpen)
                     {
+                        if ( state != ThreeWireControlState.ForcedOpen && _forceOpenRequested )
+                        {
+                            state = ThreeWireControlState.ForcedOpen; // transition to forced open state if we are not already in it
+                        }
                         break; // already open, ignore
                     }
                     if (context.RequireOpenPriorToOpening != null)
@@ -98,16 +279,7 @@ internal class ThreeWireControl(
                             break; // failed to open the required control, abort
                         }
                     }
-                    context.CloseCommand.WriteLocked(false);
-                    context.OpenCommand.WriteLocked(true);
-                    // wait for acknowledgment or timeout
-                    _commandAcknowledgmentReceived = false;
-                    await _commandAcknowledgmentSemaphore.WaitAsync(context.Timing.OpenDuration + context.Timing.ExcessTime, token);
-                    state = _commandAcknowledgmentReceived ? ThreeWireControlState.Open : ThreeWireControlState.OpeningTimeOut;
-                    if (state == ThreeWireControlState.OpeningTimeOut)
-                    {
-                        logger.LogWarning("Opening of {Name} timed out after {Duration} without acknowledgment.", context.Name, context.Timing.OpenDuration + context.Timing.ExcessTime);
-                    }
+                    await DriveOpenAsync(token);
                     break;
                 case ThreeWireControlRequest.Close:
                     if (state == ThreeWireControlState.Closed)
@@ -119,21 +291,7 @@ internal class ThreeWireControl(
                         logger.LogTrace("Refusing to close. Release of forced open state for {Name} prior to closing.", context.Name);
                         break; // refuse to close when there is an active forced open request
                     }
-                    context.OpenCommand.WriteLocked(false);
-                    context.CloseCommand.WriteLocked(true);
-                    // wait for acknowledgment or timeout
-                    _commandAcknowledgmentReceived = false;
-                    await _commandAcknowledgmentSemaphore.WaitAsync(context.Timing.CloseDuration + context.Timing.ExcessTime, token);
-                    state = _commandAcknowledgmentReceived ? ThreeWireControlState.Closed : ThreeWireControlState.ClosingTimeOut;
-                    if (state == ThreeWireControlState.ClosingTimeOut)
-                    {
-                        logger.LogWarning("Closing of {Name} timed out after {Duration} without acknowledgment.", context.Name, context.Timing.CloseDuration + context.Timing.ExcessTime);
-                    }
-                    else if (context.RequireOpenPriorToOpening != null)
-                    {
-                        // after successfully closing, we can release the required control if it is currently forced open
-                        await context.RequireOpenPriorToOpening.ReleaseAsync(token);
-                    }
+                    await DriveCloseAsync(token);
                     break;
                 case ThreeWireControlRequest.ForceOpen:
                     _forceOpenRequested = true;
@@ -155,10 +313,15 @@ internal class ThreeWireControl(
                         _commandQueue.Enqueue(ThreeWireControlRequest.Close);
                     }
                     break;
+                case ThreeWireControlRequest.Abort:
+                    await AbortDriveAsync(token);
+                    break;
             }
         }
         logger.LogTrace("Transition runner for {Name} is stopping due to cancellation.", context.Name);
     }
+
+    #endregion Background runner
 
     private async Task ReleaseAsync(CancellationToken token)
     {
@@ -296,13 +459,26 @@ internal class ThreeWireControlContext
 internal enum ThreeWireControlState
 {
     Undefined,
+
+    /// <summary>
+    /// fully closed (partially close is considered Open)
+    /// </summary>
     Closed,
+
+    /// <summary>
+    /// fully or partially open
+    /// </summary>
     Open,
     Opening,
     OpeningTimeOut,
     Closing,
     ClosingTimeOut,
+
+    /// <summary>
+    /// fully or partially open, but forced by logic instead of following the position request
+    /// </summary>
     ForcedOpen,
+
     Released,
 }
 
@@ -312,4 +488,5 @@ internal enum ThreeWireControlRequest
     Close,
     ForceOpen,
     Release,
+    Abort,
 }

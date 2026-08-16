@@ -48,7 +48,7 @@ public class CfgMotorizedWindowSpecial : CfgBuildingSpecial
         OpenDuration = TimeSpan.FromSeconds(33.5),
         CloseDuration = TimeSpan.FromSeconds(33.5),
         LockDelay = TimeSpan.Zero,
-        ExcessTime = TimeSpan.FromSeconds(2)
+        ExcessTime = TimeSpan.FromSeconds(5)
     };
 }
 

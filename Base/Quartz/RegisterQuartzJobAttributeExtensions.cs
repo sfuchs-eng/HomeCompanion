@@ -18,6 +18,27 @@ public static class RegisterQuartzJobAttributeExtensions
         {
             quartzConfigurator.AddJob(job.Type, job.Key, j => j.WithIdentity(job.Key).StoreDurably());
         }
+
+        // Add triggers for jobs with [RegisterQuartzJob] attribute that have WithCronTriggers defined
+        var jobsWithTriggers = jobTypes.Where(t => t.Attribute?.WithCronTriggers != null && t.Attribute.WithCronTriggers.Length > 0);
+        List<Exception> exceptions = new();
+        foreach (var job in jobsWithTriggers)
+        {
+            var jobKey = job.Type.GetJobKeyFromType()!;
+            foreach (var cronExpression in job.Attribute!.WithCronTriggers!)
+            {
+                try
+                {
+                    quartzConfigurator.AddTrigger(t => t.ForJob(jobKey).WithIdentity($"{jobKey.Name}.trigger.{cronExpression}").WithCronSchedule(cronExpression));
+                }
+                catch (Exception ex)
+                {
+                    exceptions.Add(new InvalidOperationException($"Failed to add trigger for job {jobKey} with cron expression '{cronExpression}': {ex.Message}", ex));
+                }
+            }
+        }
+        if (exceptions.Count > 0)
+            throw new AggregateException("One or more errors occurred while adding triggers.", exceptions);
     }
 
     public static JobKey? GetJobKeyFromType<T>() where T : class

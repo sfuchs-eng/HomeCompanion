@@ -72,7 +72,7 @@ public interface IEnvironmentalsProvider
 /// It is responsible to ensure that shutter target evaluation logic is not called too often, e.g. by providing a minimum time interval between evaluations, yet whenever appropriate it is triggered.
 /// </summary>
 /// <typeparam name="EnvironmentalsEvaluatorLogic"></typeparam>
-public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, IDisposable, IDiagnosable
+public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, IDiagnosable
 {
     private readonly IModelProvider modelProvider;
     private readonly TimeProvider timeProvider;
@@ -424,20 +424,15 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         Dispose();
     }
 
-    private bool disposedValue = false; // To detect redundant calls
-
-    public void Dispose()
+    protected override void DisposingInterlocked()
     {
-        if (!disposedValue)
+        foreach (var subscription in subscriptions)
         {
-            foreach (var subscription in subscriptions)
-            {
-                subscription.Dispose();
-            }
-            subscriptions.Clear();
-            disposedValue = true;
-            GC.SuppressFinalize(this);
+            subscription.Dispose();
         }
+        subscriptions.Clear();
+        GC.SuppressFinalize(this);
+        base.DisposingInterlocked();
     }
 }
 

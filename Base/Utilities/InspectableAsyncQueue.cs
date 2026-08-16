@@ -39,6 +39,38 @@ public class InspectableAsyncQueue<T>
     }
 
     /// <summary>
+    /// Clears all items from the queue.
+    /// </summary>
+    public void Clear()
+    {
+        lock (_lockObj)
+        {
+            _queue.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Clears all items from the queue that match the given predicate.
+    /// </summary>
+    /// <param name="predicate">A function that determines whether an item should be removed.</param>
+    public void Clear(Func<T, bool> predicate)
+    {
+        lock (_lockObj)
+        {
+            var node = _queue.First;
+            while (node != null)
+            {
+                var nextNode = node.Next; // Store the next node before potentially removing the current one
+                if (predicate(node.Value))
+                {
+                    _queue.Remove(node);
+                }
+                node = nextNode;
+            }
+        }
+    }
+
+    /// <summary>
     /// Awaits the next command. Returns default(T) if the timeout is reached.
     /// </summary>
     public async Task<DequeueResult<T>> DequeueAsync(TimeSpan timeout, CancellationToken cancellationToken = default)

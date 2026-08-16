@@ -88,6 +88,35 @@ public static class IValueReactiveExtensions
             .Select(acc => acc.current);
     }
 
+    /// <summary>
+    /// Yields true if the value has gone above the threshold, and false if it has gone below the threshold, with a hysteresis of the given amount
+    /// </summary>
+    public static IObservable<bool> ThresholdWithHysteresis<T>(this IObservable<T> source, double threshold, double hysteresis) where T : struct, INumber<T>
+    {
+        bool? lastState = null;
+        return source.Select(value =>
+        {
+            double numericValue = Convert.ToDouble(value);
+            bool currentState;
+
+            if (lastState == null)
+            {
+                currentState = numericValue > threshold;
+            }
+            else if (lastState == true)
+            {
+                currentState = numericValue > (threshold - hysteresis);
+            }
+            else
+            {
+                currentState = numericValue > (threshold + hysteresis);
+            }
+
+            lastState = currentState;
+            return currentState;
+        });
+    }
+
     public static IObservable<double> FirstOrderLowPassFilter(this IObservable<double> source, TimeSpan timeConstant, TimeSpan sampleTime)
     {
         return source.FirstOrderLowPassFilter(timeConstant, sampleTime, null, null);

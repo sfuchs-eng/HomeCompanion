@@ -14,7 +14,7 @@ namespace HomeCompanion.Logics;
 /// <remarks>
 /// Initializes the logic with the required event bus services.
 /// </remarks>
-public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
+public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IDisposable
 {
     public virtual string Name => $"Logic {GetType().Name}";
 
@@ -24,6 +24,14 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
     private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
     private bool _isInitialized = false;
     private bool _isTerminated = false;
+    public bool IsInitialized => _isInitialized;
+    public bool IsTerminated => _isTerminated;
+    public bool IsDisposed => _isDisposed;
+
+    /// <summary>
+    /// List of disposable resources that will be disposed when the logic is disposed.
+    /// </summary>
+    protected readonly List<IDisposable> Disposables = new();
 
     /// <summary>
     /// Initializes the logic. For convenience, this method calls <see cref="InitializeLatchedAsync"/> only
@@ -162,5 +170,61 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic
         {
             Logger.LogWarning(ex, "Error while terminating logic {LogicName}.", Name);
         }
+    }
+
+    private bool _isDisposed = false;
+
+    ~LogicBase()
+    {
+        Dispose(false);
+    }
+
+    /// <summary>
+    /// This method is called by <see cref="Dispose(bool)"/>, only if the logic has not already been disposed, and <see cref="Dispose(bool disposing)"/> only if <paramref name="disposing"/> is true.
+    /// </summary>
+    /// <remarks>
+    /// If the only need is to dispose of some <see cref="IDisposable"/> objects, add them to the <see cref="Disposables"/> list instead of overriding this method.
+    /// </remarks>
+    protected virtual void DisposingInterlocked()
+    {
+        foreach (var disposable in Disposables)
+        {
+            try
+            {
+                disposable.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Error while disposing resource of type {ResourceType} in logic {LogicName}.", disposable.GetType().Name, Name);
+            }
+        }
+        // Dispose managed resources here
+        _initializationSemaphore.Dispose();
+    }
+
+    /// <summary>
+    /// Generally, overriding classes should not override this method. Instead, they should override <see cref="DisposingInterlocked"/> to dispose of their resources.
+    /// </summary>
+    /// <param name="disposing"></param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_isDisposed)
+            return;
+
+        if (!_isTerminated)
+            Logger.LogWarning("Logic {LogicName} is being disposed without being terminated. Call TerminateAsync() before disposing the logic.", Name);
+
+        if (disposing)
+        {
+            DisposingInterlocked();
+        }
+
+        _isDisposed = true;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }
