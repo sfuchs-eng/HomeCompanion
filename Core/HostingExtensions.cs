@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SRF.Network.OpenHab;
 using HomeCompanion.Events;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Core.Logics;
@@ -60,6 +59,7 @@ public static class HostingExtensions
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ModelProvider>());
         builder.Services.TryAddSingleton<LogicValueBinder>();
         builder.Services.TryAddSingleton<IMcpIntrospectionService, McpIntrospectionService>();
+        builder.Services.TryAddTransient<IParametersProvider, ParametersProvider>();
 
         // Life cycle synchronization
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
