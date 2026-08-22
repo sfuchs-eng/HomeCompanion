@@ -113,7 +113,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
     /// </summary>
     public bool SunIntensityAboveThreshold { get; private set; } = false;
     public double UvIntensityPU { get; private set; } = double.NaN;
-    public SphericVector SunPosition { get; private set; } = new(0.0, -10.0); // below horizon by default
+    public SphericVector SunPosition { get; private set; } = SphericVector.SunDefaultPosition;
 
     public double EnergyBalancePU24hActual { get; private set; } = 0.0;
     public bool CautiousShadowingEnergyBalanceLimitExceeded { get; private set; } = false;
@@ -134,7 +134,11 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             SunIntensityAboveThreshold.AsDiagnosticRecord("SunIntensityAboveThreshold", (v) => v.ToString()),
             UvIntensityPU.AsDiagnosticRecord("UvIntensityPU", (v) => $"{v:F3} p.u."),
             UvIntensityAboveThreshold.AsDiagnosticRecord("UvIntensityAboveThreshold", (v) => v.ToString()),
-            SunPosition.AsDiagnosticRecord("SunPosition", (v) => v.ToString()),
+            SunPosition.AsDiagnosticRecord("SunPosition", (v) =>
+            {
+                var (azimuth, elevation) = v.ToDegreesPair();
+                return $"({azimuth:F3}°, {elevation:F3}°)";
+            }),
             IsSunAboveHorizon.AsDiagnosticRecord("IsSunAboveHorizon", (v) => v.ToString()),
             EnergyBalancePU24hActual.AsDiagnosticRecord("EnergyBalancePU24hActual", (v) => $"{v:F3} p.u."),
             CautiousShadowingEnergyBalanceLimitExceeded.AsDiagnosticRecord("CautiousShadowingEnergyBalanceLimitExceeded", (v) => v.ToString())
@@ -277,7 +281,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         var sunObs = Observable.CombineLatest(
             subAziObs,
             subEleObs,
-            (azimuth, elevation) => new SphericVector(azimuth, elevation)
+            (azimuth, elevation) => SphericVector.FromDegrees(azimuth, elevation)
         )
             .DistinctUntilChanged(
                 new SphericVectorComparer()

@@ -285,8 +285,8 @@ public class EnvironmentalsEvaluatorLogicTests
     [Test]
     public async Task GetSunPositionObservable_WithMissingInputs_EmitsDefaultFallbackVector()
     {
-        const double defaultAzimuth = 0.0;
-        const double defaultElevation = -10.0;
+        const double defaultAzimuthDegrees = 0.0;
+        const double defaultElevationDegrees = -10.0;
 
         var missingAzimuthCtx = CreateContext(cfg =>
         {
@@ -301,8 +301,9 @@ public class EnvironmentalsEvaluatorLogicTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(vectorMissingAzimuth.Azimuth, Is.EqualTo(defaultAzimuth).Within(0.0001));
-            Assert.That(vectorMissingAzimuth.Elevation, Is.Not.EqualTo(defaultElevation).Within(0.0001));
+            var (azimuth, elevation) = vectorMissingAzimuth.ToDegreesPair();
+            Assert.That(azimuth, Is.EqualTo(defaultAzimuthDegrees).Within(0.0001));
+            Assert.That(elevation, Is.Not.EqualTo(defaultElevationDegrees).Within(0.0001));
         });
 
         var missingElevationCtx = CreateContext(cfg =>
@@ -318,8 +319,9 @@ public class EnvironmentalsEvaluatorLogicTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(vectorMissingElevation.Azimuth, Is.Not.EqualTo(defaultAzimuth).Within(0.0001));
-            Assert.That(vectorMissingElevation.Elevation, Is.EqualTo(defaultElevation).Within(0.0001));
+            var (azimuth, elevation) = vectorMissingElevation.ToDegreesPair();
+            Assert.That(azimuth, Is.Not.EqualTo(defaultAzimuthDegrees).Within(0.0001));
+            Assert.That(elevation, Is.EqualTo(defaultElevationDegrees).Within(0.0001));
         });
 
         var allMissingCtx = CreateContext(cfg =>
@@ -335,8 +337,9 @@ public class EnvironmentalsEvaluatorLogicTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(vectorAllMissing.Azimuth, Is.EqualTo(defaultAzimuth).Within(0.0001));
-            Assert.That(vectorAllMissing.Elevation, Is.EqualTo(defaultElevation).Within(0.0001));
+            var (azimuth, elevation) = vectorAllMissing.ToDegreesPair();
+            Assert.That(azimuth, Is.EqualTo(defaultAzimuthDegrees).Within(0.0001));
+            Assert.That(elevation, Is.EqualTo(defaultElevationDegrees).Within(0.0001));
         });
     }
 
@@ -348,16 +351,37 @@ public class EnvironmentalsEvaluatorLogicTests
         var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
         var elevation = GetFloatValue(ctx.Values, "Float:SunPositionElevation");
 
-        azimuth.Write(1.23f);
-        elevation.Write(0.45f);
+        azimuth.Write(295.0f);
+        elevation.Write(-6.0f);
 
         var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(250));
 
         Assert.Multiple(() =>
         {
-            Assert.That(vector.Azimuth, Is.EqualTo(1.23).Within(0.0001));
-            Assert.That(vector.Elevation, Is.EqualTo(0.45).Within(0.0001));
+            Assert.That(vector.Azimuth, Is.EqualTo(295.0 * Math.PI / 180.0).Within(0.0001));
+            Assert.That(vector.Elevation, Is.EqualTo(-6.0 * Math.PI / 180.0).Within(0.0001));
+            var (azimuthDegrees, elevationDegrees) = vector.ToDegreesPair();
+            Assert.That(azimuthDegrees, Is.EqualTo(295.0).Within(0.0001));
+            Assert.That(elevationDegrees, Is.EqualTo(-6.0).Within(0.0001));
         });
+    }
+
+    [Test]
+    public async Task GetSunAboveHorizonObservable_WithDegreeBusValues_UsesConvertedRadians()
+    {
+        var ctx = CreateContext();
+
+        var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
+        var elevation = GetFloatValue(ctx.Values, "Float:SunPositionElevation");
+        azimuth.Write(295.0f);
+        elevation.Write(-6.0f);
+
+        var isAboveHorizon = await WaitForNextValueAsync(
+            ctx.Sut.GetSunAboveHorizonObservable(ctx.Sut.GetSunPositionObservable(ctx.Special), ctx.Special),
+            TimeSpan.FromMilliseconds(250)
+        );
+
+        Assert.That(isAboveHorizon, Is.False);
     }
 
     [Test]

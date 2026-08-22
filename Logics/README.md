@@ -1,5 +1,10 @@
 # Standard logics for HomeCompanion
 
+## Overview
+
+This file describes the standard logics provided by HomeCompanion, which are implemented in the `HomeCompanion.Logics` namespace.
+For documentation about writing your own logics, see [HomeCompanion.Logics](../README.md).
+
 ## Shutter automation logic
 
 In `HomeCompanion.Logics.Shutters`

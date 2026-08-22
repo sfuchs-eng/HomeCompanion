@@ -4,15 +4,19 @@ using Microsoft.Extensions.Logging;
 namespace HomeCompanion.Logics;
 
 /// <summary>
-/// Base class for all logic modules. Provides access to the event bus for publishing and subscribing to events.
+/// Base class for logic modules.
 /// </summary>
 /// <remarks>
-/// <para>Subclasses should call <see cref="Subscribe{T}"/> from their constructor to register event handlers.</para>
-/// <para>Use <see cref="Publisher"/> to publish events.</para>
-/// <para>Inherit <see cref="IDiagnosable"/> in deriving classes and override <see cref="PopulateDiagnosticResultsAsync"/> to provide diagnostic information about the logic module.</para>
-/// </remarks>
-/// <remarks>
-/// Initializes the logic with the required event bus services.
+/// <para>Logic authors typically put their lifecycle logic in <see cref="InitializeLatchedAsync(CancellationToken)"/> and register event handlers during initialization.</para>
+/// <para>To expose editable configuration values in the Web UI, decorate public instance properties with <see cref="ParameterAttribute"/> and make the logic implement <see cref="IParametersContainer"/> so it can return <c>this.GetParametersFromAttributes()</c>.</para>
+/// <code>
+/// public sealed class MyLogic : LogicBase
+/// {
+///     [Parameter("Threshold", description: "Minimum temperature before action is triggered")]
+///     public int Threshold { get; set; } = 20;
+/// }
+/// </code>
+/// <para>The property must be public, writable, and parseable from a string. Common supported types are <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c>; custom types can also be used when they implement <c>IParsable&lt;T&gt;</c> and <c>IFormattable</c>.</para>
 /// </remarks>
 public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IDisposable
 {
@@ -125,6 +129,22 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IDisposab
         IsEnabled = false;
         Logger.LogError(exception, "Logic activation failed: {Message}", exception.Message);
     }
+
+    private List<IParameter>? _parameters;
+
+    /// <summary>
+    /// Adds additional parameters to the logic on top of the parameters discovered via reflection on properties decorated with <see cref="ParameterAttribute"/>.
+    /// This allows logics to expose parameters that are not directly backed by properties.
+    /// </summary>
+    /// <typeparam name="IParameter"></typeparam>
+    protected void AddParameter(IParameter parameter)
+    {
+        _parameters ??= new List<IParameter>();
+        _parameters.Add(parameter);
+    }
+
+    // IParametersContainer implementation: pull from a registration list and add all properties decorated with [Parameter] attribute.
+    public virtual IEnumerable<IParameter> Parameters => [.. this.GetParametersFromAttributes(), .. _parameters ?? []];
 
     protected virtual Task<DiagnosticResultNode> PopulateDiagnosticResultsAsync(DiagnosticResultNode parentNode, CancellationToken cancellationToken)
     {

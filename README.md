@@ -157,6 +157,44 @@ The value reference resolver accepts flexible formats and normalizes internally,
 
 This enables flexible runtime wiring while preserving explicit defaults in code.
 
+### Units and quantities in logic code
+
+`HomeCompanion.Base` references `UnitsNet`, so logic authors can depend on the base project and use `UnitsNet` directly without adding a second package reference.
+
+```csharp
+using UnitsNet;
+
+public class TemperatureGuard : LogicBase
+{
+    public void Evaluate(float indoorTempCelsius)
+    {
+        var indoorTemp = Temperature.FromDegreesCelsius(indoorTempCelsius);
+        if (indoorTemp > Temperature.FromDegreesCelsius(24.0))
+        {
+            // trigger logic
+        }
+    }
+}
+```
+
+This is the default choice for physical quantities such as temperature, humidity, pressure, speed, and energy inside automation logic.
+
+### Exposing logic parameters
+
+Logic authors can expose editable values in the Web UI by decorating public properties with `ParameterAttribute` and returning them from an `IParametersContainer` implementation.
+
+```csharp
+public sealed class MyLogic : LogicBase, IParametersContainer
+{
+    [Parameter("Threshold", description: "Minimum temperature before action is triggered")]
+    public int Threshold { get; set; } = 20;
+
+    public IReadOnlyCollection<IParameter> Parameters => this.GetParametersFromAttributes().ToArray();
+}
+```
+
+The property must be public and writable, and the type must be convertible from a string representation. Primitive types such as `bool`, `int`, `float`, and `string` work directly; custom types should implement `IParsable<T>` and `IFormattable`.
+
 ### Logic loading by environment
 
 `ILogic` discovery can be restricted to specific host environments.
