@@ -18,7 +18,7 @@ namespace HomeCompanion.Logics;
 /// </code>
 /// <para>The property must be public, writable, and parseable from a string. Common supported types are <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c>; custom types can also be used when they implement <c>IParsable&lt;T&gt;</c> and <c>IFormattable</c>.</para>
 /// </remarks>
-public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IDisposable
+public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IParametersContainer, IDisposable
 {
     public virtual string Name => $"Logic {GetType().Name}";
 

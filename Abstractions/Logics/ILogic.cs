@@ -13,7 +13,7 @@ namespace HomeCompanion.Logics;
 /// Logics are managed as singletons by the host and injected by other logics that depend on them. They are initialized by the host at startup, but may also be initialized on demand by dependent logics before or after being called by the host.
 /// Upon initialization, the logic shall be enabled by default.
 /// </remarks>
-public interface ILogic : IParametersContainer
+public interface ILogic
 {
     string Name { get; }
 

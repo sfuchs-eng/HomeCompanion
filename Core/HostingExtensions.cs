@@ -59,7 +59,6 @@ public static class HostingExtensions
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ModelProvider>());
         builder.Services.TryAddSingleton<LogicValueBinder>();
         builder.Services.TryAddSingleton<IMcpIntrospectionService, McpIntrospectionService>();
-        builder.Services.TryAddTransient<IParametersProvider, ParametersProvider>();
 
         // Life cycle synchronization
         builder.Services.TryAddSingleton<HomeCompanionLifeCycleSynchronization>();
@@ -100,6 +99,9 @@ public static class HostingExtensions
         var logicEnvironmentRules = ResolveLogicEnvironmentRules(builder.Configuration);
         builder.Services.AddLogics(builder.Environment.EnvironmentName, logicEnvironmentRules);
         builder.Services.AddLogicManager();
+
+        // Transient services
+        builder.Services.TryAddTransient<IParametersProvider, ParametersProvider>();
 
         return builder;
     }
