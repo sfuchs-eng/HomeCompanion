@@ -16,7 +16,7 @@ namespace HomeCompanion.Logics;
 ///     public int Threshold { get; set; } = 20;
 /// }
 /// </code>
-/// <para>The property must be public, writable, and parseable from a string. Common supported types are <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c>; custom types can also be used when they implement <c>IParsable&lt;T&gt;</c> and <c>IFormattable</c>.</para>
+/// <para>The property must be public, writable, and parseable from a string. Common supported types are <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c>; custom types can also be used when they implement <c>IParsable&lt;T&gt;</c>.</para>
 /// </remarks>
 public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IParametersContainer, IDisposable
 {
@@ -31,6 +31,14 @@ public abstract class LogicBase(ILogger<ILogic> logicLogger) : ILogic, IParamete
     public bool IsInitialized => _isInitialized;
     public bool IsTerminated => _isTerminated;
     public bool IsDisposed => _isDisposed;
+
+    [Parameter("Allow Commands", description: "If true, the logic is enabled. If false, the logic should not issue actions. It's up to the implementation to respect this setting.")]
+    public virtual bool AllowCommands
+    {
+        get => _allowCommands;
+        set => _allowCommands = value;
+    }
+    private bool _allowCommands = true;
 
     /// <summary>
     /// List of disposable resources that will be disposed when the logic is disposed.

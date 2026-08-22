@@ -1,0 +1,115 @@
+@using HomeCompanion.Values
+
+@if (Value is null)
+{
+    <span class="text-muted">No parameter</span>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted">@Value.Label</span>
+        <span class="fw-semibold">@Value.FormatValue()</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="OpenDialog">Edit</button>
+    </div>
+
+    @if (_isDialogOpen)
+    {
+        <div class="modal-backdrop fade show"></div>
+        <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="parameter-modal-title">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 id="parameter-modal-title" class="modal-title">Set @Value.Label</h5>
+                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDialog"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <label class="form-label" for="@_inputId">Value</label>
+                        <input id="@_inputId"
+                               class="form-control"
+                               value="@_newValueText"
+                               @oninput="OnValueInput" />
+
+                        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                        {
+                            <div class="text-danger small mt-2">@_errorMessage</div>
+                        }
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseDialog">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="SubmitValue">Set</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Microsoft.AspNetCore.Components.Parameter]
+    public IParameter? Value { get; set; }
+
+    private bool _isDialogOpen;
+    private string _newValueText = string.Empty;
+    private string? _errorMessage;
+    private readonly string _inputId = $"parameter-modal-input-{Guid.NewGuid():N}";
+    private IDisposable? _changedSubscription;
+
+    protected override void OnParametersSet()
+    {
+        if (Value is null)
+        {
+            _isDialogOpen = false;
+            return;
+        }
+
+        _newValueText = Value.FormatValue();
+        _changedSubscription ??= Value.RegisterChangedCallback(_ => InvokeAsync(StateHasChanged));
+    }
+
+    private void OpenDialog()
+    {
+        if (Value is null)
+            return;
+
+        _newValueText = Value.FormatValue();
+        _errorMessage = null;
+        _isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _errorMessage = null;
+        _isDialogOpen = false;
+    }
+
+    private void OnValueInput(ChangeEventArgs args)
+    {
+        _newValueText = args.Value?.ToString() ?? string.Empty;
+        _errorMessage = null;
+    }
+
+    private void SubmitValue()
+    {
+        if (Value is null)
+        {
+            CloseDialog();
+            return;
+        }
+
+        if (Value.SetValueFromString(_newValueText, out var errorMessage))
+        {
+            _errorMessage = null;
+            _isDialogOpen = false;
+            return;
+        }
+
+        _errorMessage = errorMessage ?? "Unable to set the parameter value.";
+    }
+
+    public void Dispose()
+    {
+        _changedSubscription?.Dispose();
+    }
+}

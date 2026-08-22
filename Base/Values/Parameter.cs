@@ -7,7 +7,7 @@ namespace HomeCompanion.Values;
 // for IValue, implement IParameter straight into IValue and BaseValue, and implement IParameter in ValueBase<T> for the generic version. This allows logics to expose parameters that can be configured in the Web UI, and also allows mapping IValues to IParameters for writing to IValues from the Web UI.
 // for basic types (bool, int, float, string), implement IParameter in a Parameter<T> class here that can be used to expose parameters of those types.
 
-public class Parameter<T> : IParameter where T : notnull, IEquatable<T>, IFormattable, IParsable<T>
+public class Parameter<T> : IParameter where T : notnull, IParsable<T>
 {
     public Parameter(string label, string? name = null)
     {
@@ -40,7 +40,9 @@ public class Parameter<T> : IParameter where T : notnull, IEquatable<T>, IFormat
 
     public string FormatValue()
     {
-        return Value.ToString(null, CultureInfo.InvariantCulture);
+        return Value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : Value.ToString() ?? string.Empty;
     }
 
     public bool SetValueFromString(string value, out string? errorMessage)
@@ -97,9 +99,9 @@ public class Parameter<T> : IParameter where T : notnull, IEquatable<T>, IFormat
 }
 
 /// <summary>
-/// A parameter class that acts on a property in a class, allowing the Web UI to read and write the property value. The property must be of a type that implements IEquatable<T>, IFormattable, and IParsable<T>.
+/// A parameter class that acts on a property in a class, allowing the Web UI to read and write the property value. The property must be of a type that implements IParsable&lt;T&gt;.
 /// </summary>
-public class PropertyParameter<T> : Parameter<T> where T : notnull, IEquatable<T>, IFormattable, IParsable<T>
+public class PropertyParameter<T> : Parameter<T> where T : notnull, IParsable<T>
 {
     private readonly object _target;
     private readonly PropertyInfo _property;
@@ -119,6 +121,7 @@ public class PropertyParameter<T> : Parameter<T> where T : notnull, IEquatable<T
 
 /// <summary>
 /// Marks a public property as a configurable parameter that can be exposed in the Web UI.
+/// Shortfall using this approach: property value changes originating from code are not automatically reflected in the Web UI unless the Web UI is refreshed.
 /// </summary>
 /// <remarks>
 /// Logic authors can use this attribute to surface a setting without manually constructing <see cref="Parameter{T}"/> instances.
@@ -132,7 +135,7 @@ public class PropertyParameter<T> : Parameter<T> where T : notnull, IEquatable<T
 ///     public IReadOnlyCollection&lt;IParameter&gt; Parameters =&gt; this.GetParametersFromAttributes().ToArray();
 /// }
 /// </code>
-/// The property must be public, writable, and string-parsable. Primitive types such as <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c> work directly; other types must implement <c>IEquatable&lt;T&gt;</c>, <c>IFormattable</c>, and <c>IParsable&lt;T&gt;</c>.
+/// The property must be public, writable, and string-parsable. Primitive types such as <c>bool</c>, <c>int</c>, <c>float</c>, and <c>string</c> work directly; other types must implement <c>IParsable&lt;T&gt;</c>.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public class ParameterAttribute : Attribute
@@ -159,7 +162,7 @@ public static class ParameterExtensions
     /// <param name="name"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static Parameter<T> ToParameter<T>(this T value, string label, string? name = null) where T : notnull, IEquatable<T>, IFormattable, IParsable<T>
+    public static Parameter<T> ToParameter<T>(this T value, string label, string? name = null) where T : notnull, IParsable<T>
     {
         var parameter = new Parameter<T>(label, name);
         parameter.Value = value;
@@ -175,9 +178,17 @@ public static class ParameterExtensions
     /// <param name="name"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static PropertyParameter<T> ToPropertyParameter<T>(this object target, string propertyName, string label, string? name = null) where T : notnull, IEquatable<T>, IFormattable, IParsable<T>
+    public static PropertyParameter<T> ToPropertyParameter<T>(this object target, string propertyName, string label, string? name = null) where T : notnull, IParsable<T>
     {
         return new PropertyParameter<T>(label, target, propertyName, name);
+    }
+
+    private static bool IsSupportedParameterType(Type type)
+    {
+        return type.GetInterfaces().Any(i =>
+            i.IsGenericType
+            && i.GetGenericTypeDefinition() == typeof(IParsable<>)
+            && i.GenericTypeArguments[0] == type);
     }
 
     /// <summary>
@@ -205,6 +216,16 @@ public static class ParameterExtensions
             }
             else
             {
+                if (property.SetMethod is null || !property.SetMethod.IsPublic)
+                {
+                    throw new InvalidOperationException($"Property '{property.Name}' on target of type '{target.GetType().Name}' cannot be exposed as a parameter because it does not have a public setter.");
+                }
+
+                if (!IsSupportedParameterType(property.PropertyType))
+                {
+                    throw new InvalidOperationException($"Property '{property.Name}' on target of type '{target.GetType().Name}' cannot be exposed as a parameter because type '{property.PropertyType}' does not implement IParsable<{property.PropertyType.Name}>.");
+                }
+
                 var parameterType = typeof(PropertyParameter<>).MakeGenericType(property.PropertyType);
                 var args = new object?[] { attribute.Label, target, property.Name, attribute.Name };
                 var parameter = (IParameter)(Activator.CreateInstance(parameterType, args) ?? throw new InvalidOperationException($"Could not create parameter for property '{property.Name}' on target of type '{target.GetType().Name}'."));

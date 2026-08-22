@@ -1,0 +1,48 @@
+@using HomeCompanion.Values;
+
+@implements IDisposable
+
+@if (ParametersContainer is null)
+{
+    <span class="text-muted">No parameters</span>
+}
+else
+{
+    <div class="d-flex flex-column gap-2">
+        @foreach (var parameter in ParametersContainer.Parameters)
+        {
+            <Parameter Value="@parameter" />
+        }
+    </div>
+}
+
+@code
+{
+    [Microsoft.AspNetCore.Components.Parameter]
+    public IParametersContainer? ParametersContainer { get; set; }
+
+    List<IParameterCallbackRegistration> _changedSubscriptions = [];
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        foreach (var parameter in ParametersContainer?.Parameters ?? Enumerable.Empty<IParameter>())
+        {
+            var subscription = parameter.RegisterChangedCallback(OnParameterChanged);
+            _changedSubscriptions.Add(subscription);
+        }
+    }
+
+    private void OnParameterChanged(IParameter parameter)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        foreach (var subscription in _changedSubscriptions)
+        {
+            subscription.Dispose();
+        }
+    }
+}

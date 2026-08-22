@@ -1,0 +1,34 @@
+@page "/parameters"
+@rendermode InteractiveServer
+
+@using HomeCompanion.Values;
+@using HomeCompanion.Server.Components.Widgets;
+
+@inject IParametersProvider ParametersProvider
+
+<PageTitle>Parameters</PageTitle>
+
+<h1>Parameters</h1>
+
+<!-- provide a selector for the parameters container -->
+<select class="form-select mb-3" @bind="SelectedContainerId">
+    <option value="">Select a parameters container</option>
+    @foreach (var container in ParametersProvider.ParameterContainers)
+    {
+        <option value="@container.Name">@container.Name</option>
+    }
+</select>
+
+@if (SelectedContainer is null)
+{
+    <span class="text-muted">No parameters container selected</span>
+}
+else
+{
+    <ParametersContainerView ParametersContainer="@SelectedContainer" />
+}
+
+@code {
+    private string? SelectedContainerId { get; set; }
+    private IParametersContainer? SelectedContainer => ParametersProvider.ParameterContainers.FirstOrDefault(c => c.Name == SelectedContainerId);
+}

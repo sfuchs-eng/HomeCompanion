@@ -5,6 +5,8 @@ namespace HomeCompanion.Values;
 /// </summary>
 public interface IParametersContainer
 {
+    string Name { get; }
+    
     /// <summary>
     /// Gets the collection of parameters contained in this container.
     /// </summary>
