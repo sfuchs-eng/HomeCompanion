@@ -37,7 +37,7 @@ public static class KnxValueContainerHelpers
     /// Gets all public instance properties of the given type that implement IValue<T> for any T.
     /// </summary>
     /// <remarks>
-    /// Provided by <see cref="KnxValueContainerHelpers"/> but works for any Type with IValue properties.
+    /// TODO: move to proper place; Provided by <see cref="KnxValueContainerHelpers"/> but works for any Type with IValue properties.
     /// </remarks>
     /// <param name="type"></param>
     /// <returns>Properties implementing IValue</returns>
