@@ -30,7 +30,7 @@ namespace HomeCompanion.Values;
 /// <item><see cref="IConnectivityProvider"/> register themselves to the <see cref="IValue.BusMappings"/> via <see cref="IValue.AddBusEndpoint"/> with the bus entity identifier corresponding to the value. E.g. a KNX Group Address. This allows the provider to listen to value events and forward them to the bus with correct bus specific addressing.</item>
 /// </list>
 /// </remarks>
-public interface IValue
+public interface IValue : IFormattable
 {
     public Type ValueType { get; }
     public ValueStatus Status { get; }
@@ -58,6 +58,16 @@ public interface IValue
     /// <param name="culture">Culture to use for formatting. If null, current culture should be used.</param>
     /// <returns>Formatted value suitable for display.</returns>
     public string? Format(CultureInfo? culture = null);
+
+    /// <summary>
+    /// Attempts to parse the provided string value into the value's type and returns true if successful, false otherwise. If parsing fails, an error message is returned.
+    /// The internal value is not changed by this method. Use <see cref="IValue{T}.Write"/> or related methods to write a new value after parsing.
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="parsedValue"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    public bool TryParseValue(string value, out object? parsedValue, out string? errorMessage, IFormatProvider? formatProvider = null);
 
     /// <summary>
     /// The value as an object. The actual type of the value is given by <see cref="ValueType"/> and the strongly typed value can be accessed via <see cref="IValue{T}.Value"/>. This property is useful for generic handling of values without knowing their type at compile time, e.g. for event handlers that listen to multiple values of different types or for dynamic initialization of values based on configuration.

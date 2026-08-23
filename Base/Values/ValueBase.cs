@@ -2,6 +2,7 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace HomeCompanion.Values;
@@ -167,16 +168,25 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     /// <summary>Publishes an event to the event bus if <see cref="Initialize"/> has been called.</summary>
     protected virtual void Publish(IEvent @event) => _publisher?.PublishAsync(@event).GetAwaiter().GetResult();
 
-    protected virtual bool TryParse(string str, out object? value)
-    {
-        value = null;
-        return false;
-    }
-
     public abstract bool InitializeValue(object value, AppLifeCycleStage stage);
+
+    /// <summary>
+    /// Try to determine the value type from the provided string and parse it into the correct type. Returns true if successful, false otherwise. If parsing fails, an error message is returned.
+    /// The internal value is not changed by this method. Use <see cref="IValue{T}.Write"/> or related methods to write a new value after parsing.
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="parsedValue"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    public abstract bool TryParseValue(string value, out object? parsedValue, out string? errorMessage, IFormatProvider? formatProvider = null);
+
+    public virtual string ToString(string? format, IFormatProvider? formatProvider)
+    {
+        throw new NotImplementedException();
+    }
 }
 
-public class ValueBase<T> : ValueBase, IValue<T>
+public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
 {
     public T Value { get; protected set; } = default!;
     public override object? OValue { get => Value; }
@@ -361,9 +371,82 @@ public class ValueBase<T> : ValueBase, IValue<T>
             logger.LogDebug("Attempted to initialize {ValueName} with null, but {ExpectedType} is not nullable.", Name, typeof(T));
             return false;
         }
-        Value = value;
+        Value = value ?? default(T)!;
         Status = (Status & ~(ValueStatus.Error | ValueStatus.Live | ValueStatus.Used)) | ValueStatus.Initialized;
         InitializationStage = stage;
         return true;
+    }
+
+    /// <summary>
+    /// Attempts to parse the provided string value into the value's type and returns true if successful, false otherwise. If parsing fails, an error message is returned.
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="parsedValue"></param>
+    /// <param name="errorMessage"></param>
+    /// <param name="formatProvider"></param>
+    /// <returns></returns>
+    public override bool TryParseValue(string value, [MaybeNullWhen(false)] out object? parsedValue, [NotNullWhen(false)] out string? errorMessage, IFormatProvider? formatProvider = null)
+    {
+        parsedValue = null;
+        errorMessage = null;
+
+        // string? use straight.
+        if (typeof(T) == typeof(string))
+        {
+            parsedValue = value;
+            return true;
+        }
+        // check whether T implements IParsable<T> and use its TryParse method if available
+        else if (typeof(T).GetInterface("IParsable`1") is not null)
+        {
+            var method = typeof(T).GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), typeof(T).MakeByRefType(), typeof(string).MakeByRefType()]);
+            if (method != null)
+            {
+                var parameters = new object?[] { value, formatProvider, null, null };
+                bool success = (bool)method.Invoke(null, parameters)!;
+                parsedValue = parameters[2];
+                errorMessage = parameters[3] as string;
+                return success;
+            }
+            errorMessage = $"Type {typeof(T).Name} implements IParsable<T> but does not have a valid TryParse method.";
+            return false;
+        }
+        // enum
+        else if (typeof(T).IsEnum)
+        {
+            if (Enum.TryParse(typeof(T), value, true, out var enumValue))
+            {
+                parsedValue = enumValue;
+                errorMessage = null;
+                return true;
+            }
+            else
+            {
+                parsedValue = null;
+                errorMessage = $"Failed to parse value '{value}' as enum type {typeof(T).Name}.";
+                return false;
+            }
+        }
+        else if (typeof(IConvertible).IsAssignableFrom(typeof(T)))
+        {
+            try
+            {
+                parsedValue = Convert.ChangeType(value, typeof(T), formatProvider);
+                errorMessage = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                parsedValue = null;
+                errorMessage = $"Failed to convert value '{value}' to type {typeof(T).Name}: {ex.Message}";
+                return false;
+            }
+        }
+        else
+        {
+            parsedValue = null;
+            errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
+            return false;
+        }
     }
 }

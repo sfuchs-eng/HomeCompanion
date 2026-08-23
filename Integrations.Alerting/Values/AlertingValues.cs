@@ -109,7 +109,14 @@ public sealed class AlertingValues : ValueContainerBase
         return created;
     }
 
-    private ValueBase<T> CreateValue<T>(string name, string label)
+    /// <summary>
+    /// TODO: use a <see cref="IValueFactory"/> to create the values instead of creating them directly here, so that local applications can inject their own <see cref="IValueFactory"/> implementation to create custom <see cref="IValue"/> implementations, e.g. for bus specific value types.
+    /// </summary>
+    /// <param name="name"></param>
+    /// <param name="label"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    private ValueBase<T> CreateValue<T>(string name, string label) where T : notnull
     {
         var value = new ValueBase<T>(_loggerFactory.CreateLogger<ValueBase<T>>())
         {

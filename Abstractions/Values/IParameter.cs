@@ -45,7 +45,8 @@ public interface IParameter
 }
 
 /// <summary>
-/// Ensure that the callback is unregistered when the registration is disposed.
+/// A registration object returned by <see cref="IParameter.RegisterChangedCallback(Action{IParameter})"/> that allows unregistering the callback when it is no longer needed.
+/// Allows for proper cleanup and prevents memory leaks by ensuring that callbacks are not kept alive longer than necessary, unsubscribing from events when the callback is no longer needed.
 /// </summary>
 public interface IParameterCallbackRegistration : IDisposable
 {

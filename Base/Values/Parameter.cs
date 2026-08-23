@@ -38,14 +38,14 @@ public class Parameter<T> : IParameter where T : notnull, IParsable<T>
 
     public string? Description { get; init; }
 
-    public string FormatValue()
+    public virtual string FormatValue()
     {
         return Value is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture)
             : Value.ToString() ?? string.Empty;
     }
 
-    public bool SetValueFromString(string value, out string? errorMessage)
+    public virtual bool SetValueFromString(string value, out string? errorMessage)
     {
         try
         {
@@ -60,7 +60,7 @@ public class Parameter<T> : IParameter where T : notnull, IParsable<T>
         }
     }
 
-    private void OnChanged()
+    protected void OnChanged()
     {
         foreach (var callback in _changedCallbacks)
         {
@@ -68,15 +68,15 @@ public class Parameter<T> : IParameter where T : notnull, IParsable<T>
         }
     }
 
-    private List<Action<IParameter>> _changedCallbacks = new List<Action<IParameter>>();
+    protected List<Action<IParameter>> _changedCallbacks = new List<Action<IParameter>>();
 
-    public IParameterCallbackRegistration RegisterChangedCallback(Action<IParameter> callback)
+    public virtual IParameterCallbackRegistration RegisterChangedCallback(Action<IParameter> callback)
     {
         _changedCallbacks.Add(callback);
         return new ParameterCallbackRegistration(() => _changedCallbacks.Remove(callback));
     }
 
-    private sealed class ParameterCallbackRegistration : IParameterCallbackRegistration
+    protected sealed class ParameterCallbackRegistration : IParameterCallbackRegistration
     {
         private readonly Action _unregister;
 
@@ -95,6 +95,91 @@ public class Parameter<T> : IParameter where T : notnull, IParsable<T>
         {
             _unregister();
         }
+    }
+}
+
+/// <summary>
+/// IValue to IParameter adapter for IValues that are not IParameters. This allows exposing IValues as IParameters in the Web UI.
+/// </summary>
+public class ValueParameterAdapter<T> : Parameter<T> where T : notnull, IParsable<T>
+{
+    private readonly IValue<T> _value;
+
+    public ValueParameterAdapter(IValue<T> value)
+        : base(value.Label ?? value.Name ?? throw new ArgumentException("Value must have a label or a name."), value.Name)
+    {
+        _value = value;
+    }
+
+    private void OnValueChanged(object? sender, EventArgs e)
+    {
+        base.Value = _value.Value;
+    }
+
+    public override T Value
+    {
+        get => _value.Value;
+        set
+        {
+            // should launch a Changed event if the value is different, but the IValue<T> implementation should handle that.
+            _value.Write(value);
+        } 
+    }
+
+    override public string FormatValue()
+    {
+        // if T is string, just return the value, otherwise use the IValue<T> Format method to format the value for display.
+        if (typeof(T) == typeof(string))
+        {
+            return _value.Value?.ToString() ?? string.Empty;
+        }
+        return _value.Format(CultureInfo.InvariantCulture) ?? $"Failed to format value '{_value.Name}' of type {typeof(T).Name}";
+    }
+
+    /// <summary>
+    /// Uses the underlying IValue<T> to parse the string value and write it to the IValue<T>. Returns true if successful, false otherwise. If parsing fails, an error message is returned.
+    /// </summary>
+    /// <param name="value"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    public override bool SetValueFromString(string value, out string? errorMessage)
+    {
+        if (_value.TryParseValue(value, out var parsedValue, out errorMessage))
+        {
+            if (parsedValue is T typedValue)
+            {
+                _value.Write(typedValue);
+                return true;
+            }
+            else
+            {
+                errorMessage = $"Parsed value is not of type {typeof(T).Name}.";
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    public override IParameterCallbackRegistration RegisterChangedCallback(Action<IParameter> callback)
+    {
+        // we need to register the callback to the underlying IValue<T> Changed event, and also to our own Changed event so that we can notify the callback when the value changes.
+        // when the last callback is unregistered, we should unregister from the underlying IValue<T> Changed event to avoid memory leaks.
+        if (_changedCallbacks.Count == 0)
+        {
+            _value.Changed += OnValueChanged;
+        }
+        _changedCallbacks.Add(callback);
+        return new ParameterCallbackRegistration(() =>
+        {
+            _changedCallbacks.Remove(callback);
+            if (_changedCallbacks.Count == 0)
+            {
+                _value.Changed -= OnValueChanged;
+            }
+        });
     }
 }
 
@@ -169,6 +254,24 @@ public static class ParameterExtensions
         return parameter;
     }
 
+    /// <summary>
+    /// IValue to IParameter adapter. Converts an IValue&lt;T&gt; to a Parameter&lt;T&gt; instance, allowing the Web UI to read and write the value. The IValue&lt;T&gt; must be of a type that implements IParsable&lt;T&gt;.
+    /// </summary>
+    public static IParameter? ToParameter(this IValue value)
+    {
+        try
+        {
+            var valueType = value.ValueType;
+            var parameterType = typeof(ValueParameterAdapter<>).MakeGenericType(valueType);
+            var parameter = (IParameter?)Activator.CreateInstance(parameterType, value);
+            return parameter;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
     /// <summary>
     /// Converts a property of an object to a Parameter instance.
     /// </summary>
