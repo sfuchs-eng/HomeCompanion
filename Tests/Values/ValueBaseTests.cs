@@ -317,6 +317,64 @@ public class ValueBaseTests
         Assert.That(value.Status.HasFlag(ValueStatus.Error), Is.True);
     }
 
+    // ── Tests: Exceptions ────────────────────────────────────────────────────
+
+    [Test]
+    public void AddException_RaisesExceptionOccurredEvent()
+    {
+        var value = CreateValue<bool>();
+        value.Initialize(new NullEventPublisher(), new StubValuesManager());
+
+        ValueExceptionEventArgs? received = null;
+        value.ExceptionOccurred += (_, args) => received = args;
+
+        var exception = new ValueException("boom");
+        value.AddException(exception);
+
+        Assert.That(received, Is.Not.Null);
+        Assert.That(received!.Exception, Is.SameAs(exception));
+    }
+
+    [Test]
+    public void AddException_RetainsUpToRetentionCount()
+    {
+        var value = CreateValue<bool>();
+        value.Initialize(new NullEventPublisher(), new StubValuesManager());
+        value.ExceptionsRetentionCount = 2;
+
+        value.AddException(new ValueException("ex-1"));
+        value.AddException(new ValueException("ex-2"));
+        value.AddException(new ValueException("ex-3"));
+
+        Assert.That(value.Exceptions.Count, Is.EqualTo(2));
+        Assert.That(value.Exceptions.Select(ex => ex.Message), Is.EquivalentTo(new[] { "ex-2", "ex-3" }));
+    }
+
+    [Test]
+    public void ClearExceptions_RemovesRetainedExceptions()
+    {
+        var value = CreateValue<bool>();
+        value.Initialize(new NullEventPublisher(), new StubValuesManager());
+
+        value.AddException(new ValueException("ex-1"));
+        value.AddException(new ValueException("ex-2"));
+
+        value.ClearExceptions();
+
+        Assert.That(value.Exceptions, Is.Empty);
+    }
+
+    [Test]
+    public void ExceptionsRetentionCount_WhenNegative_ClampsToZero()
+    {
+        var value = CreateValue<bool>();
+        value.Initialize(new NullEventPublisher(), new StubValuesManager());
+
+        value.ExceptionsRetentionCount = -10;
+
+        Assert.That(value.ExceptionsRetentionCount, Is.EqualTo(0));
+    }
+
     // ── Tests: InitializeValue ───────────────────────────────────────────────
 
     [Test]

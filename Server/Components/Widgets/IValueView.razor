@@ -1,0 +1,384 @@
+@using System.Globalization
+@using HomeCompanion.Values
+@implements IDisposable
+
+@if (Value is not null)
+{
+	<div class="modal-backdrop fade show" @onclick="Close"></div>
+	<div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ivalue-view-modal-title">
+		<div class="modal-dialog modal-lg modal-dialog-scrollable">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 id="ivalue-view-modal-title" class="modal-title">Value Details: @DisplayText(Value.Label)</h5>
+					<button type="button" class="btn-close" aria-label="Close" @onclick="Close"></button>
+				</div>
+
+				<div class="modal-body">
+					<section class="mb-4">
+						<h6 class="text-uppercase text-muted small mb-2">Core Metadata</h6>
+						<dl class="row mb-0">
+							<dt class="col-sm-3">Name</dt>
+							<dd class="col-sm-9"><code>@DisplayText(Value.Name)</code></dd>
+
+							<dt class="col-sm-3">Label</dt>
+							<dd class="col-sm-9">@DisplayText(Value.Label)</dd>
+
+							<dt class="col-sm-3">Type</dt>
+							<dd class="col-sm-9"><code>@DisplayText(Value.ValueType.FullName)</code></dd>
+
+							<dt class="col-sm-3">Formatted Value</dt>
+							<dd class="col-sm-9 fw-semibold">@DisplayText(Value.Format(CultureInfo.CurrentCulture))</dd>
+
+							<dt class="col-sm-3">Raw OValue</dt>
+							<dd class="col-sm-9"><code>@DisplayRawValue(Value.OValue)</code></dd>
+						</dl>
+					</section>
+
+					<section class="mb-4">
+						<h6 class="text-uppercase text-muted small mb-2">Status</h6>
+						<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+							@RenderValueStatus(Value.Status)
+						</div>
+						<div class="d-flex flex-wrap gap-2">
+							<span class="badge @(Value.IsActive ? "text-bg-success" : "text-bg-secondary")">IsActive: @Value.IsActive</span>
+							<span class="badge @(Value.IsValid ? "text-bg-success" : "text-bg-danger")">IsValid: @Value.IsValid</span>
+						</div>
+					</section>
+
+					<section class="mb-4">
+						<h6 class="text-uppercase text-muted small mb-2">Bus Mappings (@Value.BusMappings.Count)</h6>
+
+						@if (Value.BusMappings.Count == 0)
+						{
+							<div class="text-muted">No bus mappings.</div>
+						}
+						else
+						{
+							<div style="overflow-x:auto;">
+								<table class="table table-sm table-bordered align-middle mb-0">
+									<thead class="table-light">
+										<tr>
+											<th>Bus ID</th>
+											<th>Address</th>
+											<th>Communication</th>
+											<th>Config</th>
+										</tr>
+									</thead>
+									<tbody>
+										@foreach (var mapping in Value.BusMappings.Values)
+										{
+											<tr>
+												<td>@DisplayText(mapping.BusId)</td>
+												<td>@DisplayText(mapping.Address)</td>
+												<td>@mapping.Communication</td>
+												<td><code>@DisplayText(mapping.Config?.FormatConfiguration())</code></td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+					</section>
+
+					<section>
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<h6 class="text-uppercase text-muted small mb-0">Live Change Feed</h6>
+							<span class="badge text-bg-secondary">@_events.Count / @_maxEvents</span>
+						</div>
+
+						@if (_events.Count == 0)
+						{
+							<div class="text-muted">No updates yet. Keep this dialog open to watch realtime changes.</div>
+						}
+						else
+						{
+							<div style="max-height: 16rem; overflow-y: auto;">
+								<table class="table table-sm table-striped align-middle mb-0">
+									<thead class="table-light sticky-top">
+										<tr>
+											<th style="width: 8rem;">Time</th>
+											<th style="width: 7rem;">Event</th>
+											<th>Change</th>
+											<th style="width: 12rem;">Initiator</th>
+										</tr>
+									</thead>
+									<tbody>
+										@foreach (var evt in _events)
+										{
+											<tr>
+												<td class="text-nowrap">@evt.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.CurrentCulture)</td>
+												<td><span class="badge @(evt.EventType == "Changed" ? "text-bg-primary" : "text-bg-info text-dark")">@evt.EventType</span></td>
+												<td>
+													<div><code>@evt.PreviousValue</code> -> <code>@evt.NewValue</code></div>
+												</td>
+												<td><code>@evt.Initiator</code></td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+					</section>
+
+					<section class="mt-4">
+						<div class="d-flex align-items-center justify-content-between mb-2">
+							<h6 class="text-uppercase text-muted small mb-0">Exceptions</h6>
+							<div class="d-flex align-items-center gap-2">
+								<span class="badge text-bg-secondary">Retain: @Value.ExceptionsRetentionCount</span>
+								<span class="badge text-bg-secondary">@_exceptionEvents.Count</span>
+								<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @onclick="ClearExceptions">Clear</button>
+							</div>
+						</div>
+
+						@if (!string.IsNullOrWhiteSpace(_exceptionActionError))
+						{
+							<div class="alert alert-warning py-2 px-3" role="alert">@_exceptionActionError</div>
+						}
+
+						@if (_exceptionEvents.Count == 0)
+						{
+							<div class="text-muted">No retained exceptions.</div>
+						}
+						else
+						{
+							<div style="max-height: 16rem; overflow-y: auto;">
+								<table class="table table-sm table-striped align-middle mb-0">
+									<thead class="table-light sticky-top">
+										<tr>
+											<th style="width: 10rem;">Time</th>
+											<th style="width: 14rem;">Type</th>
+											<th>Message</th>
+										</tr>
+									</thead>
+									<tbody>
+										@foreach (var ex in _exceptionEvents)
+										{
+											<tr>
+												<td class="text-nowrap">@ex.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.CurrentCulture)</td>
+												<td><code>@ex.ExceptionType</code></td>
+												<td>@ex.Message</td>
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+					</section>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" @onclick="Close">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+@code {
+	[Microsoft.AspNetCore.Components.Parameter]
+	[EditorRequired]
+	public IValue? Value { get; set; }
+
+	[Microsoft.AspNetCore.Components.Parameter]
+	public EventCallback OnClose { get; set; }
+
+	private readonly int _maxEvents = 30;
+	private readonly List<ValueEventEntry> _events = [];
+	private readonly List<ValueExceptionEntry> _exceptionEvents = [];
+	private IValue? _subscribedValue;
+	private EventHandler<ValueWrittenEventArgs>? _writtenHandler;
+	private EventHandler<ValueChangedEventArgs>? _changedHandler;
+	private EventHandler<ValueExceptionEventArgs>? _exceptionHandler;
+	private string? _exceptionActionError;
+
+	protected override void OnParametersSet()
+	{
+		if (ReferenceEquals(_subscribedValue, Value))
+			return;
+
+		Unsubscribe();
+		_events.Clear();
+		_exceptionEvents.Clear();
+		_exceptionActionError = null;
+
+		if (Value is not null)
+		{
+			Subscribe(Value);
+			InitializeExceptionEvents(Value);
+		}
+	}
+
+	private void Subscribe(IValue value)
+	{
+		_subscribedValue = value;
+
+		_writtenHandler = (_, args) => OnValueEvent(
+			eventType: "Written",
+			timestamp: args.Timestamp,
+			previousValue: args.PreviousValue.Format(CultureInfo.CurrentCulture),
+			newValue: args.NewValue.Format(CultureInfo.CurrentCulture),
+			initiator: args.Initiator);
+
+		_changedHandler = (_, args) => OnValueEvent(
+			eventType: "Changed",
+			timestamp: args.Timestamp,
+			previousValue: args.PreviousValue.Format(CultureInfo.CurrentCulture),
+			newValue: args.NewValue.Format(CultureInfo.CurrentCulture),
+			initiator: args.Initiator);
+
+		_exceptionHandler = (_, args) => OnExceptionEvent(args.Exception);
+
+		value.Written += _writtenHandler;
+		value.Changed += _changedHandler;
+		value.ExceptionOccurred += _exceptionHandler;
+	}
+
+	private void InitializeExceptionEvents(IValue value)
+	{
+		var retained = value.Exceptions
+			.OrderByDescending(ex => ex.TimeStamp)
+			.Select(MapException)
+			.Take(_maxEvents)
+			.ToList();
+
+		_exceptionEvents.Clear();
+		_exceptionEvents.AddRange(retained);
+	}
+
+	private void OnValueEvent(string eventType, DateTimeOffset timestamp, string? previousValue, string? newValue, object? initiator)
+	{
+		_ = InvokeAsync(() =>
+		{
+			var entry = new ValueEventEntry(
+				Timestamp: timestamp,
+				EventType: eventType,
+				PreviousValue: DisplayText(previousValue),
+				NewValue: DisplayText(newValue),
+				Initiator: DisplayText(initiator?.ToString()));
+
+			_events.Insert(0, entry);
+			if (_events.Count > _maxEvents)
+				_events.RemoveRange(_maxEvents, _events.Count - _maxEvents);
+
+			StateHasChanged();
+		});
+	}
+
+	private async Task Close()
+	{
+		if (OnClose.HasDelegate)
+			await OnClose.InvokeAsync();
+	}
+
+	private void OnExceptionEvent(ValueException exception)
+	{
+		_ = InvokeAsync(() =>
+		{
+			_exceptionEvents.Insert(0, MapException(exception));
+			if (_exceptionEvents.Count > _maxEvents)
+				_exceptionEvents.RemoveRange(_maxEvents, _exceptionEvents.Count - _maxEvents);
+
+			StateHasChanged();
+		});
+	}
+
+	private void ClearExceptions()
+	{
+		if (Value is null)
+			return;
+
+		try
+		{
+			Value.ClearExceptions();
+			InitializeExceptionEvents(Value);
+			_exceptionActionError = null;
+			StateHasChanged();
+		}
+		catch (Exception ex)
+		{
+			_exceptionActionError = ex.Message;
+		}
+	}
+
+	private void Unsubscribe()
+	{
+		if (_subscribedValue is null)
+			return;
+
+		if (_writtenHandler is not null)
+			_subscribedValue.Written -= _writtenHandler;
+
+		if (_changedHandler is not null)
+			_subscribedValue.Changed -= _changedHandler;
+
+		if (_exceptionHandler is not null)
+			_subscribedValue.ExceptionOccurred -= _exceptionHandler;
+
+		_subscribedValue = null;
+		_writtenHandler = null;
+		_changedHandler = null;
+		_exceptionHandler = null;
+	}
+
+	private static ValueExceptionEntry MapException(ValueException exception)
+	{
+		return new ValueExceptionEntry(
+			Timestamp: exception.TimeStamp,
+			ExceptionType: exception.GetType().Name,
+			Message: DisplayText(exception.Message));
+	}
+
+	private static string DisplayText(string? value)
+	{
+		return string.IsNullOrWhiteSpace(value) ? "-" : value;
+	}
+
+	private static string DisplayRawValue(object? value)
+	{
+		return value switch
+		{
+			null => "-",
+			IFormattable formattable => formattable.ToString(null, CultureInfo.CurrentCulture) ?? "-",
+			_ => value.ToString() ?? "-",
+		};
+	}
+
+	private static MarkupString RenderValueStatus(ValueStatus status)
+	{
+		if (status == ValueStatus.Default)
+			return new MarkupString("<span class=\"badge text-bg-secondary\">Default</span>");
+
+		var badges = new System.Text.StringBuilder();
+		if (status.HasFlag(ValueStatus.Loaded) && !(status.HasFlag(ValueStatus.Initialized) || status.HasFlag(ValueStatus.Live)))
+			badges.Append("<span class=\"badge text-bg-light text-dark me-1\">Loaded</span>");
+		if (status.HasFlag(ValueStatus.Initialized) && !status.HasFlag(ValueStatus.Live))
+			badges.Append("<span class=\"badge text-bg-primary me-1\">Initialized</span>");
+		if (status.HasFlag(ValueStatus.Live))
+			badges.Append("<span class=\"badge text-bg-success text-light me-1\">Live</span>");
+		if (status.HasFlag(ValueStatus.Used))
+			badges.Append("<span class=\"badge text-bg-light text-dark border me-1\">Used</span>");
+		if (status.HasFlag(ValueStatus.OutOfRange))
+			badges.Append("<span class=\"badge text-bg-warning text-dark me-1\">OutOfRange</span>");
+		if (status.HasFlag(ValueStatus.Error))
+			badges.Append("<span class=\"badge text-bg-danger me-1\">Error</span>");
+
+		return new MarkupString(badges.ToString());
+	}
+
+	public void Dispose()
+	{
+		Unsubscribe();
+	}
+
+	private sealed record ValueEventEntry(
+		DateTimeOffset Timestamp,
+		string EventType,
+		string PreviousValue,
+		string NewValue,
+		string Initiator);
+
+	private sealed record ValueExceptionEntry(
+		DateTimeOffset Timestamp,
+		string ExceptionType,
+		string Message);
+}

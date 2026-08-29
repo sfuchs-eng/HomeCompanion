@@ -26,6 +26,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
+    public event EventHandler<ValueExceptionEventArgs>? ExceptionOccurred;
 
     protected virtual void RaiseWritten(ValueWrittenEventArgs args)
     {
@@ -62,6 +63,23 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
+    protected virtual void RaiseExceptionOccurred(ValueException exception)
+    {
+        var handlers = ExceptionOccurred?.GetInvocationList().Cast<EventHandler<ValueExceptionEventArgs>>().ToArray() ?? [];
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                handler(this, new ValueExceptionEventArgs(exception));
+            }
+            catch (Exception ex)
+            {
+                // log the exception and continue with the next handler
+                logger.LogWarning(ex, "Exception in ValueExceptionOccurred event handler {HandlerType}", handler.GetType().FullName);
+            }
+        }
+    }
+
     /// <summary>
     /// See <see cref="IValueBusEndpointMapping"/> for details on the purpose of this property.
     /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusEndpointMapping"/> for a specific bus type (e.g. KNX).
@@ -82,6 +100,67 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     public bool IsValid => Status.IsValidAndInitialized();
 
     public bool IsActive => (Status & (ValueStatus.Live | ValueStatus.Used)) != 0;
+
+    protected int _exceptionsRetentionCount = 1;
+    
+    public int ExceptionsRetentionCount
+    {
+        get => _exceptionsRetentionCount;
+        set
+        {
+            _exceptionsRetentionCount = Math.Max(0, value);
+            lock (_exceptionsQueue)
+            {
+                foreach (var queue in _exceptionsQueue.Values)
+                {
+                    while (queue.Count > _exceptionsRetentionCount)
+                    {
+                        queue.Dequeue();
+                    }
+                }
+            }
+        }
+    }
+
+    // use a FIFO queue to store the most recent exceptions, up to the retention count
+    // but: we keep a queue per busmapping and retain per busmapping, so that we can keep track of the most recent exceptions for each busmapping separately
+    private readonly IDictionary<object, Queue<ValueException>> _exceptionsQueue = new Dictionary<object, Queue<ValueException>>();
+
+    public void AddException(ValueException exception)
+    {
+        if (ExceptionsRetentionCount <= 0)
+        {
+            RaiseExceptionOccurred(exception);
+            return;
+        }
+        
+        lock (_exceptionsQueue)
+        {
+            object queueKey = exception is ValueReceptionException vre ? vre.EndpointMapping : this;
+            if (!_exceptionsQueue.TryGetValue(queueKey, out var queue))
+            {
+                queue = new Queue<ValueException>();
+                _exceptionsQueue[queueKey] = queue;
+            }
+            queue.Enqueue(exception);
+            while (queue.Count > _exceptionsRetentionCount)
+            {
+                queue.Dequeue();
+            }
+        }
+        RaiseExceptionOccurred(exception);
+    }
+
+    public IReadOnlyList<ValueException> Exceptions
+    {
+        get
+        {
+            lock (_exceptionsQueue)
+            {
+                return _exceptionsQueue.Values.SelectMany(q => q).ToList();
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public virtual string? Format(CultureInfo? culture = null)
@@ -183,6 +262,14 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     public virtual string ToString(string? format, IFormatProvider? formatProvider)
     {
         throw new NotImplementedException();
+    }
+
+    public virtual void ClearExceptions()
+    {
+        lock (_exceptionsQueue)
+        {
+            _exceptionsQueue.Clear();
+        }
     }
 }
 

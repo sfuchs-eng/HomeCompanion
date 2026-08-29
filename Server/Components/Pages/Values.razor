@@ -4,7 +4,9 @@
 @using System.Text
 @using System.Text.RegularExpressions
 @using System.Globalization
+@using System.Runtime.CompilerServices
 @using HomeCompanion.Extensions
+@using HomeCompanion.Server.Components.Widgets
 @using HomeCompanion.Values
 
 @inject IEnumerable<IValuesContainer> ValuesContainers
@@ -97,13 +99,14 @@
                         </div>
                     </th>
                 }
+                <th class="text-nowrap">Actions</th>
             </tr>
         </thead>
         <tbody>
             @if (visibleRows.Count == 0)
             {
                 <tr>
-                    <td colspan="@_columns.Length" class="text-muted text-center py-4">No values match the current filters.</td>
+                    <td colspan="@(_columns.Length + 1)" class="text-muted text-center py-4">No values match the current filters.</td>
                 </tr>
             }
             else
@@ -117,15 +120,20 @@
                         <td><code>@row.TypeName</code></td>
                         <td>@row.ValueDisplay</td>
                         <td>@RenderValueStatus(row.Status)</td>
-                        <td>@row.BusId</td>
-                        <td>@row.Address</td>
-                        <td>@row.Config</td>
+                        <td class="text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" @onclick="() => OpenValueDialog(row.SourceValue)">View</button>
+                        </td>
                     </tr>
                 }
             }
         </tbody>
     </table>
 </div>
+
+@if (_isValueDialogOpen && _selectedValue is not null)
+{
+    <IValueView Value="@_selectedValue" OnClose="CloseValueDialog" />
+}
 
 <style>
     .values-grid th {
@@ -165,9 +173,6 @@
         ColumnId.Type,
         ColumnId.Value,
         ColumnId.Status,
-        ColumnId.BusId,
-        ColumnId.Address,
-        ColumnId.Config,
     ];
 
     private readonly List<ValueGridRow> _rows = [];
@@ -181,6 +186,8 @@
     private ColumnId _sortColumn = ColumnId.ContainerType;
     private bool _sortAscending = true;
     private Task? _refreshLoopTask;
+    private bool _isValueDialogOpen;
+    private IValue? _selectedValue;
 
     protected override void OnInitialized()
     {
@@ -248,17 +255,7 @@
         {
             var containerType = container.GetType().Name;
             foreach (var value in container.GetValues())
-            {
-                var mappings = value.BusMappings.Values.ToList();
-                if (mappings.Count == 0)
-                {
-                    rows.Add(CreateRow(containerType, value, null, 0));
-                    continue;
-                }
-
-                for (var mappingIndex = 0; mappingIndex < mappings.Count; mappingIndex++)
-                    rows.Add(CreateRow(containerType, value, mappings[mappingIndex], mappingIndex));
-            }
+                rows.Add(CreateRow(containerType, value));
         }
 
         return rows;
@@ -284,11 +281,10 @@
         }
     }
 
-    private static ValueGridRow CreateRow(string containerType, IValue value, IValueBusEndpointMapping? mapping, int mappingIndex)
+    private static ValueGridRow CreateRow(string containerType, IValue value)
     {
-        var config = NormalizeDisplay(mapping?.Config?.FormatConfiguration());
         return new ValueGridRow(
-            Key: $"{containerType}|{value.GetHashCode()}|{mappingIndex}|{NormalizeDisplay(mapping?.BusId)}|{NormalizeDisplay(mapping?.Address)}|{config}",
+            Key: $"{containerType}|{RuntimeHelpers.GetHashCode(value)}",
             ContainerType: NormalizeDisplay(containerType),
             Name: NormalizeDisplay(value.Name),
             Label: NormalizeDisplay(value.Label),
@@ -296,9 +292,7 @@
             ValueDisplay: NormalizeDisplay(value.Format(CultureInfo.CurrentCulture)),
             Status: value.Status,
             StatusText: FormatValueStatusText(value.Status),
-            BusId: NormalizeDisplay(mapping?.BusId),
-            Address: NormalizeDisplay(mapping?.Address),
-            Config: config);
+            SourceValue: value);
     }
 
     private List<ValueGridRow> GetVisibleRows()
@@ -447,10 +441,7 @@
             .Append(row.Label).Append(' ')
             .Append(row.TypeName).Append(' ')
             .Append(row.ValueDisplay).Append(' ')
-            .Append(row.StatusText).Append(' ')
-            .Append(row.BusId).Append(' ')
-            .Append(row.Address).Append(' ')
-            .Append(row.Config);
+            .Append(row.StatusText);
         return builder.ToString();
     }
 
@@ -462,9 +453,6 @@
         ColumnId.Type => "Type",
         ColumnId.Value => "Value",
         ColumnId.Status => "Status",
-        ColumnId.BusId => "Bus ID",
-        ColumnId.Address => "Address",
-        ColumnId.Config => "Config",
         _ => column.ToString(),
     };
 
@@ -484,11 +472,20 @@
         ColumnId.Type => row.TypeName,
         ColumnId.Value => row.ValueDisplay,
         ColumnId.Status => row.StatusText,
-        ColumnId.BusId => row.BusId,
-        ColumnId.Address => row.Address,
-        ColumnId.Config => row.Config,
         _ => string.Empty,
     };
+
+    private void OpenValueDialog(IValue value)
+    {
+        _selectedValue = value;
+        _isValueDialogOpen = true;
+    }
+
+    private void CloseValueDialog()
+    {
+        _isValueDialogOpen = false;
+        _selectedValue = null;
+    }
 
     private static string NormalizeDisplay(object? value)
     {
@@ -548,9 +545,6 @@
         Type,
         Value,
         Status,
-        BusId,
-        Address,
-        Config,
     }
 
     private sealed record ValueGridRow(
@@ -562,9 +556,7 @@
         string ValueDisplay,
         ValueStatus Status,
         string StatusText,
-        string BusId,
-        string Address,
-        string Config);
+        IValue SourceValue);
 
     private sealed class ValueSubscription(
         IValue value,

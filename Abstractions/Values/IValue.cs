@@ -90,6 +90,22 @@ public interface IValue : IFormattable
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping;
 
     /// <summary>
+    /// How many exceptions to retain in the <see cref="Exceptions"/> list. Older exceptions will be discarded when the limit is reached. Set to 0 to disable retention.
+    /// Implementations may override the setting or enforce min/max limits, but should respect the configured value where possible.
+    /// Implementations may also choose to reset the count after a certain time period or after a certain number of exceptions, but should respect the configured value where possible.
+    /// </summary>
+    public int ExceptionsRetentionCount { get; set; }
+
+    /// <summary>
+    /// The list of retained exceptions, up to the limit specified by <see cref="ExceptionsRetentionCount"/>.
+    /// </summary>
+    public IReadOnlyList<ValueException> Exceptions { get; }
+
+    public void ClearExceptions();
+
+    public event EventHandler<ValueExceptionEventArgs>? ExceptionOccurred;
+
+    /// <summary>
     /// Allows for direct initialization via code and for reading the configured bus endpoint mappings.
     /// E.g. a KNX value can be initialized with its group address mapping via this property, eliminating the need for dynamic initialization of mappings.
     /// </summary>
@@ -112,6 +128,16 @@ public interface IValue : IFormattable
     /// <param name="stage">The initialization stage.</param>
     /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
     bool InitializeValue(object value, AppLifeCycleStage stage);
+}
+
+public class ValueExceptionEventArgs
+{
+    public ValueException Exception { get; }
+
+    public ValueExceptionEventArgs(ValueException exception)
+    {
+        Exception = exception;
+    }
 }
 
 /// <inheritdoc cref="IValue"/>
