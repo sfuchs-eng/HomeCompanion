@@ -284,6 +284,12 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
     {
     }
 
+    public ValueBase(string? name, string? label, ILogger<ValueBase<T>> logger, TimeProvider? timeProvider = null) : base(logger, timeProvider)
+    {
+        Name = name;
+        Label = label;
+    }
+
     /// <inheritdoc/>
     public virtual void Write(T value, object? initiator = null)
     {
@@ -438,11 +444,23 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         return false;
     }
 
+    /// <summary>
+    /// Initializes the value with the specified value and application life cycle stage.
+    /// App life-cycle stage is used to track the initialization progress of the value and to prevent downgrading the initialization stage.
+    /// If the value is already initialized for a later stage, the method will return false and the value will not be updated. If the value is initialized for an earlier stage, it will be updated and the initialization stage will be set to the new stage.
+    /// If the value is not initialized yet, it will be initialized with the specified value and stage.
+    /// If the value is null and the type T is not nullable, the method will return false and the value will not be updated. If the value is null and the type T is nullable, the value will be set to null and the initialization stage will be set to the specified stage.
+    /// If the value is of an incorrect type, the method will return false and the value will not be updated.
+    /// If the value is successfully initialized, the method will return true and the value will be updated.
+    /// </summary>
+    /// <param name="value">The value to initialize.</param>
+    /// <param name="stage">The application life cycle stage at which the value is being initialized.</param>
+    /// <returns>True if the value was successfully initialized; otherwise, false.</returns>
     public virtual bool InitializeValue(T value, AppLifeCycleStage stage)
     {
         if (Status.HasFlag(ValueStatus.Initialized))
         {
-            if ( InitializationStage >= stage )
+            if (InitializationStage >= stage)
             {
                 logger.LogTrace("Attempted to initialize {ValueName} at stage {Stage}, but it is already initialized for stage {InitializationStage}. Skipping downgrade.", Name, stage, InitializationStage);
                 return false;
@@ -465,7 +483,25 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
     }
 
     /// <summary>
+    /// Sets the value and the initialization stage.
+    /// Use it only when the IValue object is created and initialized for the first time.
+    /// For regular initialization, use <see cref="InitializeValue(T, AppLifeCycleStage)"/> instead.
+    /// </summary>
+    /// <param name="value">The value to set.</param>
+    /// <param name="stage">The application life cycle stage at which the value is being set.</param>
+    /// <returns>The current instance with the updated value and stage.</returns>
+    public virtual ValueBase<T> WithValue(T value, AppLifeCycleStage stage = AppLifeCycleStage.Default)
+    {
+        Value = value;
+        Status = (Status & ~(ValueStatus.Error | ValueStatus.Live | ValueStatus.Used)) | ValueStatus.Initialized;
+        InitializationStage = stage;
+        return this;
+    }
+
+    /// <summary>
     /// Attempts to parse the provided string value into the value's type and returns true if successful, false otherwise. If parsing fails, an error message is returned.
+    /// The internal value is not changed by this method. Use <see cref="IValue{T}.Write"/> or related methods to write a new value after parsing
+    /// or use <see cref="InitializeValue(T, AppLifeCycleStage)"/> or <see cref="WithValue(T, AppLifeCycleStage)"/> to initialize the value with the parsed value.
     /// </summary>
     /// <param name="value"></param>
     /// <param name="parsedValue"></param>

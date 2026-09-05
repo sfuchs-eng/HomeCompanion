@@ -33,24 +33,6 @@ public abstract class KnxValueContainerBase : ValueContainerBase
 /// </summary>
 public static class KnxValueContainerHelpers
 {
-    /// <summary>
-    /// Gets all public instance properties of the given type that implement IValue<T> for any T.
-    /// </summary>
-    /// <remarks>
-    /// TODO: move to proper place; Provided by <see cref="KnxValueContainerHelpers"/> but works for any Type with IValue properties.
-    /// </remarks>
-    /// <param name="type"></param>
-    /// <returns>Properties implementing IValue</returns>
-    public static PropertyInfo[] GetIValueProperties(this Type type)
-    {
-        return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => typeof(IValue).IsAssignableFrom(p.PropertyType))];
-    }
-
-    public static PropertyInfo[] GetIValueProperties<T>(this Type type)
-    {
-        return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => typeof(IValue<T>).IsAssignableFrom(p.PropertyType))];
-    }
-
     public static bool IsIValuePropertiesWithCorrectValueType(this Type type, IKnxSystemConfiguration knxConfig, ILogger logger)
     {
         logger.LogTrace("Checking IValue properties of type {TypeName} for correct value types based on KNX configuration.", type.Name);

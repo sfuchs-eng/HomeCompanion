@@ -1,6 +1,5 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Events;
-using HomeCompanion.Persistence;
 using System.Globalization;
 
 namespace HomeCompanion.Values;
@@ -32,22 +31,39 @@ namespace HomeCompanion.Values;
 /// </remarks>
 public interface IValue : IFormattable
 {
+    /// <summary>
+    /// The type of the value.
+    /// </summary>
+    /// <value>The <see cref="Type"/> of the value.</value>
     public Type ValueType { get; }
+
+    /// <summary>
+    /// The status of the value represents initilization and validity state of the value, e.g. whether it has been initialized from a bus or API call, whether it is in an error state, etc.
+    /// </summary>
+    /// <value>The <see cref="ValueStatus"/> of the value.</value>
     public ValueStatus Status { get; }
 
     /// <summary>
     /// Written to by internal logics or HomeCompanion API calls.
     /// </summary>
-    /// <returns></returns>
+    /// <value>True if the value was written to by HomeCompanion internal logic, false otherwise.</value>
     public bool IsActive { get; }
 
     /// <summary>
     /// Initialized or written to by bus or API calls, and not in an error state.
+    /// For Logics to determine whether the value is valid and can be used for logic processing.
     /// </summary>
-    /// <returns></returns>
+    /// <value>True if the value is initialized or written to by bus or API calls, and not in an error state, false otherwise.</value>
     public bool IsValid { get; }
 
+    /// <summary>
+    /// The name of the value, machine readable identifier
+    /// </summary>
     public string? Name { get; }
+
+    /// <summary>
+    /// The label of the value, human readable identifier
+    /// </summary>
     public string? Label { get; }
 
     /// <summary>

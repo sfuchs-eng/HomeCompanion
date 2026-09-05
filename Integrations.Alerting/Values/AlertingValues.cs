@@ -15,6 +15,7 @@ public sealed class AlertingValues : ValueContainerBase
     private readonly ILoggerFactory _loggerFactory;
     private readonly NamedAlertStateMachine _stateMachine;
     private readonly TimeProvider _timeProvider;
+    private readonly IValueFactory _valueFactory;
     private readonly ILogger<AlertingValues> _logger;
 
     private readonly object _sync = new();
@@ -27,6 +28,7 @@ public sealed class AlertingValues : ValueContainerBase
         ILogger<ValueContainerBase> baseLogger,
         ILoggerFactory loggerFactory,
         NamedAlertStateMachine stateMachine,
+        IValueFactory valueFactory,
         TimeProvider timeProvider,
         ILogger<AlertingValues> logger)
         : base(baseLogger)
@@ -34,6 +36,7 @@ public sealed class AlertingValues : ValueContainerBase
         _loggerFactory = loggerFactory;
         _stateMachine = stateMachine;
         _timeProvider = timeProvider;
+        _valueFactory = valueFactory;
         _logger = logger;
 
         _stateMachine.StateChanged += OnStateChanged;
@@ -109,22 +112,9 @@ public sealed class AlertingValues : ValueContainerBase
         return created;
     }
 
-    /// <summary>
-    /// TODO: use a <see cref="IValueFactory"/> to create the values instead of creating them directly here, so that local applications can inject their own <see cref="IValueFactory"/> implementation to create custom <see cref="IValue"/> implementations, e.g. for bus specific value types.
-    /// </summary>
-    /// <param name="name"></param>
-    /// <param name="label"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
     private ValueBase<T> CreateValue<T>(string name, string label) where T : notnull
-    {
-        var value = new ValueBase<T>(_loggerFactory.CreateLogger<ValueBase<T>>())
-        {
-            Name = name,
-            Label = label,
-        };
-        return value;
-    }
+        => _valueFactory.CreateValue<T>(name, label) as ValueBase<T>
+        ?? throw new InvalidOperationException($"The value factory did not create a {nameof(ValueBase<T>)} instance.");
 
     private void OnAcknowledgeWritten(string alertKey, ValueBase<bool> acknowledge)
     {

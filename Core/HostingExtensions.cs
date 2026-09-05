@@ -103,6 +103,9 @@ public static class HostingExtensions
         // Transient services
         builder.Services.TryAddTransient<IParametersProvider, ParametersProvider>();
 
+        // Services which could be overriden by extensions
+        builder.Services.TryAddSingleton<IValueFactory, ValueFactory>();
+
         return builder;
     }
 
