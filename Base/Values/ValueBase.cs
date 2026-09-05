@@ -80,6 +80,13 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
+    protected bool FailInitialization(string message, Exception? innerException = null)
+    {
+        Status |= ValueStatus.Error;
+        AddException(innerException is null ? new ValueException(message) : new ValueException(message, innerException));
+        return false;
+    }
+
     /// <summary>
     /// See <see cref="IValueBusEndpointMapping"/> for details on the purpose of this property.
     /// Use <see cref="ValueBusMapping{TBus, TAddress}"/> for a concrete implementation of <see cref="IValueBusEndpointMapping"/> for a specific bus type (e.g. KNX).
@@ -395,9 +402,9 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             if (default(T) is null)
                 return InitializeValue(default!, stage);
 
-            Status |= ValueStatus.Error;
-            logger.LogDebug("Received null value for {ValueName} during initialization, but {ExpectedType} is not nullable.", Name, typeof(T));
-            return false;
+            const string message = "Received null value during initialization for a non-nullable value.";
+            logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}.", message, Name, typeof(T), stage);
+            return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}.");
         }
 
         // direct type match? This is the most common case and should be handled first for performance reasons.
@@ -409,6 +416,26 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         // IConvertible from string?
         if (value is string str && typeof(T) != typeof(string) && !string.IsNullOrEmpty(str) && typeof(IConvertible).IsAssignableFrom(typeof(T)))
         {
+            // use TryParseValue to attempt parsing the string into the correct type
+            if (TryParseValue(str, out var parsedValue, out var errorMessage))
+            {
+                if (parsedValue is T parsedTyped)
+                {
+                    return InitializeValue(parsedTyped, stage);
+                }
+                else
+                {
+                    logger.LogDebug("Parsed value '{ParsedValue}' (type {ActualType}) from string '{OriginalString}' is not of the expected type {ExpectedType} for value {ValueName} at stage {Stage}.", parsedValue, parsedValue?.GetType(), str, typeof(T), Name, stage);
+                    return FailInitialization($"Parsed value '{str}' to '{parsedValue}' (type {parsedValue?.GetType()}) from string '{str}' is not of the expected type {typeof(T)} for value '{Name}' at stage {stage}.");
+                }
+            }
+            else
+            {
+                const string message = "Failed to parse string value during initialization.";
+                logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}. Error: {ErrorMessage}", message, Name, typeof(T), stage, errorMessage);
+                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}. Error: {errorMessage}");
+            }
+            /*
             try
             {
                 var converted = (T)Convert.ChangeType(str, typeof(T));
@@ -416,9 +443,26 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             }
             catch (Exception ex)
             {
-                Status |= ValueStatus.Error;
-                logger.LogDebug(ex, "Failed to convert string value for {ValueName} during initialization. Expected type {ExpectedType}.", Name, typeof(T));
-                return false;
+                string message = $"Failed to convert string value '{str}' during initialization.";
+                logger.LogDebug(ex, "{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}.", message, Name, typeof(T), stage);
+                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}.", ex);
+            }
+            */
+        }
+
+        // catch numeric conversions, e.g. int to double, float to decimal, etc.
+        if (value is IConvertible && typeof(IConvertible).IsAssignableFrom(typeof(T)))
+        {
+            try
+            {
+                var converted = (T)Convert.ChangeType(value, typeof(T));
+                return InitializeValue(converted, stage);
+            }
+            catch (Exception ex)
+            {
+                const string message = "Failed to convert value using IConvertible during initialization.";
+                logger.LogDebug(ex, "{Message} Value {ValueName} expects {ExpectedType}, received {ActualType} at stage {Stage}.", message, Name, typeof(T), value.GetType(), stage);
+                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)}, but received {value.GetType()} at stage {stage}.", ex);
             }
         }
 
@@ -433,15 +477,15 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             }
             catch (Exception ex)
             {
-                Status |= ValueStatus.Error;
-                logger.LogDebug(ex, "Failed to convert value using TypeConverter for {ValueName} during initialization. Expected type {ExpectedType}, but got {ActualType}.", Name, typeof(T), value.GetType());
-                return false;
+                const string message = "Failed to convert value using TypeConverter during initialization.";
+                logger.LogDebug(ex, "{Message} Value {ValueName} expects {ExpectedType}, received {ActualType} at stage {Stage}.", message, Name, typeof(T), value.GetType(), stage);
+                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)}, but received {value.GetType()} at stage {stage}.", ex);
             }
         }
 
-        Status |= ValueStatus.Error;
-        logger.LogDebug("Failed to initialize {ValueName} with value of incorrect type. Expected {ExpectedType}, but got {ActualType}.", Name, typeof(T), value?.GetType());
-        return false;
+        const string typeMismatchMessage = "Failed to initialize value with an incompatible type.";
+        logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType}, but got {ActualType} at stage {Stage}.", typeMismatchMessage, Name, typeof(T), value?.GetType(), stage);
+        return FailInitialization($"{typeMismatchMessage} Value '{Name}' expects {typeof(T)}, but received {value?.GetType()} at stage {stage}.");
     }
 
     /// <summary>
@@ -472,9 +516,9 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         }
         if (value is null && default(T) is not null)
         {
-            Status |= ValueStatus.Error;
-            logger.LogDebug("Attempted to initialize {ValueName} with null, but {ExpectedType} is not nullable.", Name, typeof(T));
-            return false;
+            const string message = "Attempted to initialize a non-nullable value with null.";
+            logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}.", message, Name, typeof(T), stage);
+            return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}.");
         }
         Value = value ?? default(T)!;
         Status = (Status & ~(ValueStatus.Error | ValueStatus.Live | ValueStatus.Used)) | ValueStatus.Initialized;
@@ -519,8 +563,11 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             parsedValue = value;
             return true;
         }
+
+        // if we're a unit type, we need to expect a value with unit suffix, e.g. "10.5 °C" or "100 kPa". The UnitsNet library is to be used for that purpose.
+
         // check whether T implements IParsable<T> and use its TryParse method if available
-        else if (typeof(T).GetInterface("IParsable`1") is not null)
+        if (typeof(T).GetInterface("IParsable`1") is not null)
         {
             var method = typeof(T).GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), typeof(T).MakeByRefType(), typeof(string).MakeByRefType()]);
             if (method != null)
@@ -531,11 +578,59 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                 errorMessage = parameters[3] as string;
                 return success;
             }
+            else
+            {
+                // handle types that implement IParsable<T> but do not have a valid TryParse method (e.g. Single, Byte, ...)
+                var defaultNumStyle = NumberStyles.Float | NumberStyles.AllowThousands | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.Integer;
+                errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
+                parsedValue = null;
+                switch (Type.GetTypeCode(typeof(T)))
+                {
+                    case TypeCode.Double:
+                        if (double.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var doubleResult))
+                        {
+                            parsedValue = doubleResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        else
+                        {
+                            parsedValue = null;
+                            return false;
+                        }
+                    case TypeCode.Single:
+                        if (float.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var floatResult))
+                        {
+                            parsedValue = floatResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        else
+                        {
+                            parsedValue = null;
+                            return false;
+                        }
+                    case TypeCode.Byte:
+                        if (byte.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var byteResult))
+                        {
+                            parsedValue = byteResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        else
+                        {
+                            parsedValue = null;
+                            return false;
+                        }
+                        // Add more cases for other types as needed
+                }
+            }
             errorMessage = $"Type {typeof(T).Name} implements IParsable<T> but does not have a valid TryParse method.";
             return false;
         }
+
         // enum
-        else if (typeof(T).IsEnum)
+        if (typeof(T).IsEnum)
         {
             if (Enum.TryParse(typeof(T), value, true, out var enumValue))
             {
@@ -550,7 +645,8 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                 return false;
             }
         }
-        else if (typeof(IConvertible).IsAssignableFrom(typeof(T)))
+
+        if (typeof(IConvertible).IsAssignableFrom(typeof(T)))
         {
             try
             {
@@ -565,11 +661,9 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                 return false;
             }
         }
-        else
-        {
-            parsedValue = null;
-            errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
-            return false;
-        }
+
+        parsedValue = null;
+        errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
+        return false;
     }
 }

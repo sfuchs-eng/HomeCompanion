@@ -20,7 +20,7 @@ Host applications should call:
 
 This enables:
 
-- `ILogic` modules to inject and use `ISchedulerFactory` / `IScheduler`
+- `ILogic` modules to inject and use `ISchedulerFactory`
 - extensions to register Quartz jobs/triggers via DI and configuration
 - JSON-driven Quartz setup via standard `IConfiguration` section `Quartz`
 - extension-level scheduler bootstrap via `HomeCompanion.Base.Quartz.IQuartzSchedulerConfigurator`

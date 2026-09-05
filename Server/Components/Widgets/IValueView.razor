@@ -148,6 +148,7 @@
 											<th style="width: 10rem;">Time</th>
 											<th style="width: 14rem;">Type</th>
 											<th>Message</th>
+											<th>Stack trace</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -157,6 +158,7 @@
 												<td class="text-nowrap">@ex.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.CurrentCulture)</td>
 												<td><code>@ex.ExceptionType</code></td>
 												<td>@ex.Message</td>
+												<td><code>@ex.StackTrace</code></td>
 											</tr>
 										}
 									</tbody>
@@ -325,7 +327,9 @@
 		return new ValueExceptionEntry(
 			Timestamp: exception.TimeStamp,
 			ExceptionType: exception.GetType().Name,
-			Message: DisplayText(exception.Message));
+			Message: DisplayText(exception.Message),
+			StackTrace: DisplayText(exception.StackTrace)
+			);
 	}
 
 	private static string DisplayText(string? value)
@@ -380,5 +384,6 @@
 	private sealed record ValueExceptionEntry(
 		DateTimeOffset Timestamp,
 		string ExceptionType,
-		string Message);
+		string Message,
+		string? StackTrace = null);
 }

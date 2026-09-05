@@ -421,6 +421,54 @@ public class ValueBaseTests
     }
 
     [Test]
+    public void InitializeValue_WhenConvertibleStringConversionFails_RetainsException()
+    {
+        var value = CreateValue<int>();
+
+        var result = value.InitializeValue("abc", AppLifeCycleStage.InitRetrieveFromEnvironment);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.False);
+            Assert.That(value.Status.HasFlag(ValueStatus.Error), Is.True);
+            Assert.That(value.Exceptions, Has.Count.EqualTo(1));
+            Assert.That(value.Exceptions[0].InnerException, Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public void InitializeValue_WhenTypeConverterConversionFails_RetainsException()
+    {
+        var value = CreateValue<TimeSpan>();
+
+        var result = value.InitializeValue("not-a-timespan", AppLifeCycleStage.InitRetrieveFromEnvironment);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.False);
+            Assert.That(value.Status.HasFlag(ValueStatus.Error), Is.True);
+            Assert.That(value.Exceptions, Has.Count.EqualTo(1));
+            Assert.That(value.Exceptions[0].InnerException, Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public void InitializeValue_WhenTypeIsIncompatible_RetainsException()
+    {
+        var value = CreateValue<int>();
+
+        var result = value.InitializeValue(new object(), AppLifeCycleStage.InitRetrieveFromEnvironment);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.False);
+            Assert.That(value.Status.HasFlag(ValueStatus.Error), Is.True);
+            Assert.That(value.Exceptions, Has.Count.EqualTo(1));
+            Assert.That(value.Exceptions[0].Message, Does.Contain("incompatible type"));
+        });
+    }
+
+    [Test]
     public void InitializeValue_RejectsStageDowngrade()
     {
         var value = CreateValue<int>();

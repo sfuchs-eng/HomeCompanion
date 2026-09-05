@@ -1,9 +1,12 @@
+using HomeCompanion.Abstractions;
 using HomeCompanion.Alerting;
 using HomeCompanion.Events;
 using HomeCompanion.Integrations.Alerting.Named;
 using HomeCompanion.Integrations.Alerting.Values;
 using HomeCompanion.Values;
+using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace HomeCompanion.Tests;
 
@@ -67,10 +70,13 @@ public class AlertingNamedAlertsTests
     {
         var machine = new NamedAlertStateMachine();
         var loggerFactory = NullLoggerFactory.Instance;
+        var lifeCycleSync = new Mock<IHomeCompanionLifeCycleSynchronization>().Object;
+        var valueFactory = new ValueFactory(TimeProvider.System, lifeCycleSync, NullLoggerFactory.Instance, NullLogger<ValueFactory>.Instance); //new Mock<IValueFactory>().Object;
         var alertingValues = new AlertingValues(
             NullLogger<ValueContainerBase>.Instance,
             loggerFactory,
             machine,
+            valueFactory,
             TimeProvider.System,
             NullLogger<AlertingValues>.Instance);
 

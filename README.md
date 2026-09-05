@@ -67,7 +67,8 @@ The solution is organized into several projects:
 
 ### Value event architecture
 
-`IValue` instances are initialized once by `ValuesManager` during startup. Connectivity providers do not call `IValue.Initialize`.
+`IValue` instances are initialized once by `ValuesManager` during startup. Connectivity providers do not call `IValue.Initialize` unless they participate in the initialization scheme explicitly.
+In regular operation, the `IConnectivityProvider` implementations (KNX, OpenHAB, MQTT) are responsible for discovering bus-mapped values and raising `ValueUpdateReceived` and `ValueWriteReceived` (and maybe other) events on the event bus. The `ValuesManager` subscribes to these events and routes them to the correct `IValue` instance based on the `Target` property of the event.
 
 Responsibilities are split as follows:
 
@@ -89,6 +90,19 @@ var subscription = temperatureValue
 ```
 
 ### Model value binding (generic, hybrid)
+
+The runtime model is generated based on its configuration counterpart.
+The configuration root is `HomeCompanion.Base.Model.CfgModel`, which is loaded as part of the regular app configuration mechanisms.
+The runtime model root is `HomeCompanion.Base.Model.Model`, which is built from the configuration and can be extended with additional runtime entities.
+Use its polymorphic extension points to add further model entities and/or configuration-backed runtime entities.
+
+Obtain the runtime model root via DI:
+
+```csharp
+using HomeCompanion.Base.Model;
+var modelProvider = serviceProvider.GetRequiredService<IModelProvider>();
+var runtimeModelRoot = modelProvider.GetModel();
+```
 
 Runtime model entities can bind `IValue` references from their corresponding `CfgEntity` configuration without hardcoded binder logic.
 
