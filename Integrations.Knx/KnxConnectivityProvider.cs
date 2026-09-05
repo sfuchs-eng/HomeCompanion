@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using SRF.Knx.Config;
 using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
+using System.Globalization;
 
 namespace HomeCompanion.Integrations.Knx;
 
@@ -320,7 +321,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 {
                     try
                     {
-                        mapping.Value.InitializeValue(e.KnxMessageContext.DecodedValue, AppLifeCycleStage.InitBusValueReceived);
+                        var normalizedValue = NormalizeInboundValue(mapping.Value, e.KnxMessageContext.DecodedValue);
+                        mapping.Value.InitializeValue(normalizedValue ?? e.KnxMessageContext.DecodedValue, AppLifeCycleStage.InitBusValueReceived);
                     }
                     catch (Exception ex)
                     {
@@ -346,6 +348,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         // Events are always published; Target being null allows bus-aware listeners to observe
         // telegrams for group addresses that have no corresponding IValue registered.
         var target = ResolveTarget(args.DestinationAddress);
+        var normalizedValue = NormalizeInboundValue(target?.Value, ctx.DecodedValue);
 
         switch (args.EventType)
         {
@@ -360,7 +363,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                     SourceAddress = args.SourceAddress,
                     RawValue = args.Value,
                     DecodedValue = ctx.DecodedValue,
-                    Value = ctx.DecodedValue,
+                    Value = normalizedValue,
                     Timestamp = ctx.ReceivedAt,
                     Target = target?.Value,
                 });
@@ -380,6 +383,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                         try
                         {
                             var responseValue = target?.Value?.OValue ?? throw new Exception($"Target value for {args.DestinationAddress} is null, cannot answer read request.");
+                            responseValue = ConvertOutboundValue(responseValue);
 
                             var dpt = _dptResolver.GetDpt(args.DestinationAddress);
                             var encodedValue = dpt.ToGroupValue(responseValue);
@@ -415,7 +419,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                     SourceAddress = args.SourceAddress,
                     RawValue = args.Value,
                     DecodedValue = ctx.DecodedValue,
-                    Value = ctx.DecodedValue,
+                    Value = normalizedValue,
                     Timestamp = ctx.ReceivedAt,
                     Target = target?.Value,
                 });
@@ -451,7 +455,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 _logger.LogWarning("ValueWriteRequest for {GA}: value is null, skipping send.", ga);
                 return;
             }
-            encoded = dpt.ToGroupValue(request.NewValue);
+            encoded = dpt.ToGroupValue(ConvertOutboundValue(request.NewValue));
         }
         catch (Exception ex)
         {
@@ -467,4 +471,44 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         }
     }
 
+    /// <summary>
+    /// IValue<T> type to KNX DPT native type conversion for outbound values. For example, a UnitsNet quantity is converted to its scalar value before DPT encoding.
+    /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    private static object ConvertOutboundValue(object value)
+    {
+        if (value is UnitsNet.IQuantity quantity)
+            return quantity.Value;
+
+        return value;
+    }
+
+    /// <summary>
+    /// Normalizes an inbound KNX value to the target IValue type. For example, it converts scalar values to UnitsNet quantities if needed.
+    /// TODO: keep it all here generic or outsource a part to the bus mapping for easy, value property specific adaptability?
+    /// </summary>
+    /// <param name="targetValue">The target IValue instance.</param>
+    /// <param name="decodedValue">The decoded value from KNX.</param>
+    /// <returns>The normalized value compatible with the target IValue type.</returns>
+    private static object? NormalizeInboundValue(IValue? targetValue, object? decodedValue)
+    {
+        if (targetValue is null || decodedValue is null)
+            return decodedValue;
+
+        if (targetValue.ValueType.IsInstanceOfType(decodedValue))
+            return decodedValue;
+
+        var rawText = decodedValue is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : decodedValue.ToString();
+
+        if (string.IsNullOrWhiteSpace(rawText))
+            return decodedValue;
+
+        if (targetValue.TryParseValue(rawText, out var parsedValue, out _, CultureInfo.InvariantCulture))
+            return parsedValue;
+
+        return decodedValue;
+    }
 }

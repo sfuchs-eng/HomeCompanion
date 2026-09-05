@@ -1,4 +1,6 @@
 using HomeCompanion.Integrations.Mqtt;
+using HomeCompanion.Values;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HomeCompanion.Tests;
@@ -7,6 +9,9 @@ namespace HomeCompanion.Tests;
 public class MqttPayloadConverterTests
 {
     private MqttPayloadConverter _converter = null!;
+
+    private static ValueBase<T> CreateValue<T>() where T : notnull
+        => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>());
 
     [SetUp]
     public void SetUp()
@@ -22,7 +27,7 @@ public class MqttPayloadConverterTests
             Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
         };
 
-        var success = _converter.TryDecode("ON", typeof(bool), mapping, out var value);
+        var success = _converter.TryDecode("ON", CreateValue<bool>(), mapping, out var value);
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.EqualTo(true));
@@ -36,7 +41,7 @@ public class MqttPayloadConverterTests
             Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
         };
 
-        var success = _converter.TryDecode("Heat", typeof(HvacMode), mapping, out var value);
+        var success = _converter.TryDecode("Heat", CreateValue<HvacMode>(), mapping, out var value);
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.EqualTo(HvacMode.Heat));
@@ -53,7 +58,7 @@ public class MqttPayloadConverterTests
             },
         };
 
-        var success = _converter.TryDecode("21.5", typeof(double), mapping, out var value);
+        var success = _converter.TryDecode("21.5", CreateValue<double>(), mapping, out var value);
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.EqualTo(21.5d));
@@ -72,7 +77,7 @@ public class MqttPayloadConverterTests
         };
 
         var payload = "{\"id\":\"dev-1\",\"state\":\"ok\",\"unknown\":123}";
-        var success = _converter.TryDecode(payload, typeof(DeviceState), mapping, out var value);
+        var success = _converter.TryDecode(payload, CreateValue<DeviceState>(), mapping, out var value);
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.TypeOf<DeviceState>());
@@ -94,7 +99,7 @@ public class MqttPayloadConverterTests
         };
 
         var payload = "{\"id\":\"dev-1\",\"state\":\"ok\",\"unknown\":123}";
-        var success = _converter.TryDecode(payload, typeof(DeviceState), mapping, out var value);
+        var success = _converter.TryDecode(payload, CreateValue<DeviceState>(), mapping, out var value);
 
         Assert.That(success, Is.False);
         Assert.That(value, Is.Null);
@@ -118,7 +123,7 @@ public class MqttPayloadConverterTests
         };
 
         var payload = "{\"$kind\":\"dog\",\"name\":\"Rex\",\"barks\":true}";
-        var success = _converter.TryDecode(payload, typeof(Animal), mapping, out var value);
+        var success = _converter.TryDecode(payload, CreateValue<Animal>(), mapping, out var value);
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.TypeOf<Dog>());
@@ -157,6 +162,24 @@ public class MqttPayloadConverterTests
         var payload = _converter.Encode(HvacMode.Cool, typeof(HvacMode), mapping);
 
         Assert.That(payload, Is.EqualTo("1"));
+    }
+
+    [Test]
+    public void TryDecode_RawUtf8_UnitAwareNumeric_Succeeds()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var success = _converter.TryDecode("68 °F", value, mapping, out var decoded);
+
+        Assert.That(success, Is.True);
+        Assert.That(decoded, Is.TypeOf<double>());
+        Assert.That((double)decoded!, Is.EqualTo(20d).Within(0.01));
     }
 
     private enum HvacMode

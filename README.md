@@ -21,6 +21,7 @@ path not only for other devices but also for integration with other home automat
 
 - **Modular automation logic**: implement your automation logic as `ILogic` modules, which are loaded at runtime and can be enabled/disabled via configuration
 - **Centralized value lifecycle**: `ValuesManager` initializes all discovered `IValue` instances at startup and routes `ValueUpdateReceived` / `ValueWriteReceived` events by `Target` to the owning value instance
+- **Unit-aware values**: `IValue` supports optional `ValueUnitInfo` metadata, and `ValueBase<T>` provides UnitsNet-based parsing/formatting for physical values (scalar+unit and quantity-as-type)
 - **Extensions framework**: add functionality via separate assemblies, implementing `HomeCompanion.Extensions.IExtension` to get loaded at runtime with opportunity for service injection. Extensions can contain their own logic modules, values containers, connectivity providers, and other services
 - **Calendar events framework**: user-configurable calendar entries persisted with EF Core, scheduled by Quartz, and published to the event bus as extension-defined, attributed `ICalendarEvent` types at start/end (including recurring schedules and metadata JSON payload)
 - **KNX connectivity**: connect via KNX/net IP routing (UDP multicast) to a KNX system and receive/transmit Group Address write, read and read response telegrams
@@ -75,6 +76,17 @@ Responsibilities are split as follows:
 - `ValuesManager`: discovers values from registered `IValuesContainer` instances, calls `IValue.Initialize`, and performs centralized target-based routing for inbound `ValueUpdateReceived` / `ValueWriteReceived`
 - Connectivity providers (KNX/OpenHAB/...): discover bus-mapped values for endpoint lookup and bridge bus traffic to/from event bus events
 - Values (`ValueBase<T>`): remain bus-agnostic and only process routed payloads plus publish value change/write events
+
+Unit-aware behavior in this architecture:
+
+- Unit semantics live on the value (`IValue.Unit`) and are independent from bus technology
+- Providers may normalize inbound payloads through `IValue.TryParseValue(...)` to leverage the central unit-aware parsing path
+- Provider transport encoding remains provider-specific; display formatting remains `IValue.Format(...)`
+
+See architecture decision records:
+
+- [docs/adr/0001-bus-values-framework.md](docs/adr/0001-bus-values-framework.md)
+- [docs/adr/0005-unit-aware-values-framework.md](docs/adr/0005-unit-aware-values-framework.md)
 
 This avoids per-value event bus subscriptions and keeps bus-specific logic in connectivity providers.
 
@@ -192,6 +204,58 @@ public class TemperatureGuard : LogicBase
 ```
 
 This is the default choice for physical quantities such as temperature, humidity, pressure, speed, and energy inside automation logic.
+
+### Unit-aware values in containers and integrations
+
+The framework supports two complementary patterns:
+
+- **Scalar + unit metadata (default)**: use `IValue<double>` / `ValueBase<double>` with `Unit` metadata
+- **Quantity-as-type (optional)**: use `IValue<Temperature>` / `ValueBase<Temperature>` for strongly typed quantity semantics
+
+Example (scalar + unit metadata):
+
+```csharp
+using HomeCompanion.Values;
+
+public sealed class ClimateValues : IValuesContainer
+{
+  public ValueBase<double> IndoorTemperature { get; } = new()
+  {
+    Name = "IndoorTemperature",
+    Label = "Indoor temperature",
+    Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C")
+  };
+}
+```
+
+Example (quantity-as-type):
+
+```csharp
+using HomeCompanion.Values;
+using UnitsNet;
+
+public sealed class ClimateValues : IValuesContainer
+{
+  public ValueBase<Temperature> IndoorTemperature { get; } = new()
+  {
+    Name = "IndoorTemperature",
+    Label = "Indoor temperature"
+  };
+}
+```
+
+Parsing and formatting notes:
+
+- `TryParseValue("21.5")` on scalar+unit values interprets the number in the configured unit
+- `TryParseValue("68 °F")` on a Celsius-configured scalar value parses and converts to Celsius
+- `TryParseValue("21.5 °C")` on quantity-typed values returns the corresponding UnitsNet quantity
+- `Format(...)` prefers bus formatter when available; otherwise uses unit-aware formatting fallback
+
+Integration notes:
+
+- KNX: decoded values are normalized for target value types; quantity values are unwrapped to scalar magnitudes for DPT encoding
+- OpenHAB: inbound state strings flow through `IValue.TryParseValue(...)`; outbound writes include unit suffix for unit-aware scalar values
+- MQTT: inbound raw/json-scalar values flow through `IValue.TryParseValue(...)`; raw outbound payloads include unit suffix for unit-aware scalar values
 
 ### Exposing logic parameters
 

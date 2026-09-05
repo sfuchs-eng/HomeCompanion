@@ -67,6 +67,12 @@ public interface IValue : IFormattable
     public string? Label { get; }
 
     /// <summary>
+    /// Optional unit metadata for physical values.
+    /// For values without physical dimensions (e.g. booleans, enums, free text), this should be null.
+    /// </summary>
+    public ValueUnitInfo? Unit { get; set; }
+
+    /// <summary>
     /// Formats the current value for display using an optional culture.
     /// Implementations should prefer bus specific mapping formatters where available.
     /// If no formatter is available, implementations should fall back to <see cref="object.ToString"/> behavior.

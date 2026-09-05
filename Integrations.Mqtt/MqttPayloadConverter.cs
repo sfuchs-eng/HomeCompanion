@@ -1,3 +1,4 @@
+using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Text.Json;
@@ -18,11 +19,12 @@ internal sealed class MqttPayloadConverter
         _logger = logger;
     }
 
-    public bool TryDecode(string payloadUtf8, Type targetType, MqttBusEndpointMapping mapping, out object? value)
+    public bool TryDecode(string payloadUtf8, IValue targetValue, MqttBusEndpointMapping mapping, out object? value)
     {
         value = null;
 
         var config = mapping.Config ?? new MqttBusMappingConfiguration();
+        var targetType = targetValue.ValueType;
         var nonNullableTarget = Nullable.GetUnderlyingType(targetType) ?? targetType;
 
         try
@@ -30,6 +32,9 @@ internal sealed class MqttPayloadConverter
             switch (config.PayloadFormat)
             {
                 case MqttPayloadFormat.RawUtf8:
+                    if (targetValue.TryParseValue(payloadUtf8, out value, out _, CultureInfo.InvariantCulture))
+                        return true;
+
                     return TryConvertScalar(payloadUtf8, nonNullableTarget, config, out value);
 
                 case MqttPayloadFormat.JsonScalar:
@@ -37,6 +42,10 @@ internal sealed class MqttPayloadConverter
                     using var document = JsonDocument.Parse(payloadUtf8);
                     if (!TrySelectJsonElement(document, config.JsonPath, out var element))
                         return false;
+
+                    var scalarText = element.ValueKind == JsonValueKind.String ? element.GetString() ?? string.Empty : element.GetRawText();
+                    if (targetValue.TryParseValue(scalarText, out value, out _, CultureInfo.InvariantCulture))
+                        return true;
 
                     return TryConvertJsonElementScalar(element, nonNullableTarget, config, out value);
                 }
@@ -67,7 +76,7 @@ internal sealed class MqttPayloadConverter
         }
     }
 
-    public string Encode(object? value, Type declaredType, MqttBusEndpointMapping mapping)
+    public string Encode(object? value, Type declaredType, MqttBusEndpointMapping mapping, IValue? source = null)
     {
         var config = mapping.Config ?? new MqttBusMappingConfiguration();
 
@@ -75,7 +84,7 @@ internal sealed class MqttPayloadConverter
         {
             MqttPayloadFormat.Json => JsonSerializer.Serialize(value, value?.GetType() ?? declaredType, BuildJsonOptions(config, declaredType)),
             MqttPayloadFormat.JsonScalar => JsonSerializer.Serialize(value, value?.GetType() ?? declaredType, BuildJsonOptions(config, declaredType)),
-            _ => ConvertToRawUtf8(value, config),
+            _ => ConvertToRawUtf8(value, config, source?.Unit),
         };
     }
 
@@ -305,13 +314,16 @@ internal sealed class MqttPayloadConverter
         return options;
     }
 
-    private static string ConvertToRawUtf8(object? value, MqttBusMappingConfiguration config)
+    private static string ConvertToRawUtf8(object? value, MqttBusMappingConfiguration config, ValueUnitInfo? unitInfo)
     {
         if (value is null)
             return string.Empty;
 
         if (value is string text)
             return text;
+
+        if (value is UnitsNet.IQuantity quantity)
+            return quantity.ToString(CultureInfo.InvariantCulture);
 
         var valueType = value.GetType();
         var nonNullable = Nullable.GetUnderlyingType(valueType) ?? valueType;
@@ -328,8 +340,18 @@ internal sealed class MqttPayloadConverter
         }
 
         if (value is IFormattable formattable)
-            return formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty;
+        {
+            var raw = formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty;
+            if (unitInfo is null || string.IsNullOrWhiteSpace(raw))
+                return raw;
 
-        return value.ToString() ?? string.Empty;
+            return $"{raw} {unitInfo.DisplayUnit}";
+        }
+
+        var fallback = value.ToString() ?? string.Empty;
+        if (unitInfo is null || string.IsNullOrWhiteSpace(fallback))
+            return fallback;
+
+        return $"{fallback} {unitInfo.DisplayUnit}";
     }
 }

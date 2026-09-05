@@ -265,6 +265,9 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         if (_stateConverter.TryConvertValue(rawState, target, out var decodedValue))
             return decodedValue;
 
+        if (target.TryParseValue(rawState, out decodedValue, out _, CultureInfo.InvariantCulture))
+            return decodedValue;
+
         if (TryConvertByTargetType(rawState, target.ValueType, out decodedValue))
             return decodedValue;
 
@@ -348,7 +351,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         try
         {
-            var stateString = request.NewValue.ToString() ?? "";
+            var stateString = FormatStateForOutboundWrite(request.Source, request.NewValue);
             await _restApiClient.SetItemStateAsync(itemName, stateString, cancellationToken);
             _logger.LogDebug("Sent OpenHab write request for '{ItemName}' with value '{State}'.", itemName, stateString);
         }
@@ -356,6 +359,23 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         {
             _logger.LogWarning(ex, "Failed to send OpenHab write request for '{ItemName}' with value '{Value}'.", itemName, request.NewValue);
         }
+    }
+
+    private static string FormatStateForOutboundWrite(IValue source, object value)
+    {
+        if (value is null)
+            return string.Empty;
+
+        if (source.Unit is null)
+            return value.ToString() ?? string.Empty;
+
+        if (value is IFormattable formattable)
+        {
+            var invariantValue = formattable.ToString(null, CultureInfo.InvariantCulture) ?? value.ToString() ?? string.Empty;
+            return $"{invariantValue} {source.Unit.DisplayUnit}";
+        }
+
+        return $"{value} {source.Unit.DisplayUnit}";
     }
 
 }

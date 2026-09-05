@@ -7,6 +7,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Globalization;
+using UnitsNet;
 
 namespace HomeCompanion.Tests.Values;
 
@@ -575,5 +576,65 @@ public class ValueBaseTests
         var display = value.Format();
 
         Assert.That(display, Is.EqualTo("7"));
+    }
+
+    [Test]
+    public void TryParseValue_WithConfiguredUnitAndRawNumber_ParsesScalar()
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var success = value.TryParseValue("21.5", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(parsedValue, Is.TypeOf<double>());
+            Assert.That((double)parsedValue!, Is.EqualTo(21.5d).Within(0.0001));
+        });
+    }
+
+    [Test]
+    public void TryParseValue_WithConfiguredUnitAndUnitSuffix_ConvertsToConfiguredUnit()
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var success = value.TryParseValue("68 °F", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(parsedValue, Is.TypeOf<double>());
+            Assert.That((double)parsedValue!, Is.EqualTo(20d).Within(0.01));
+        });
+    }
+
+    [Test]
+    public void TryParseValue_ForQuantityType_ParsesUnitsNetQuantity()
+    {
+        var value = CreateValue<Temperature>();
+
+        var success = value.TryParseValue("21.5 °C", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(parsedValue, Is.TypeOf<Temperature>());
+            var parsedTemperature = (Temperature)parsedValue!;
+            Assert.That(parsedTemperature.DegreesCelsius, Is.EqualTo(21.5d).Within(0.0001));
+        });
+    }
+
+    [Test]
+    public void Format_WithConfiguredUnit_UsesUnitAwareFormatting()
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+        value.InitializeValue(21.5d, AppLifeCycleStage.InitLoadFromStore);
+
+        var formatted = value.Format(CultureInfo.InvariantCulture);
+
+        Assert.That(formatted, Does.Contain("°C"));
     }
 }

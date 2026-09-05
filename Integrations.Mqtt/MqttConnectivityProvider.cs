@@ -220,7 +220,7 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
                 return;
             }
 
-            if (!_payloadConverter.TryDecode(payload, selection.Value.ValueType, selection.Mapping, out var decodedValue))
+            if (!_payloadConverter.TryDecode(payload, selection.Value, selection.Mapping, out var decodedValue))
             {
                 Interlocked.Increment(ref _conversionFailures);
                 _logger.LogWarning(
@@ -294,7 +294,7 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
 
         try
         {
-            var payload = _payloadConverter.Encode(request.NewValue, request.Source.ValueType, mapping);
+            var payload = _payloadConverter.Encode(request.NewValue, request.Source.ValueType, mapping, request.Source);
 
             var publisher = new PublisherString(publishTopic, payload);
             var config = mapping.Config;

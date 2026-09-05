@@ -58,11 +58,15 @@ On each inbound telegram, the provider publishes two layers of events:
 
 `ValuesManager` subscribes once to `ValueUpdateReceived` and `ValueWriteReceived` (base types), then routes events by `Target` to the owning value instance. `ValueBase<T>` processes the routed payload and publishes `ValueChanged<T>` if the value actually changed.
 
+Unit-aware normalization for inbound decoded payloads (including scalar+unit and quantity-typed values) is defined in [ADR-0005](0005-unit-aware-values-framework.md) and applies before/while values are parsed by the target `IValue` implementation.
+
 `GroupValueResponse` is treated as both a read answer (`ValueReadAnswerReceived`) and a write (`ValueWriteReceived`) so that the stored value is updated in both cases.
 
 ### 4. Outbound flow: IValue.Write() → EventBus → KNX
 
 `ValueBase<T>.Write(value)` updates the stored value immediately and publishes `ValueWritten<T>` on the HC event bus. The `KnxConnectivityProvider` subscribes to the base `ValueWritten` event; when the source value carries a `KnxBusEndpointMapping`, it encodes the value via `IDptResolver` and broadcasts a `GroupValueWrite` telegram to all connections.
+
+For unit-aware values, quantity-to-scalar normalization before DPT encoding and related conversion semantics follow [ADR-0005](0005-unit-aware-values-framework.md).
 
 **Why the HC event bus rather than a direct callback:**
 - No coupling between `IValue` and `KnxConnectivityProvider`

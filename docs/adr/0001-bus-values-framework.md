@@ -1,7 +1,7 @@
 # ADR-0001: Bus Values Framework
 
 **Date:** 2026-04-28
-**Revised:** 2026-05-15
+**Revised:** 2026-05-15, 2026-09-05
 
 ## Context
 
@@ -28,6 +28,8 @@ Values request outbound transmissions through value events handled by connectivi
 The `IValue<T>` implementations remain bus-agnostic and do not contain bus-specific logic or dependencies.
 `ValuesManager` initializes all values at startup and routes inbound value update/write events to their target value.
 Connectivity providers subscribe to outbound value write requests and propagate them to their bus (e.g. KNX telegrams).
+
+Unit semantics for physical values are defined by ADR-0005. `IValue` now supports optional unit metadata (`ValueUnitInfo`) while keeping `IValue<T>` bus-agnostic and generic.
 
 ## Consequences
 

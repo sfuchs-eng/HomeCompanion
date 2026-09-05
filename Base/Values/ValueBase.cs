@@ -4,6 +4,7 @@ using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using UnitsNet;
 
 namespace HomeCompanion.Values;
 
@@ -23,6 +24,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     public AppLifeCycleStage InitializationStage { get; protected set; } = AppLifeCycleStage.Default;
     public string? Name { get; set; }
     public string? Label { get; set; }
+    public ValueUnitInfo? Unit { get; set; }
 
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
@@ -185,9 +187,7 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
 
         if (busMapping is null)
         {
-            return OValue is IFormattable formattable
-                ? formattable.ToString(null, culture)
-                : OValue?.ToString();
+            return FormatRawValue(culture);
         }
 
         try
@@ -201,9 +201,120 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
             logger.LogDebug(ex, "Failed to format display value for {ValueName} via bus mapping {BusId}:{Address}.", Name, busMapping.BusId, busMapping.Address);
         }
 
-        return OValue is IFormattable fallbackFormattable
-            ? fallbackFormattable.ToString(null, culture)
-            : OValue?.ToString();
+        return FormatRawValue(culture);
+    }
+
+    private string? FormatRawValue(CultureInfo culture)
+    {
+        if (OValue is null)
+            return null;
+
+        if (OValue is IQuantity quantity)
+        {
+            if (Unit is not null && TryResolveUnitEnum(Unit, out var targetUnit))
+            {
+                try
+                {
+                    return quantity.ToUnit(targetUnit).ToString(culture);
+                }
+                catch
+                {
+                    // Fall back to the quantity's current unit representation.
+                }
+            }
+
+            return quantity.ToString(culture);
+        }
+
+        var formatted = OValue is IFormattable formattable
+            ? formattable.ToString(null, culture)
+            : OValue.ToString();
+
+        if (Unit is null || string.IsNullOrWhiteSpace(formatted))
+            return formatted;
+
+        if (TryCreateQuantityFromScalar(OValue, Unit, out var scalarQuantity))
+            return scalarQuantity.ToString(culture);
+
+        return $"{formatted} {Unit.DisplayUnit}";
+    }
+
+    protected static bool TryResolveUnitEnum(ValueUnitInfo unitInfo, out Enum unit)
+    {
+        unit = default!;
+
+        if (!TryResolveQuantityInfo(unitInfo.QuantityName, out var quantityInfo))
+            return false;
+
+        try
+        {
+            var parsedUnit = Enum.Parse(quantityInfo.UnitType, unitInfo.UnitName, ignoreCase: true);
+            if (parsedUnit is not Enum parsedEnum)
+                return false;
+
+            unit = parsedEnum;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected static bool TryResolveQuantityInfo(string quantityName, out QuantityInfo quantityInfo)
+    {
+        var found = Quantity.Infos.FirstOrDefault(info => string.Equals(info.Name, quantityName, StringComparison.OrdinalIgnoreCase));
+        if (found is null)
+        {
+            quantityInfo = default!;
+            return false;
+        }
+
+        quantityInfo = found;
+        return true;
+    }
+
+    protected static bool TryCreateQuantityFromScalar(object value, ValueUnitInfo unitInfo, out IQuantity quantity)
+    {
+        quantity = default!;
+
+        try
+        {
+            var magnitude = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            if (Quantity.TryFrom(magnitude, unitInfo.QuantityName, unitInfo.UnitName, out var parsedQuantity) && parsedQuantity is not null)
+            {
+                quantity = parsedQuantity;
+                return true;
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected static bool TryConvertQuantityToNumericTarget(IQuantity quantity, Type targetType, ValueUnitInfo? unitInfo, out object? numericValue)
+    {
+        numericValue = null;
+        var nonNullableType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        try
+        {
+            var value = quantity.As(quantity.Unit);
+            if (unitInfo is not null && TryResolveUnitEnum(unitInfo, out var preferredUnit))
+            {
+                value = quantity.As(preferredUnit);
+            }
+
+            numericValue = Convert.ChangeType(value, nonNullableType, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public bool TryGetBusEndpoint<TBusMapping>(object busIdentifier, out TBusMapping? mapping) where TBusMapping : IValueBusEndpointMapping
@@ -433,7 +544,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             {
                 const string message = "Failed to parse string value during initialization.";
                 logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}. Error: {ErrorMessage}", message, Name, typeof(T), stage, errorMessage);
-                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}. Error: {errorMessage}");
+                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}. Error: {errorMessage}", new FormatException(errorMessage));
             }
             /*
             try
@@ -556,6 +667,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
     {
         parsedValue = null;
         errorMessage = null;
+        formatProvider ??= CultureInfo.CurrentCulture;
 
         // string? use straight.
         if (typeof(T) == typeof(string))
@@ -564,28 +676,52 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             return true;
         }
 
-        // if we're a unit type, we need to expect a value with unit suffix, e.g. "10.5 °C" or "100 kPa". The UnitsNet library is to be used for that purpose.
+        if (TryParseUnitsNetQuantity(value, formatProvider, out parsedValue, out errorMessage))
+            return true;
+
+        if (TryParseNumericWithUnitMetadata(value, formatProvider, out parsedValue, out errorMessage))
+            return true;
 
         // check whether T implements IParsable<T> and use its TryParse method if available
         if (typeof(T).GetInterface("IParsable`1") is not null)
         {
-            var method = typeof(T).GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), typeof(T).MakeByRefType(), typeof(string).MakeByRefType()]);
-            if (method != null)
+            var method = typeof(T).GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), typeof(T).MakeByRefType()]);
+            if (method is not null)
             {
-                var parameters = new object?[] { value, formatProvider, null, null };
+                var parameters = new object?[] { value, formatProvider, null };
                 bool success = (bool)method.Invoke(null, parameters)!;
                 parsedValue = parameters[2];
-                errorMessage = parameters[3] as string;
+                if (!success)
+                    errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
                 return success;
             }
             else
             {
+                method = typeof(T).GetMethod("TryParse", [typeof(string), typeof(IFormatProvider), typeof(T).MakeByRefType(), typeof(string).MakeByRefType()]);
+                if (method != null)
+                {
+                    var parameters = new object?[] { value, formatProvider, null, null };
+                    bool success = (bool)method.Invoke(null, parameters)!;
+                    parsedValue = parameters[2];
+                    errorMessage = parameters[3] as string;
+                    return success;
+                }
+
                 // handle types that implement IParsable<T> but do not have a valid TryParse method (e.g. Single, Byte, ...)
                 var defaultNumStyle = NumberStyles.Float | NumberStyles.AllowThousands | NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.Integer;
                 errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
                 parsedValue = null;
                 switch (Type.GetTypeCode(typeof(T)))
                 {
+                    case TypeCode.Boolean:
+                        if (bool.TryParse(value, out var boolResult))
+                        {
+                            parsedValue = boolResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
                     case TypeCode.Double:
                         if (double.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var doubleResult))
                         {
@@ -622,6 +758,69 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                             parsedValue = null;
                             return false;
                         }
+                    case TypeCode.Int16:
+                        if (short.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var shortResult))
+                        {
+                            parsedValue = shortResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.Int32:
+                        if (int.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var intResult))
+                        {
+                            parsedValue = intResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.Int64:
+                        if (long.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var longResult))
+                        {
+                            parsedValue = longResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.UInt16:
+                        if (ushort.TryParse(value, defaultNumStyle, formatProvider, out var ushortResult))
+                        {
+                            parsedValue = ushortResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.UInt32:
+                        if (uint.TryParse(value, defaultNumStyle, formatProvider, out var uintResult))
+                        {
+                            parsedValue = uintResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.UInt64:
+                        if (ulong.TryParse(value, defaultNumStyle, formatProvider, out var ulongResult))
+                        {
+                            parsedValue = ulongResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
+                    case TypeCode.Decimal:
+                        if (decimal.TryParse(value, defaultNumStyle | NumberStyles.AllowLeadingSign, formatProvider, out var decimalResult))
+                        {
+                            parsedValue = decimalResult;
+                            errorMessage = null;
+                            return true;
+                        }
+                        parsedValue = null;
+                        return false;
                         // Add more cases for other types as needed
                 }
             }
@@ -665,5 +864,68 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         parsedValue = null;
         errorMessage = $"Failed to parse value '{value}' as type {typeof(T).Name}.";
         return false;
+    }
+
+    private bool TryParseUnitsNetQuantity(string rawValue, IFormatProvider formatProvider, out object? parsedValue, out string? errorMessage)
+    {
+        parsedValue = null;
+        errorMessage = null;
+
+        if (!typeof(IQuantity).IsAssignableFrom(typeof(T)))
+            return false;
+
+        if (Quantity.TryParse(formatProvider, typeof(T), rawValue, out var parsedQuantity))
+        {
+            parsedValue = parsedQuantity;
+            return true;
+        }
+
+        if (Unit is not null && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
+            && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var inferredQuantity)
+            && inferredQuantity.GetType() == typeof(T))
+        {
+            parsedValue = inferredQuantity;
+            return true;
+        }
+
+        errorMessage = $"Failed to parse value '{rawValue}' as UnitsNet quantity type {typeof(T).Name}.";
+        return true;
+    }
+
+    private bool TryParseNumericWithUnitMetadata(string rawValue, IFormatProvider formatProvider, out object? parsedValue, out string? errorMessage)
+    {
+        parsedValue = null;
+        errorMessage = null;
+
+        if (Unit is null)
+            return false;
+
+        var nonNullableType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+        if (!typeof(IConvertible).IsAssignableFrom(nonNullableType) || nonNullableType == typeof(bool) || nonNullableType.IsEnum)
+            return false;
+
+        if (!TryResolveQuantityInfo(Unit.QuantityName, out var quantityInfo))
+        {
+            errorMessage = $"Unknown UnitsNet quantity '{Unit.QuantityName}' configured for value {Name ?? "(unnamed)"}.";
+            return true;
+        }
+
+        if (Quantity.TryParse(formatProvider, quantityInfo.ValueType, rawValue, out var parsedQuantity)
+            && TryConvertQuantityToNumericTarget(parsedQuantity, typeof(T), Unit, out var convertedWithSuffix))
+        {
+            parsedValue = convertedWithSuffix;
+            return true;
+        }
+
+        if (double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
+            && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var quantity)
+            && TryConvertQuantityToNumericTarget(quantity, typeof(T), Unit, out var convertedWithoutSuffix))
+        {
+            parsedValue = convertedWithoutSuffix;
+            return true;
+        }
+
+        errorMessage = $"Failed to parse value '{rawValue}' as numeric type {typeof(T).Name} using configured unit {Unit}.";
+        return true;
     }
 }
