@@ -26,6 +26,68 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
     public string? Label { get; set; }
     public ValueUnitInfo? Unit { get; set; }
 
+    /// <summary>
+    /// Assigns unit metadata to this value.
+    /// </summary>
+    public ValueBase WithUnit(ValueUnitInfo unitInfo)
+    {
+        Unit = unitInfo;
+        return this;
+    }
+
+    /// <summary>
+    /// Assigns unit metadata to this value from a UnitsNet unit enum.
+    /// </summary>
+    public ValueBase WithUnit<TUnit>(TUnit unit, string? unitSymbol = null) where TUnit : struct, Enum
+    {
+        Unit = CreateUnitInfo(unit, unitSymbol);
+        return this;
+    }
+
+    /// <summary>
+    /// Tries to assign unit metadata to this value from a UnitsNet unit enum.
+    /// Returns false when the unit is unknown to UnitsNet metadata.
+    /// </summary>
+    public bool TrySetUnit<TUnit>(TUnit unit, string? unitSymbol = null) where TUnit : struct, Enum
+    {
+        if (!TryCreateUnitInfo(unit, out var unitInfo, unitSymbol))
+            return false;
+
+        Unit = unitInfo;
+        return true;
+    }
+
+    /// <summary>
+    /// Creates unit metadata from a UnitsNet unit enum.
+    /// </summary>
+    /// <exception cref="ArgumentException">Thrown when the unit is not known to UnitsNet metadata.</exception>
+    public static ValueUnitInfo CreateUnitInfo<TUnit>(TUnit unit, string? unitSymbol = null) where TUnit : struct, Enum
+    {
+        if (!TryCreateUnitInfo(unit, out var unitInfo, unitSymbol))
+            throw new ArgumentException($"Unit '{unit}' ({typeof(TUnit).Name}) is not registered in UnitsNet metadata.", nameof(unit));
+
+        return unitInfo;
+    }
+
+    /// <summary>
+    /// Tries to create unit metadata from a UnitsNet unit enum.
+    /// </summary>
+    public static bool TryCreateUnitInfo<TUnit>(TUnit unit, out ValueUnitInfo unitInfo, string? unitSymbol = null) where TUnit : struct, Enum
+    {
+        if (Quantity.TryGetUnitInfo((Enum)(object)unit, out var resolvedInfo))
+        {
+            var quantityName = resolvedInfo.QuantityName;
+            if (!string.IsNullOrWhiteSpace(quantityName))
+            {
+                unitInfo = new ValueUnitInfo(quantityName, resolvedInfo.Name, unitSymbol);
+                return true;
+            }
+        }
+
+        unitInfo = default!;
+        return false;
+    }
+
     public event EventHandler<ValueWrittenEventArgs>? Written;
     public event EventHandler<ValueChangedEventArgs>? Changed;
     public event EventHandler<ValueExceptionEventArgs>? ExceptionOccurred;
@@ -250,10 +312,37 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         {
             var parsedUnit = Enum.Parse(quantityInfo.UnitType, unitInfo.UnitName, ignoreCase: true);
             if (parsedUnit is not Enum parsedEnum)
-                return false;
+                return TryResolveUnitEnumByAbbreviation(unitInfo, quantityInfo, out unit);
 
             unit = parsedEnum;
             return true;
+        }
+        catch
+        {
+            return TryResolveUnitEnumByAbbreviation(unitInfo, quantityInfo, out unit);
+        }
+    }
+
+    private static bool TryResolveUnitEnumByAbbreviation(ValueUnitInfo unitInfo, QuantityInfo quantityInfo, out Enum unit)
+    {
+        unit = default!;
+
+        try
+        {
+            foreach (var candidateUnitInfo in quantityInfo.UnitInfos)
+            {
+                var abbreviations = UnitAbbreviationsCache.Default.GetAbbreviations(candidateUnitInfo, CultureInfo.InvariantCulture);
+                if (!abbreviations.Any(abbreviation => string.Equals(abbreviation, unitInfo.UnitName, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                if (candidateUnitInfo.Value is not Enum unitEnum)
+                    continue;
+
+                unit = unitEnum;
+                return true;
+            }
+
+            return false;
         }
         catch
         {
@@ -281,6 +370,15 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         try
         {
             var magnitude = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+
+            if (TryResolveUnitEnum(unitInfo, out var resolvedUnit)
+                && Quantity.TryFrom(magnitude, resolvedUnit, out var parsedByEnum)
+                && parsedByEnum is not null)
+            {
+                quantity = parsedByEnum;
+                return true;
+            }
+
             if (Quantity.TryFrom(magnitude, unitInfo.QuantityName, unitInfo.UnitName, out var parsedQuantity) && parsedQuantity is not null)
             {
                 quantity = parsedQuantity;
@@ -295,6 +393,14 @@ public abstract class ValueBase(ILogger<ValueBase> logger, TimeProvider? timePro
         }
     }
 
+    /// <summary>
+    /// Converts a quantity to a numeric value of the specified target type, optionally using a preferred unit.
+    /// </summary>
+    /// <param name="quantity">The quantity to convert.</param>
+    /// <param name="targetType">The target numeric type.</param>
+    /// <param name="unitInfo">Optional unit information for conversion.</param>
+    /// <param name="numericValue">The resulting numeric value if conversion succeeds.</param>
+    /// <returns>True if the conversion was successful; otherwise, false.</returns>
     protected static bool TryConvertQuantityToNumericTarget(IQuantity quantity, Type targetType, ValueUnitInfo? unitInfo, out object? numericValue)
     {
         numericValue = null;
@@ -408,6 +514,24 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         Label = label;
     }
 
+    /// <summary>
+    /// Assigns unit metadata to this typed value.
+    /// </summary>
+    public new ValueBase<T> WithUnit(ValueUnitInfo unitInfo)
+    {
+        base.WithUnit(unitInfo);
+        return this;
+    }
+
+    /// <summary>
+    /// Assigns unit metadata from a UnitsNet unit enum to this typed value.
+    /// </summary>
+    public new ValueBase<T> WithUnit<TUnit>(TUnit unit, string? unitSymbol = null) where TUnit : struct, Enum
+    {
+        base.WithUnit(unit, unitSymbol);
+        return this;
+    }
+
     /// <inheritdoc/>
     public virtual void Write(T value, object? initiator = null)
     {
@@ -429,7 +553,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
 
     public virtual void WriteLocked(T value, object? initiator = null)
     {
-        if ((Status.HasFlag(ValueStatus.Live) | Status.HasFlag(ValueStatus.Used)) && EqualityComparer<T>.Default.Equals(Value, value))
+        if ((Status.HasFlag(ValueStatus.Live) || Status.HasFlag(ValueStatus.Used)) && EqualityComparer<T>.Default.Equals(Value, value))
         {
             return;
         }
@@ -445,6 +569,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             logger.LogDebug("Received null value for {ValueName}, which is not allowed. Ignoring the update.", Name);
             return;
         }
+
         if (rawValue is not T typed)
         {
             Status |= ValueStatus.Error;
@@ -474,6 +599,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             logger.LogDebug("Received null value for {ValueName}, which is not allowed. Ignoring the update.", Name);
             return;
         }
+
         if (newValue is not T typed)
         {
             Status |= ValueStatus.Error;
@@ -524,11 +650,10 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             return InitializeValue(typed, stage);
         }
 
-        // IConvertible from string?
-        if (value is string str && typeof(T) != typeof(string) && !string.IsNullOrEmpty(str) && typeof(IConvertible).IsAssignableFrom(typeof(T)))
+        // Use TryParse for string to non-string
+        if (value is string strValue && typeof(T) != typeof(string))
         {
-            // use TryParseValue to attempt parsing the string into the correct type
-            if (TryParseValue(str, out var parsedValue, out var errorMessage))
+            if (TryParseValue(strValue, out var parsedValue, out var errorMessage))
             {
                 if (parsedValue is T parsedTyped)
                 {
@@ -536,8 +661,8 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                 }
                 else
                 {
-                    logger.LogDebug("Parsed value '{ParsedValue}' (type {ActualType}) from string '{OriginalString}' is not of the expected type {ExpectedType} for value {ValueName} at stage {Stage}.", parsedValue, parsedValue?.GetType(), str, typeof(T), Name, stage);
-                    return FailInitialization($"Parsed value '{str}' to '{parsedValue}' (type {parsedValue?.GetType()}) from string '{str}' is not of the expected type {typeof(T)} for value '{Name}' at stage {stage}.");
+                    logger.LogDebug("Parsed value '{ParsedValue}' (type {ActualType}) from string '{OriginalString}' is not of the expected type {ExpectedType} for value {ValueName} at stage {Stage}.", parsedValue, parsedValue?.GetType(), strValue, typeof(T), Name, stage);
+                    return FailInitialization($"Parsed value '{strValue}' to '{parsedValue}' (type {parsedValue?.GetType()}) from string '{strValue}' is not of the expected type {typeof(T)} for value '{Name}' at stage {stage}.");
                 }
             }
             else
@@ -546,19 +671,6 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
                 logger.LogDebug("{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}. Error: {ErrorMessage}", message, Name, typeof(T), stage, errorMessage);
                 return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}. Error: {errorMessage}", new FormatException(errorMessage));
             }
-            /*
-            try
-            {
-                var converted = (T)Convert.ChangeType(str, typeof(T));
-                return InitializeValue(converted, stage);
-            }
-            catch (Exception ex)
-            {
-                string message = $"Failed to convert string value '{str}' during initialization.";
-                logger.LogDebug(ex, "{Message} Value {ValueName} expects {ExpectedType} at stage {Stage}.", message, Name, typeof(T), stage);
-                return FailInitialization($"{message} Value '{Name}' expects {typeof(T)} at stage {stage}.", ex);
-            }
-            */
         }
 
         // catch numeric conversions, e.g. int to double, float to decimal, etc.
@@ -917,8 +1029,8 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             return true;
         }
 
-        if (double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
-            && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var quantity)
+        if (double.TryParse(rawValue, NumberStyles.Float | NumberStyles.Integer | NumberStyles.Number | NumberStyles.AllowThousands, formatProvider, out var magnitude)
+            && TryCreateQuantityFromScalar(magnitude, Unit, out var quantity)
             && TryConvertQuantityToNumericTarget(quantity, typeof(T), Unit, out var convertedWithoutSuffix))
         {
             parsedValue = convertedWithoutSuffix;

@@ -228,6 +228,32 @@ public sealed class ClimateValues : IValuesContainer
 }
 ```
 
+The same setup can be done with type-safe UnitsNet enum helpers on `ValueBase`:
+
+```csharp
+using HomeCompanion.Values;
+using UnitsNet.Units;
+
+public sealed class ClimateValues : IValuesContainer
+{
+  public ValueBase<double> IndoorTemperature { get; } = new()
+    .WithUnit(TemperatureUnit.DegreeCelsius, "°C");
+}
+```
+
+Available helper APIs:
+
+- `WithUnit(ValueUnitInfo)`
+- `WithUnit<TUnit>(TUnit unit, string? unitSymbol = null)`
+- `TrySetUnit<TUnit>(TUnit unit, string? unitSymbol = null)`
+- `CreateUnitInfo<TUnit>(TUnit unit, string? unitSymbol = null)`
+- `TryCreateUnitInfo<TUnit>(TUnit unit, out ValueUnitInfo unitInfo, string? unitSymbol = null)`
+
+Recommendation:
+
+- Use enum-based helpers when writing C# code to get compile-time guidance.
+- Keep serialized configuration values in `ValueUnitInfo` string form (`QuantityName`/`UnitName`) for portability.
+
 Example (quantity-as-type):
 
 ```csharp

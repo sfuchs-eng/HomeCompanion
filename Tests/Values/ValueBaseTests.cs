@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Globalization;
 using UnitsNet;
+using UnitsNet.Units;
 
 namespace HomeCompanion.Tests.Values;
 
@@ -610,6 +611,30 @@ public class ValueBaseTests
         });
     }
 
+    [TestCase("100 m/s", "Speed", "km/h", 360d, 0.0001d)]
+    [TestCase("2000 mA", "ElectricCurrent", "A", 2d, 0.0001d)]
+    [TestCase("1500 g", "Mass", "kg", 1.5d, 0.0001d)]
+    [TestCase("1.2 t", "Mass", "kg", 1200d, 0.001d)]
+    public void TryParseValue_WithUnitSuffix_ConvertsToConfiguredTargetUnit_AsDouble(
+        string input,
+        string quantityName,
+        string targetUnitName,
+        double expected,
+        double tolerance)
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo(quantityName, targetUnitName);
+
+        var success = value.TryParseValue(input, out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(parsedValue, Is.TypeOf<double>());
+            Assert.That((double)parsedValue!, Is.EqualTo(expected).Within(tolerance));
+        });
+    }
+
     [Test]
     public void TryParseValue_ForQuantityType_ParsesUnitsNetQuantity()
     {
@@ -636,5 +661,48 @@ public class ValueBaseTests
         var formatted = value.Format(CultureInfo.InvariantCulture);
 
         Assert.That(formatted, Does.Contain("°C"));
+    }
+
+    [Test]
+    public void CreateUnitInfo_FromUnitsNetEnum_UsesResolvedQuantityAndUnitNames()
+    {
+        var info = ValueBase.CreateUnitInfo(TemperatureUnit.DegreeCelsius, "°C");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(info.QuantityName, Is.EqualTo("Temperature"));
+            Assert.That(info.UnitName, Is.EqualTo("DegreeCelsius"));
+            Assert.That(info.UnitSymbol, Is.EqualTo("°C"));
+        });
+    }
+
+    [Test]
+    public void WithUnit_EnumOverload_AssignsUnitMetadata()
+    {
+        var value = CreateValue<double>();
+
+        value.WithUnit(TemperatureUnit.DegreeCelsius, "°C");
+
+        Assert.That(value.Unit, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(value.Unit!.QuantityName, Is.EqualTo("Temperature"));
+            Assert.That(value.Unit.UnitName, Is.EqualTo("DegreeCelsius"));
+            Assert.That(value.Unit.DisplayUnit, Is.EqualTo("°C"));
+        });
+    }
+
+    [Test]
+    public void TrySetUnit_InvalidEnumValue_ReturnsFalse()
+    {
+        var value = CreateValue<double>();
+
+        var success = value.TrySetUnit((TemperatureUnit)int.MinValue);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.False);
+            Assert.That(value.Unit, Is.Null);
+        });
     }
 }
