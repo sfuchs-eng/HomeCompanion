@@ -21,11 +21,11 @@ public class ParameterComponentTests
     [Test]
     public void Render_ShouldShowCurrentValue_AndSetValueThroughModal()
     {
-        using var context = new TestContext();
+        using var context = new BunitContext();
         var parameter = new Parameter<int>("Temperature");
         parameter.Value = 21;
 
-        var component = context.RenderComponent<HomeCompanion.Server.Components.Widgets.Parameter>(parameters =>
+        var component = context.Render<HomeCompanion.Server.Components.Widgets.Parameter>(parameters =>
             parameters.Add(p => p.Value, parameter));
 
         Assert.That(component.Markup, Does.Contain("Temperature"));
