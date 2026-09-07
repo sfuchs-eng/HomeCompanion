@@ -8,6 +8,7 @@ using SRF.Network.Knx.Messages;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using SRF.Knx.Config;
+using SRF.Knx.Core.DPT;
 using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
 using System.Globalization;
@@ -321,7 +322,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 {
                     try
                     {
-                        var normalizedValue = NormalizeInboundValue(mapping.Value, e.KnxMessageContext.DecodedValue);
+                        var dpt = _dptResolver.GetDpt(e.KnxMessageContext.GroupEventArgs.DestinationAddress);
+                        var normalizedValue = NormalizeInboundValue(mapping.Value, e.KnxMessageContext.DecodedValue, dpt);
                         mapping.Value.InitializeValue(normalizedValue ?? e.KnxMessageContext.DecodedValue, AppLifeCycleStage.InitBusValueReceived);
                     }
                     catch (Exception ex)
@@ -348,14 +350,21 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         // Events are always published; Target being null allows bus-aware listeners to observe
         // telegrams for group addresses that have no corresponding IValue registered.
         var target = ResolveTarget(args.DestinationAddress);
-        var normalizedValue = NormalizeInboundValue(target?.Value, ctx.DecodedValue);
+        var dpt = args.DestinationAddress is not null ? _dptResolver.GetDpt(args.DestinationAddress) : null;
+        var normalizedValue = NormalizeInboundValue(target?.Value, ctx.DecodedValue, dpt);
+
+        if ( args?.DestinationAddress is null )
+        {
+            _logger.LogWarning("Received KNX telegram with null destination address. Ignoring.");
+            return;
+        }
 
         switch (args.EventType)
         {
             case GroupEventType.ValueWrite:
                 if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAdddressWrites))
                     break;
-                if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
+                if (!(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false))
                     break; // if the mapping doesn't allow receiving, ignore the write
                 _ = _publisher.PublishAsync(new KnxGroupWriteReceived
                 {
@@ -411,7 +420,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
             case GroupEventType.ValueResponse:
                 if (!_integrationOptions.CommunicationPermissions.HasFlag(CommunicationPermissions.RxGroupAddressReadAnswers))
                     break;
-                if ( !(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false) )
+                if (!(target?.Mapping.Communication.HasFlag(BusCommunication.Receive) ?? false))
                     break; // if the mapping doesn't allow receiving, ignore the response
                 _ = _publisher.PublishAsync(new KnxGroupResponseReceived
                 {
@@ -491,13 +500,20 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     /// <param name="targetValue">The target IValue instance.</param>
     /// <param name="decodedValue">The decoded value from KNX.</param>
     /// <returns>The normalized value compatible with the target IValue type.</returns>
-    private static object? NormalizeInboundValue(IValue? targetValue, object? decodedValue)
+    private static object? NormalizeInboundValue(IValue? targetValue, object? decodedValue, DptBase? dpt = null)
     {
         if (targetValue is null || decodedValue is null)
             return decodedValue;
 
         if (targetValue.ValueType.IsInstanceOfType(decodedValue))
             return decodedValue;
+
+        if (dpt is not null)
+        {
+            var expectedTypes = new[] { dpt.ValueType, dpt.ApplicationType };
+            if (!expectedTypes.Contains(targetValue.ValueType))
+                return decodedValue;
+        }
 
         var rawText = decodedValue is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture)

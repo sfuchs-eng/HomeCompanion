@@ -183,6 +183,11 @@ public class InfluxSignalStoreTests
 
         public bool IsAllUpToStageCompleted(AppLifeCycleStage level)
             => true;
+
+        public void SignalInitializationStageCompleted(AppLifeCycleStage level, object? signaller = null)
+        {
+            InitializationStageCompleted?.Invoke(this, new AppInitializationStageCompletedEventArgs(level));
+        }
     }
 
     private sealed class RecordingBatchWriter : IInfluxBatchWriter

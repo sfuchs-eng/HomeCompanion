@@ -119,7 +119,7 @@ public class MqttTopicRouterTests
         Assert.That(selection!.RouteKind, Is.EqualTo(MqttRouteKind.Command));
     }
 
-    private static ValueBase<T> CreateValue<T>(string name)
+    private static ValueBase<T> CreateValue<T>(string name) where T : notnull
     {
         return new ValueBase<T>(NullLogger<ValueBase<T>>.Instance)
         {

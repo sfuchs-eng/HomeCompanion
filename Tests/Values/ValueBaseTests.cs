@@ -17,7 +17,7 @@ public class ValueBaseTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static ValueBase<T> CreateValue<T>(TimeProvider? timeProvider = null)
+    private static ValueBase<T> CreateValue<T>(TimeProvider? timeProvider = null) where T : notnull
         => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>(), timeProvider);
 
     private static EventBus CreateBus() => new(NullLogger<EventBus>.Instance);

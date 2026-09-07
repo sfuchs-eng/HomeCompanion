@@ -155,6 +155,26 @@ public class KnxDptResolverIntegrationTests
     {
         public KnxMasterData GetMasterData() => masterData;
 
+        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
+        {
+            var dt = masterData.MasterData?.DatapointTypes?.Items.Values
+                .FirstOrDefault(x => x.Number == dptId.Main);
+
+            if (dt is null)
+            {
+                dpt = null;
+                dptSubtype = null;
+                return false;
+            }
+
+            dpt = dt;
+            dptSubtype = dptId.Sub == 0
+                ? null
+                : dt.DatapointSubtypes?.DatapointSubtype.FirstOrDefault(s => s.Number == dptId.Sub);
+
+            return dptId.Sub == 0 || dptSubtype is not null;
+        }
+
         public static KnxMasterDataProviderStub Create()
         {
             var baseDir = Path.GetDirectoryName(typeof(KnxMasterDataProviderStub).Assembly.Location) ?? "";

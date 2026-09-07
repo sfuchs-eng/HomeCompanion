@@ -27,7 +27,7 @@ public class ValuesManagerTests
         try { await bus.StopAsync(CancellationToken.None); } catch (OperationCanceledException) { }
     }
 
-    private static ValueBase<T> MakeValue<T>()
+    private static ValueBase<T> MakeValue<T>() where T : notnull
         => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>());
 
     private static ValuesManager CreateManager(

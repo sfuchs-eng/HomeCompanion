@@ -17,6 +17,7 @@ using SRF.Network.Knx;
 using SRF.Network.Knx.Connection;
 using SRF.Network.Knx.Messages;
 using HomeCompanion.Core.Events;
+using SRF.Knx.Core.Master;
 using System.Collections.Concurrent;
 
 namespace HomeCompanion.Tests;
@@ -157,10 +158,7 @@ public class KnxConnectivityProviderTests
     /// <summary>A DPT resolver that maps any group address to a <see cref="BoolDpt"/>.</summary>
     private sealed class StubDptResolver : IDptResolver
     {
-        public DptBase GetDpt(GroupAddress groupAddress) => new BoolDpt
-        {
-            Id = new DataPointTypeId { Main = 1, Sub = 1 },
-        };
+        public DptBase GetDpt(GroupAddress groupAddress) => BoolDpt.CreateDefault();
 
         public void ClearCache() { }
     }
@@ -168,9 +166,9 @@ public class KnxConnectivityProviderTests
     /// <summary>Stub <see cref="IKnxSystemConfiguration"/> that maps every group address to a <see cref="BoolDpt"/>.</summary>
     private sealed class StubKnxSystemConfiguration : IKnxSystemConfiguration
     {
-        public DptBase GetDpt(GroupAddress groupAddress) => new BoolDpt { Id = new DataPointTypeId { Main = 1, Sub = 1 } };
+        public DptBase GetDpt(GroupAddress groupAddress) => BoolDpt.CreateDefault();
         public void ClearCache() { }
-        public DptBase GetDptFromId(string dptId) => new BoolDpt { Id = new DataPointTypeId { Main = 1, Sub = 1 } };
+        public DptBase GetDptFromId(string dptId) => BoolDpt.CreateDefault();
         public GroupAddressMeta GetGroupAddressMeta(GroupAddress groupAddress) => throw new NotSupportedException();
         public GroupAddressMeta GetGroupAddressMeta(string name) => throw new NotSupportedException();
         public GroupAddressMeta? GetGroupAddressMetaOrNull(GroupAddress groupAddress) => null;
@@ -181,6 +179,53 @@ public class KnxConnectivityProviderTests
     /// <summary>Minimal DPT for <see cref="bool"/> (DPT-1.x): 1 byte, non-zero = true.</summary>
     private sealed class BoolDpt : DptBase
     {
+        public BoolDpt(int main = 1, int sub = 1)
+            : base(new DataPointTypeId(main, sub), CreateMetadata(main, sub))
+        {
+        }
+
+        public static BoolDpt CreateDefault()
+        {
+            var id = new DataPointTypeId(1, 1);
+            return new BoolDpt()
+            {
+                Id = id,
+                Metadata = CreateMetadata(1, 1),
+            };
+        }
+
+        private static DptMetadata CreateMetadata(int main, int sub)
+        {
+            var id = new DataPointTypeId(main, sub);
+            return new DptMetadata
+            {
+                Id = id,
+                Dpt = new DatapointType
+                {
+                    Id = id.EtsFormat,
+                    Number = main,
+                    Name = "Bool DPT",
+                    Text = "Bool DPT",
+                    PDT = "PDT_UNSIGNED_CHAR",
+                },
+                Dpst = sub > 0 ? new DatapointSubtype
+                {
+                    Id = id.EtsFormat,
+                    Number = sub,
+                    Name = "Bool subtype",
+                    Text = "Bool subtype",
+                    PDT = "PDT_UNSIGNED_CHAR",
+                } : null,
+                Pdt = new PropertyDataType
+                {
+                    Id = "PDT_UNSIGNED_CHAR",
+                    Number = PropertyDataTypeNumber.PDT_UNSIGNED_CHAR,
+                    Name = "PDT_UNSIGNED_CHAR",
+                    Size = 1,
+                },
+            };
+        }
+
         public override Type ValueType => typeof(bool);
 
         public override object ToValue(GroupValue groupValue)

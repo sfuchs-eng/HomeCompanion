@@ -203,6 +203,13 @@ public class OpenHabExtensionRegistrationTests
     private class StubMasterDataProvider : IKnxMasterDataProvider
     {
         public KnxMasterData GetMasterData() => new KnxMasterData();
+
+        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
+        {
+            dpt = null;
+            dptSubtype = null;
+            return false;
+        }
     }
 
     private sealed class CapturingStateInitializationManager : IStateInitializationRegistrar
@@ -236,7 +243,7 @@ public class OpenHabExtensionRegistrationTests
             => Task.CompletedTask;
     }
 
-    private sealed class CountingValue<T>(Microsoft.Extensions.Logging.ILogger<ValueBase<T>> logger) : ValueBase<T>(logger)
+    private sealed class CountingValue<T>(Microsoft.Extensions.Logging.ILogger<ValueBase<T>> logger) : ValueBase<T>(logger) where T : notnull
     {
         public int InitializeCalls { get; private set; }
 

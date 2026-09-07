@@ -165,44 +165,6 @@ public class StateInitializationManagerSnapshotTests
     }
 
     [Test]
-    public async Task SaveStateAndInitializeState_roundtrips_nullable_null_payload()
-    {
-        var store = new StubStateStore();
-        var lifecycle = new StubLifecycleSync();
-
-        var source = new NullableNullRoundtripContainer();
-        source.OptionalLevel.InitializeValue((int?)null, AppLifeCycleStage.InitBusValueReceived);
-
-        var saver = new StateInitializationManager(
-            lifecycle,
-            store,
-            [source],
-            NullLogger<StateInitializationManager>.Instance,
-            TimeProvider.System);
-
-        await saver.SaveStateAsync(CancellationToken.None);
-
-        Assert.That(store.Stored, Is.TypeOf<ValueSnapshotSet>());
-        var snapshot = (ValueSnapshotSet)store.Stored!;
-        var key = "HomeCompanion.Tests.StateInitializationManagerSnapshotTests+NullableNullRoundtripContainer|OptionalLevel";
-        Assert.That(snapshot.Values, Contains.Key(key));
-        Assert.That(snapshot.Values[key].PayloadJson, Is.EqualTo("null"));
-
-        var target = new NullableNullRoundtripContainer();
-        var loader = new StateInitializationManager(
-            lifecycle,
-            store,
-            [target],
-            NullLogger<StateInitializationManager>.Instance,
-            TimeProvider.System);
-
-        await loader.InitializeStateAsync(CancellationToken.None);
-
-        Assert.That(target.OptionalLevel.Value, Is.Null);
-        Assert.That(target.OptionalLevel.Status.HasFlag(ValueStatus.Initialized), Is.True);
-    }
-
-    [Test]
     public async Task SaveState_serializes_enum_by_name_and_restore_accepts_name_payload()
     {
         var store = new StubStateStore();
@@ -373,7 +335,7 @@ public class StateInitializationManagerSnapshotTests
             Name = "last-seen",
         };
 
-        public ValueBase<int?> OptionalLevel { get; } = new(NullLogger<ValueBase<int?>>.Instance)
+        public ValueBase<int> OptionalLevel { get; } = new(NullLogger<ValueBase<int>>.Instance)
         {
             Name = "optional-level",
         };
@@ -388,7 +350,7 @@ public class StateInitializationManagerSnapshotTests
 
     private sealed class NullableNullRoundtripContainer : IValuesContainer
     {
-        public ValueBase<int?> OptionalLevel { get; } = new(NullLogger<ValueBase<int?>>.Instance)
+        public ValueBase<int> OptionalLevel { get; } = new(NullLogger<ValueBase<int>>.Instance)
         {
             Name = "optional-level-null",
         };

@@ -59,13 +59,13 @@ public class OpenHabStateConverterTests
         return services.BuildServiceProvider(validateScopes: false).GetRequiredService<IDptResolver>();
     }
 
-    private static ValueBase<T> ValueWithKnxMapping<T>(string groupAddress, string dptId)
+    private static ValueBase<T> ValueWithKnxMapping<T>(string groupAddress, string dptId) where T : notnull
         => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>())
         {
             BusMappings = new() { [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping(groupAddress, dptId) },
         };
 
-    private static ValueBase<T> ValueWithoutKnxMapping<T>()
+    private static ValueBase<T> ValueWithoutKnxMapping<T>() where T : notnull
         => new(NullLoggerFactory.Instance.CreateLogger<ValueBase<T>>());
 
     // ── Tests: BitFormat (boolean, DPT-1) ────────────────────────────────────
@@ -192,6 +192,26 @@ public class OpenHabStateConverterTests
     private sealed class KnxMasterDataProviderStub(KnxMasterData masterData) : IKnxMasterDataProvider
     {
         public KnxMasterData GetMasterData() => masterData;
+
+        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
+        {
+            var dt = masterData.MasterData?.DatapointTypes?.Items.Values
+                .FirstOrDefault(x => x.Number == dptId.Main);
+
+            if (dt is null)
+            {
+                dpt = null;
+                dptSubtype = null;
+                return false;
+            }
+
+            dpt = dt;
+            dptSubtype = dptId.Sub == 0
+                ? null
+                : dt.DatapointSubtypes?.DatapointSubtype.FirstOrDefault(s => s.Number == dptId.Sub);
+
+            return dptId.Sub == 0 || dptSubtype is not null;
+        }
 
         public static KnxMasterDataProviderStub Create()
         {

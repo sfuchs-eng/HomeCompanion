@@ -52,7 +52,7 @@ public class LogicValueBinderTests
         Assert.That(() => sut.Bind(logic), Throws.InvalidOperationException.With.Message.Contains("not assignable"));
     }
 
-    private static ValueBase<T> CreateValue<T>(string name)
+    private static ValueBase<T> CreateValue<T>(string name) where T : notnull
         => new(NullLogger<ValueBase<T>>.Instance) { Name = name };
 
     private sealed class LogicTestValuesContainer : IValuesContainer

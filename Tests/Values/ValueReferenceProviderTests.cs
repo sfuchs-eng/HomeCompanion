@@ -57,7 +57,7 @@ public class ValueReferenceProviderTests
         Assert.That(value!.Name, Is.EqualTo("Dynamic"));
     }
 
-    private static ValueBase<T> CreateValue<T>(string name)
+    private static ValueBase<T> CreateValue<T>(string name) where T : notnull
     {
         return new ValueBase<T>(NullLogger<ValueBase<T>>.Instance)
         {

@@ -247,6 +247,13 @@ public class OpenHabConnectivityProviderTests
     private sealed class StubMasterDataProvider : IKnxMasterDataProvider
     {
         public KnxMasterData GetMasterData() => new();
+
+        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
+        {
+            dpt = null;
+            dptSubtype = null;
+            return false;
+        }
     }
 
     private sealed class TestContainer : IValuesContainer
