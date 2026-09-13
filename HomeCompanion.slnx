@@ -71,6 +71,9 @@
   <Folder Name="/SRF.Network/WebSocket/">
     <Project Path="SRF.Network/WebSocket/SRF.Network.WebSocket.csproj" />
   </Folder>
+  <Folder Name="/Support.Knx/">
+    <Project Path="Support.Knx/HomeCompanion.Support.Knx.csproj" />
+  </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/HomeCompanion.Tests.csproj" />
   </Folder>

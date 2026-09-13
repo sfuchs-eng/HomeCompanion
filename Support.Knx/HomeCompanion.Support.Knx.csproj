@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
+    <ProjectReference Include="..\SRF.Network\Subs\SRF.Knx\SRF.Knx.Config.OpenHab\SRF.Knx.Config.OpenHab.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
