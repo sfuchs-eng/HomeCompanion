@@ -102,8 +102,8 @@ public class KnxNumericValueTypeCompatibilityTests
             {
                 Assert.That(dpt.Id.EtsFormat, Is.EqualTo(expectedDpt),
                     $"Property '{property.Name}' uses unexpected DPT for group address {mapping.GroupAddress}.");
-                Assert.That(dpt.ValueType, Is.EqualTo(clrType),
-                    $"Property '{property.Name}' ({mapping.GroupAddress}, {dpt.Id.EtsFormat}) has CLR type mismatch: IValue<{clrType.Name}> vs resolver {dpt.ValueType.Name}.");
+                Assert.That(dpt.BaseType, Is.EqualTo(clrType),
+                    $"Property '{property.Name}' ({mapping.GroupAddress}, {dpt.Id.EtsFormat}) has CLR type mismatch: IValue<{clrType.Name}> vs resolver {dpt.BaseType.Name}.");
             });
         }
 
@@ -217,7 +217,7 @@ public class KnxNumericValueTypeCompatibilityTests
         var dpt = resolver.GetDpt(mapping!.GroupAddress);
 
         // The IValue<float> type and the DPT's ValueType (bool) must not match
-        Assert.That(dpt.ValueType, Is.Not.EqualTo(typeof(float)),
+        Assert.That(dpt.BaseType, Is.Not.EqualTo(typeof(float)),
             "DPST-1-1 resolves to bool, not float — type mismatch should be detected.");
     }
 

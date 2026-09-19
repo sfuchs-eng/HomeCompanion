@@ -791,8 +791,14 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         if (TryParseUnitsNetQuantity(value, formatProvider, out parsedValue, out errorMessage))
             return true;
 
+        if (typeof(IQuantity).IsAssignableFrom(typeof(T)) && errorMessage is not null)
+            return false;
+
         if (TryParseNumericWithUnitMetadata(value, formatProvider, out parsedValue, out errorMessage))
             return true;
+
+        if (Unit is not null && errorMessage is not null)
+            return false;
 
         // check whether T implements IParsable<T> and use its TryParse method if available
         if (typeof(T).GetInterface("IParsable`1") is not null)
@@ -986,13 +992,22 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         if (!typeof(IQuantity).IsAssignableFrom(typeof(T)))
             return false;
 
+        if (Unit is not null
+            && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
+            && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var configuredUnitQuantity)
+            && configuredUnitQuantity.GetType() == typeof(T))
+        {
+            parsedValue = configuredUnitQuantity;
+            return true;
+        }
+
         if (Quantity.TryParse(formatProvider, typeof(T), rawValue, out var parsedQuantity))
         {
             parsedValue = parsedQuantity;
             return true;
         }
 
-        if (Unit is not null && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
+        if (Unit is not null && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out magnitude)
             && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var inferredQuantity)
             && inferredQuantity.GetType() == typeof(T))
         {
@@ -1001,7 +1016,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         }
 
         errorMessage = $"Failed to parse value '{rawValue}' as UnitsNet quantity type {typeof(T).Name}.";
-        return true;
+        return false;
     }
 
     private bool TryParseNumericWithUnitMetadata(string rawValue, IFormatProvider formatProvider, out object? parsedValue, out string? errorMessage)
@@ -1019,7 +1034,7 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         if (!TryResolveQuantityInfo(Unit.QuantityName, out var quantityInfo))
         {
             errorMessage = $"Unknown UnitsNet quantity '{Unit.QuantityName}' configured for value {Name ?? "(unnamed)"}.";
-            return true;
+            return false;
         }
 
         if (Quantity.TryParse(formatProvider, quantityInfo.ValueType, rawValue, out var parsedQuantity)
@@ -1038,6 +1053,6 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         }
 
         errorMessage = $"Failed to parse value '{rawValue}' as numeric type {typeof(T).Name} using configured unit {Unit}.";
-        return true;
+        return false;
     }
 }

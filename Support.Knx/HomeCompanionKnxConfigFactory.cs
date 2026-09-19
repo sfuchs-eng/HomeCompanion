@@ -102,7 +102,7 @@ public class HomeCompanionKnxConfigFactory(
                 if (dpt is DptSimple dptSimple && dptSimple.NumericInfo?.Unit is not null)
                 {
                     var unit = dptSimple.NumericInfo.Unit;
-                    var unitMapping = unitSystemsMapper.GetDptUnitMapping(dptSimple, $"{gac.Address}, {gac.Label}");
+                    var unitMapping = unitSystemsMapper.GetDpstUnitMapping(gac.DPT, $"{gac.Address}, {gac.Label}");
                     kv.Dimension = unitMapping?.DimensionName ?? unit?.ToString();
                     kv.Unit = unitMapping?.UnitName;
                 }

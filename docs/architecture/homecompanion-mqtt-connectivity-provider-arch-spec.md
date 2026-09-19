@@ -175,6 +175,8 @@ This keeps broker load manageable while allowing controlled wildcard-based value
 
 ## 9. Data Flow
 
+For the cross-provider canonical flow from connectivity providers to `IValue` updates (including full initialization path separation), see [homecompanion-connectivity-value-routing-arch-spec.md](homecompanion-connectivity-value-routing-arch-spec.md).
+
 ## 9.1 Inbound (MQTT -> HomeCompanion)
 
 1. `IMqttBrokerConnection` receives message.

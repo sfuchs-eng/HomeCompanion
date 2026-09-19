@@ -51,7 +51,11 @@ Adopt a **hybrid unit-aware model**:
 
 ### Integration behavior
 
+Usage of `ValueBase<IQuantity>` for unit aware values is recommended. As fallback, `ValueBase<T>` with Unit metadata can be used or `IValue<T>` can be implemented directly.
+
 - **KNX**:
+  - The DPST (DPT) is used to determine the expected value type and to convert inbound scalar values to UnitsNet quantities where needed based on KNX DPT master data.
+  - Unit-aware DPT instance is `DptSimpleQuantity<TEncoder, TApp, TUnit>` where `TApp` is a UnitsNet quantity type and `TUnit` is the corresponding UnitsNet unit type. TEncoder is the DPT encoder's value type (for example `byte`), handled by a `PdtEncoder<TEncoder>`.
   - Inbound decoded values are normalized through target value parsing where needed.
   - Outbound quantity values are converted to scalar magnitudes before DPT encoding.
 - **OpenHAB**:

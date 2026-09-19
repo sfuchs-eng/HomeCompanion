@@ -29,10 +29,13 @@ public interface IValueBusEndpointMapping : IEqualityComparer
     virtual bool CanFormatValueForDisplay => false;
 
     /// <summary>
-    /// Formats a value for display using an optional culture.
-    /// Implementations must not throw exceptions.
+    /// Provided for special cases. Use the <see cref="IValue"/> to format a value for display whenever possible.
+    /// <br/>
+    /// If formatting fails, the method should return null or an appropriate fallback string.
+    /// <br/>
+    /// If <see cref="CanFormatValueForDisplay"/> is false, this method may still be called, but the implementation may return null or a fallback string.
     /// </summary>
-    string? FormatValueForDisplay(object? value, CultureInfo? culture = null);
+    string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null);
 }
 
 /// <summary>
@@ -86,16 +89,16 @@ public class ValueBusMapping<TBus, TAddress> : IValueBusEndpointMapping where TB
         return false;
     }
 
-    public virtual string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
+    public virtual string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null)
     {
         try
         {
-            if (Config != null && Config.ValueFormat is string format)
+            if (Config != null && Config.ValueFormat is string valueFormat)
             {
                 // For simplicity, we use string.Format with the provided format string.
                 // In a real implementation, the formatting logic might be more complex and bus-specific.
                 culture ??= CultureInfo.CurrentCulture;
-                return string.Format(culture, format, value);
+                return string.Format(culture, valueFormat, value);
             }
             else
             {

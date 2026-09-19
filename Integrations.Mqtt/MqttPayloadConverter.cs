@@ -323,7 +323,16 @@ internal sealed class MqttPayloadConverter
             return text;
 
         if (value is UnitsNet.IQuantity quantity)
+        {
+            if (config.OutboundQuantityUnitMode == MqttOutboundQuantityUnitMode.MappingConfiguredUnit
+                && unitInfo is not null
+                && TryConvertQuantityToConfiguredUnit(quantity, unitInfo, out var convertedQuantity))
+            {
+                return convertedQuantity.ToString(CultureInfo.InvariantCulture);
+            }
+
             return quantity.ToString(CultureInfo.InvariantCulture);
+        }
 
         var valueType = value.GetType();
         var nonNullable = Nullable.GetUnderlyingType(valueType) ?? valueType;
@@ -353,5 +362,20 @@ internal sealed class MqttPayloadConverter
             return fallback;
 
         return $"{fallback} {unitInfo.DisplayUnit}";
+    }
+
+    private static bool TryConvertQuantityToConfiguredUnit(UnitsNet.IQuantity quantity, ValueUnitInfo unitInfo, out UnitsNet.IQuantity converted)
+    {
+        converted = quantity;
+
+        if (!string.Equals(quantity.QuantityInfo.Name, unitInfo.QuantityName, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var unitType = quantity.QuantityInfo.UnitType;
+        if (!Enum.TryParse(unitType, unitInfo.UnitName, ignoreCase: true, out var parsedUnit) || parsedUnit is not Enum unitEnum)
+            return false;
+
+        converted = quantity.ToUnit(unitEnum);
+        return true;
     }
 }

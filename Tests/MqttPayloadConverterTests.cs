@@ -2,6 +2,7 @@ using HomeCompanion.Integrations.Mqtt;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -180,6 +181,43 @@ public class MqttPayloadConverterTests
         Assert.That(success, Is.True);
         Assert.That(decoded, Is.TypeOf<double>());
         Assert.That((double)decoded!, Is.EqualTo(20d).Within(0.01));
+    }
+
+    [Test]
+    public void Encode_RawUtf8_Quantity_PreservesInstanceUnit_ByDefault()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var source = CreateValue<Temperature>();
+        source.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var payload = _converter.Encode(Temperature.FromDegreesFahrenheit(68), typeof(Temperature), mapping, source);
+
+        Assert.That(payload, Does.Contain("°F"));
+    }
+
+    [Test]
+    public void Encode_RawUtf8_Quantity_UsesConfiguredUnit_WhenMappingConfigured()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration
+            {
+                PayloadFormat = MqttPayloadFormat.RawUtf8,
+                OutboundQuantityUnitMode = MqttOutboundQuantityUnitMode.MappingConfiguredUnit,
+            },
+        };
+
+        var source = CreateValue<Temperature>();
+        source.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var payload = _converter.Encode(Temperature.FromDegreesFahrenheit(68), typeof(Temperature), mapping, source);
+
+        Assert.That(payload, Does.Contain("°C"));
+        Assert.That(payload, Does.Not.Contain("°F"));
     }
 
     private enum HvacMode

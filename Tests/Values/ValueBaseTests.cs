@@ -62,7 +62,7 @@ public class ValueBaseTests
     {
         public override bool CanFormatValueForDisplay => canFormat;
 
-        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
+        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null)
             => value is null ? null : $"{prefix}:{value}";
     }
 
@@ -70,7 +70,7 @@ public class ValueBaseTests
         : ValueBusMapping<string, string>("test", "a", null)
     {
         public override bool CanFormatValueForDisplay => canFormat;
-        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null) => null;
+        public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null) => null;
     }
 
     // ── Tests: Write() ────────────────────────────────────────────────────────
@@ -648,6 +648,53 @@ public class ValueBaseTests
             Assert.That(parsedValue, Is.TypeOf<Temperature>());
             var parsedTemperature = (Temperature)parsedValue!;
             Assert.That(parsedTemperature.DegreesCelsius, Is.EqualTo(21.5d).Within(0.0001));
+        });
+    }
+
+    [Test]
+    public void TryParseValue_ForQuantityType_InvalidInput_ReturnsFalse()
+    {
+        var value = CreateValue<Temperature>();
+
+        var success = value.TryParseValue("not-a-temperature", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.False);
+            Assert.That(parsedValue, Is.Null);
+            Assert.That(errorMessage, Is.Not.Null.And.Not.Empty);
+        });
+    }
+
+    [Test]
+    public void TryParseValue_WithConfiguredUnit_InvalidQuantityConfig_ReturnsFalse()
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("DefinitelyUnknownQuantity", "AnyUnit");
+
+        var success = value.TryParseValue("21", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.False);
+            Assert.That(parsedValue, Is.Null);
+            Assert.That(errorMessage, Does.Contain("Unknown UnitsNet quantity"));
+        });
+    }
+
+    [Test]
+    public void TryParseValue_WithConfiguredUnit_InvalidNumericInput_ReturnsFalse()
+    {
+        var value = CreateValue<double>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
+
+        var success = value.TryParseValue("not-a-number", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.False);
+            Assert.That(parsedValue, Is.Null);
+            Assert.That(errorMessage, Is.Not.Null.And.Not.Empty);
         });
     }
 

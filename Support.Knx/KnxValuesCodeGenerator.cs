@@ -90,14 +90,7 @@ public class KnxValuesCodeGenerator(
                 : $"{EscapeXmlComment(entry.PropertyName)}") + $" (<c>{address}</c>" + (string.IsNullOrWhiteSpace(entry.Dpt) ? ")" : $", {entry.Dpt})");
 
             // Determine bus communication flags for the generated KnxBusEndpointMapping based on the entry's Communication property.
-            var commFlagsList = new List<string>();
-            if (entry.Communication.HasFlag(KnxObjectBusCommunication.Read)) commFlagsList.Add("BusCommunication.AnswerReadRequests");
-            if (entry.Communication.HasFlag(KnxObjectBusCommunication.Write) || entry.Communication.HasFlag(KnxObjectBusCommunication.Update)) commFlagsList.Add("BusCommunication.Receive");
-            if (entry.Communication.HasFlag(KnxObjectBusCommunication.Transmit)) commFlagsList.Add("BusCommunication.Transmit");
-            if (entry.Communication.HasFlag(KnxObjectBusCommunication.Initialize)) commFlagsList.Add("BusCommunication.Initialize");
-            if (commFlagsList.Count == 0)
-                commFlagsList.Add("BusCommunication.None");
-            var commFlags = string.Join(" | ", commFlagsList);
+            var commFlags = GetKnxBusMappingCommunicationFlags(entry);
 
             sb.AppendLine($"    /// <summary>{summaryText}</summary>");
             if (!string.IsNullOrWhiteSpace(entry.Description))
@@ -108,9 +101,8 @@ public class KnxValuesCodeGenerator(
             sb.AppendLine($"       Label = {(string.IsNullOrWhiteSpace(entry.Label) ? "null" : $"\"{entry.Label}\"")},");
             sb.AppendLine("       BusMappings = new Dictionary<object, IValueBusEndpointMapping>");
             sb.AppendLine("       {");
-            sb.AppendLine($"            [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping(\"{address}\", \"{entry.Dpt}\", dptFactory) {{ Communication = {commFlags} }},");
-            if (addOpenHabInitializationMapping)
-                sb.AppendLine($"            [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping(\"{openHabItemName}\") {{ Communication = BusCommunication.Initialize }},");
+            AppendKnxBusMapping(sb, kvp, indentLevel: 3);
+            AppendOpenHabBusMapping(sb, kvp, indentLevel: 3);
             sb.AppendLine("       }");
             sb.AppendLine("    };");
             sb.AppendLine();
@@ -120,8 +112,46 @@ public class KnxValuesCodeGenerator(
         return sb.ToString();
     }
 
+    private void AppendKnxBusMapping(StringBuilder sb, KeyValuePair<string, KnxValueConfiguration> kvp, int indentLevel)
+    {
+        var address = kvp.Key;
+        var entry = kvp.Value;
+        var commFlags = GetKnxBusMappingCommunicationFlags(entry);
+        AppendLineIndented(sb,
+            $"[KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping(\"{address}\", \"{entry.Dpt}\", dptFactory) {{ Communication = {commFlags} }},",
+            indentLevel);
+    }
+
+    private void AppendOpenHabBusMapping(StringBuilder sb, KeyValuePair<string, KnxValueConfiguration> kvp, int indentLevel)
+    {
+        var entry = kvp.Value;
+        if (!entry.WantsOpenHabInitialization || string.IsNullOrWhiteSpace(entry.OpenHabItemName))
+            return;
+        AppendLineIndented(sb,
+            $"[OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping(\"{entry.OpenHabItemName}\") {{ Communication = BusCommunication.Initialize }},",
+            indentLevel);
+    }
+
+    private static void AppendLineIndented(StringBuilder sb, string line, int indentLevel)
+    {
+        var indent = new string(' ', indentLevel * 4);
+        sb.AppendLine($"{indent}{line}");
+    }
+
+    private static string GetKnxBusMappingCommunicationFlags(KnxValueConfiguration entry)
+    {
+        var commFlagsList = new List<string>();
+        if (entry.Communication.HasFlag(KnxObjectBusCommunication.Read)) commFlagsList.Add("BusCommunication.AnswerReadRequests");
+        if (entry.Communication.HasFlag(KnxObjectBusCommunication.Write) || entry.Communication.HasFlag(KnxObjectBusCommunication.Update)) commFlagsList.Add("BusCommunication.Receive");
+        if (entry.Communication.HasFlag(KnxObjectBusCommunication.Transmit)) commFlagsList.Add("BusCommunication.Transmit");
+        if (entry.Communication.HasFlag(KnxObjectBusCommunication.Initialize)) commFlagsList.Add("BusCommunication.Initialize");
+        if (commFlagsList.Count == 0)
+            commFlagsList.Add("BusCommunication.None");
+        return string.Join(" | ", commFlagsList);
+    }
+
     // -------------------------------------------------------------------------
-    // DPT → C# type mapping  (stable per KNX specification) TODO: move to SRF.Knx.Core.DPT namespace and make it public for reuse in other contexts (e.g. KnxValueFactory); and use the existing DPT/PDT master data (or rather PDT encoder type?) to determine the C# type instead of hardcoding it here.
+    // DPT → C# type mapping  (stable per KNX specification) TODO/or not?: move to SRF.Knx.Core.DPT namespace and make it public for reuse in other contexts (e.g. KnxValueFactory); and use the existing DPT/PDT master data (or rather PDT encoder type?) to determine the C# type instead of hardcoding it here.
     // -------------------------------------------------------------------------
 
     private record DptToCSharpTypeMapping(int dptMain, int dptSub, string CSharpType);
@@ -131,6 +161,17 @@ public class KnxValuesCodeGenerator(
     ];
     private readonly IDptFactory dptFactory = dptFactory;
     private readonly ILogger<KnxValuesCodeGenerator> logger = logger;
+
+    private bool IsUnitsNetQuantityType(DptBase dpt)
+    {
+        if ( dpt is DptSimple dptSimple && dptSimple.ApplicationType is not null)
+        {
+            var appType = dptSimple.ApplicationType;
+            // Check if the application type is a UnitsNet quantity type
+            return appType.Namespace?.StartsWith("UnitsNet") ?? false;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Maps a DPT main number to the C# value type used in <c>ValueBase&lt;T&gt;</c>.

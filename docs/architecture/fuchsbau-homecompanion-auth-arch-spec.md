@@ -1,7 +1,7 @@
 # Architecture Specification: Fuchsbau SSO for HomeCompanion.Server
 
 **Date:** 2026-05-17
-**Status:** Draft
+**Status:** Draft - not implemented yet
 **App 1 (Identity Provider):** Fuchsbau (`sfuchs-eng/fuchsbau`)
 **App 2 (Relying Party):** HomeCompanion.Server
 

@@ -20,6 +20,7 @@ using SRF.Network.OpenHab.EventBus.Events;
 using SRF.Network.OpenHab.Items;
 using System.Collections.Concurrent;
 using System.Reflection;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -398,6 +399,37 @@ public class OpenHabConnectivityProviderTests
 
         Assert.That(restApi.SetCalls, Has.Count.EqualTo(1));
         Assert.That(restApi.SetCalls[0].ItemName, Is.EqualTo("MyLight"));
+    }
+
+    [Test]
+    public async Task OutboundValueWriteRequest_ForQuantity_DoesNotDuplicateUnitSuffix()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApi = new StubRestApiClient();
+        var container = new QuantityContainer();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi, container);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+            container.Temperature.Write(Temperature.FromDegreesCelsius(21.5));
+            await Task.Delay(100);
+        });
+
+        Assert.That(restApi.SetCalls, Has.Count.EqualTo(1));
+        Assert.That(restApi.SetCalls[0].State.Split("°C").Length - 1, Is.EqualTo(1));
+    }
+
+    private sealed class QuantityContainer : IValuesContainer
+    {
+        public ValueBase<Temperature> Temperature { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<Temperature>>())
+        {
+            Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C"),
+            BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("TemperatureItem") },
+        };
+
+        public IEnumerable<IValue> GetValues() => [Temperature];
     }
 
     [Test]

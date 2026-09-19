@@ -68,6 +68,10 @@ The solution is organized into several projects:
 
 ### Value event architecture
 
+Canonical end-to-end documentation for provider-to-value inbound routing (including runtime and initialization paths) is available here:
+
+- [docs/architecture/homecompanion-connectivity-value-routing-arch-spec.md](docs/architecture/homecompanion-connectivity-value-routing-arch-spec.md)
+
 `IValue` instances are initialized once by `ValuesManager` during startup. Connectivity providers do not call `IValue.Initialize` unless they participate in the initialization scheme explicitly.
 In regular operation, the `IConnectivityProvider` implementations (KNX, OpenHAB, MQTT) are responsible for discovering bus-mapped values and raising `ValueUpdateReceived` and `ValueWriteReceived` (and maybe other) events on the event bus. The `ValuesManager` subscribes to these events and routes them to the correct `IValue` instance based on the `Target` property of the event.
 
@@ -87,6 +91,10 @@ See architecture decision records:
 
 - [docs/adr/0001-bus-values-framework.md](docs/adr/0001-bus-values-framework.md)
 - [docs/adr/0005-unit-aware-values-framework.md](docs/adr/0005-unit-aware-values-framework.md)
+
+Initialization specifics (staged startup, startup gates, and initial value acquisition behavior) are documented in the dedicated initialization chapter of:
+
+- [docs/architecture/homecompanion-connectivity-value-routing-arch-spec.md](docs/architecture/homecompanion-connectivity-value-routing-arch-spec.md)
 
 This avoids per-value event bus subscriptions and keeps bus-specific logic in connectivity providers.
 

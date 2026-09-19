@@ -366,6 +366,9 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         if (value is null)
             return string.Empty;
 
+        if (value is UnitsNet.IQuantity quantity)
+            return quantity.ToString(CultureInfo.InvariantCulture);
+
         if (source.Unit is null)
             return value.ToString() ?? string.Empty;
 

@@ -82,14 +82,14 @@ public sealed class MqttBusEndpointMapping : ValueBusMapping<string, string>
     public override bool CanFormatValueForDisplay => true;
 
     /// <inheritdoc/>
-    public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
+    public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null)
     {
         if (value is null)
             return null;
 
         culture ??= CultureInfo.CurrentCulture;
         if (value is IFormattable formattable)
-            return formattable.ToString(null, culture);
+            return formattable.ToString(null, culture ?? CultureInfo.CurrentCulture);
 
         return value.ToString();
     }
@@ -114,6 +114,22 @@ public enum MqttPayloadFormat
     /// Treat payload as JSON scalar (or scalar property selected by <see cref="MqttBusMappingConfiguration.JsonPath"/>).
     /// </summary>
     JsonScalar,
+}
+
+/// <summary>
+/// Outbound unit mode for quantity payloads.
+/// </summary>
+public enum MqttOutboundQuantityUnitMode
+{
+    /// <summary>
+    /// Keep the quantity instance unit as-is when serializing outbound payloads.
+    /// </summary>
+    PreserveQuantityUnit,
+
+    /// <summary>
+    /// Convert outbound quantities to the configured value unit metadata when available.
+    /// </summary>
+    MappingConfiguredUnit,
 }
 
 /// <summary>
@@ -202,6 +218,11 @@ public sealed class MqttBusMappingConfiguration : IBusMappingConfiguration
     /// If true, enums are emitted as numeric values on outbound conversion.
     /// </summary>
     public bool EnumAsNumeric { get; init; }
+
+    /// <summary>
+    /// Controls how outbound quantities are serialized for raw payload formats.
+    /// </summary>
+    public MqttOutboundQuantityUnitMode OutboundQuantityUnitMode { get; init; } = MqttOutboundQuantityUnitMode.PreserveQuantityUnit;
 
     /// <summary>
     /// Optional custom boolean true literals.

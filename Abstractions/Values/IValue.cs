@@ -84,6 +84,8 @@ public interface IValue : IFormattable
     /// <summary>
     /// Attempts to parse the provided string value into the value's type and returns true if successful, false otherwise. If parsing fails, an error message is returned.
     /// The internal value is not changed by this method. Use <see cref="IValue{T}.Write"/> or related methods to write a new value after parsing.
+    /// Implementations should only return true when <paramref name="parsedValue"/> contains a valid parsed value for the target type.
+    /// Return false on parse failures or invalid unit configuration, with <paramref name="errorMessage"/> describing the failure when available.
     /// </summary>
     /// <param name="value"></param>
     /// <param name="parsedValue"></param>

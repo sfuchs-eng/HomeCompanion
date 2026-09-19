@@ -19,6 +19,8 @@ using SRF.Network.Knx.Messages;
 using HomeCompanion.Core.Events;
 using SRF.Knx.Core.Master;
 using System.Collections.Concurrent;
+using System.Globalization;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -226,7 +228,7 @@ public class KnxConnectivityProviderTests
             };
         }
 
-        public override Type ValueType => typeof(bool);
+        public override Type BaseType => typeof(bool);
 
         public override object ToValue(GroupValue groupValue)
             => groupValue.Value.Length > 0 && groupValue.Value[^1] != 0;
@@ -688,6 +690,73 @@ public class KnxConnectivityProviderTests
     }
 
     [Test]
+    public async Task InboundWrite_ScalarDecodedValue_NormalizesToQuantityTargetUsingUnitMetadata()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var connection = CreateConnection(knxBus, new ScalarDoubleDptResolver());
+        var container = new QuantityTargetContainer();
+        var provider = CreateProvider(connection, bus, container, new ScalarDoubleDptResolver());
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = new GroupAddress("1/0/5"),
+                SourceAddress = new IndividualAddress("1.1.20"),
+                EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue([50]),
+            });
+
+            await Task.Delay(200);
+            await provider.StopAsync(CancellationToken.None);
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(container.Temperature.Status.HasFlag(ValueStatus.Initialized), Is.True);
+            Assert.That(container.Temperature.Status.HasFlag(ValueStatus.Live), Is.True);
+            Assert.That(container.Temperature.Value.DegreesCelsius, Is.EqualTo(50d).Within(0.001));
+        });
+    }
+
+    [Test]
+    public async Task InboundWrite_QuantityDecodedValue_NormalizesToScalarTargetUsingUnitMetadata()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var resolver = new TemperatureQuantityDptResolver();
+        var connection = CreateConnection(knxBus, resolver);
+        var container = new ScalarTemperatureContainer();
+        var provider = CreateProvider(connection, bus, container, resolver);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = new GroupAddress("1/0/6"),
+                SourceAddress = new IndividualAddress("1.1.21"),
+                EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue([20]),
+            });
+
+            await Task.Delay(200);
+            await provider.StopAsync(CancellationToken.None);
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(container.TemperatureC.Status.HasFlag(ValueStatus.Initialized), Is.True);
+            Assert.That(container.TemperatureC.Status.HasFlag(ValueStatus.Live), Is.True);
+            Assert.That(container.TemperatureC.Value, Is.EqualTo(20d).Within(0.001));
+        });
+    }
+
+    [Test]
     public async Task InboundResponse_GroupAddressCreatedFromUShort_ResolvesMappedTarget()
     {
         var bus = CreateBus();
@@ -774,5 +843,140 @@ public class KnxConnectivityProviderTests
             action(@event);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class QuantityTargetContainer : IValuesContainer
+    {
+        public ValueBase<Temperature> Temperature { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<Temperature>>())
+        {
+            Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C"),
+            BusMappings = new()
+            {
+                [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/5", "DPST-5-1")
+                {
+                    Communication = BusCommunication.RegularCommunication,
+                },
+            },
+        };
+
+        public IEnumerable<IValue> GetValues() => [Temperature];
+    }
+
+    private sealed class ScalarTemperatureContainer : IValuesContainer
+    {
+        public ValueBase<double> TemperatureC { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<double>>())
+        {
+            Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C"),
+            BusMappings = new()
+            {
+                [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/6", "DPST-9-1")
+                {
+                    Communication = BusCommunication.RegularCommunication,
+                },
+            },
+        };
+
+        public IEnumerable<IValue> GetValues() => [TemperatureC];
+    }
+
+    private sealed class ScalarDoubleDptResolver : IDptResolver
+    {
+        private readonly DptBase _dpt = new ScalarDoubleDpt
+        {
+            Id = new DataPointTypeId(5, 1),
+            Metadata = CreateMetadata("DPST-5-1", "Scalar Double DPT", "PDT_UNSIGNED_CHAR"),
+        };
+
+        public DptBase GetDpt(GroupAddress groupAddress) => _dpt;
+
+        public void ClearCache() { }
+    }
+
+    private sealed class TemperatureQuantityDptResolver : IDptResolver
+    {
+        private readonly DptBase _dpt = new TemperatureQuantityDpt
+        {
+            Id = new DataPointTypeId(9, 1),
+            Metadata = CreateMetadata("DPST-9-1", "Temperature Quantity DPT", "PDT_2BYTE_FLOAT"),
+        };
+
+        public DptBase GetDpt(GroupAddress groupAddress) => _dpt;
+
+        public void ClearCache() { }
+    }
+
+    private sealed class ScalarDoubleDpt : DptBase
+    {
+        public ScalarDoubleDpt()
+            : base(new DataPointTypeId(5, 1), CreateMetadata("DPST-5-1", "Scalar Double DPT", "PDT_UNSIGNED_CHAR"))
+        {
+        }
+
+        public override Type BaseType => typeof(double);
+
+        public override object ToValue(GroupValue groupValue)
+            => groupValue.Value.Length == 0 ? 0d : groupValue.Value[0];
+
+        public override GroupValue ToGroupValue(object value)
+            => new([Convert.ToByte(value, CultureInfo.InvariantCulture)]);
+    }
+
+    private sealed class TemperatureQuantityDpt : DptBase
+    {
+        public TemperatureQuantityDpt()
+            : base(new DataPointTypeId(9, 1), CreateMetadata("DPST-9-1", "Temperature Quantity DPT", "PDT_2BYTE_FLOAT"))
+        {
+        }
+
+        public override Type BaseType => typeof(double);
+
+        public override Type ApplicationType => typeof(Temperature);
+
+        public override object ToValue(GroupValue groupValue)
+        {
+            var scalar = groupValue.Value.Length == 0 ? 0d : groupValue.Value[0];
+            return Temperature.FromDegreesCelsius(scalar);
+        }
+
+        public override GroupValue ToGroupValue(object value)
+        {
+            if (value is not Temperature temperature)
+                throw new InvalidOperationException($"Expected {typeof(Temperature).Name}, got {value.GetType().Name}");
+
+            return new([Convert.ToByte(Math.Round(temperature.DegreesCelsius), CultureInfo.InvariantCulture)]);
+        }
+    }
+
+    private static DptMetadata CreateMetadata(string id, string name, string pdtName)
+    {
+        return new DptMetadata
+        {
+            Id = DataPointTypeId.TryParse(id, out var parsed) ? parsed : new DataPointTypeId(1, 1),
+            Dpt = new DatapointType
+            {
+                Id = id,
+                Number = 0,
+                Name = name,
+                Text = name,
+                PDT = pdtName,
+            },
+            Dpst = new DatapointSubtype
+            {
+                Id = id,
+                Number = 0,
+                Name = name,
+                Text = name,
+                PDT = pdtName,
+            },
+            Pdt = new PropertyDataType
+            {
+                Id = pdtName,
+                Name = pdtName,
+                Number = pdtName == "PDT_2BYTE_FLOAT"
+                    ? PropertyDataTypeNumber.PDT_KNX_FLOAT
+                    : PropertyDataTypeNumber.PDT_UNSIGNED_CHAR,
+                Size = 1,
+            },
+        };
     }
 }

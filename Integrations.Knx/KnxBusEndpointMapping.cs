@@ -46,25 +46,60 @@ public sealed class KnxBusEndpointMapping : ValueBusMapping<string, GroupAddress
     }
 
     /// <inheritdoc/>
-    public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null)
+    public override string? FormatValueForDisplay(object? value, CultureInfo? culture = null, IFormatProvider? formatProvider = null, string? format = null)
     {
         if (value is null)
             return null;
 
         if (Config is not KnxBusMappingConfiguration knxConfig || _dptFactory is null)
-            return base.FormatValueForDisplay(value, culture);
+            return base.FormatValueForDisplay(value, culture, formatProvider, format);
 
         try
         {
             var dpt = _dptFactory.Get(knxConfig.DPT);
-            var groupValue = dpt.ToGroupValue(value);
-            return dpt.Format(groupValue, culture?.TwoLetterISOLanguageName, culture);
+            var displayValue = value;
+            if (TryConvertScalarToDptQuantity(value, dpt, out var convertedDisplayValue))
+                displayValue = convertedDisplayValue;
+
+            var groupValue = dpt.ToGroupValue(displayValue);
+            var effectiveFormatProvider = formatProvider ?? culture ?? CultureInfo.CurrentCulture;
+            return dpt.Format(groupValue, culture?.TwoLetterISOLanguageName, effectiveFormatProvider, format);
         }
         catch
         {
-            return base.FormatValueForDisplay(value, culture);
+            return base.FormatValueForDisplay(value, culture, formatProvider, format);
         }
     }
+
+    private static bool TryConvertScalarToDptQuantity(object value, DptBase dpt, out object converted)
+    {
+        converted = value;
+
+        if (!IsNumericScalar(value) || !typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
+            return false;
+
+        var unitProperty = dpt.GetType().GetProperty("KnxUnit");
+        if (unitProperty?.GetValue(dpt) is not Enum knxUnit)
+            return false;
+
+        try
+        {
+            var magnitude = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            var quantity = UnitsNet.Quantity.From(magnitude, knxUnit);
+            if (!dpt.ApplicationType.IsInstanceOfType(quantity))
+                return false;
+
+            converted = quantity;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsNumericScalar(object value)
+        => value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
 }
 
 internal class KnxBusMappingConfiguration : IBusMappingConfiguration

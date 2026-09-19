@@ -52,7 +52,7 @@ public static class KnxValueContainerHelpers
             foreach (var busMapping in busMappings.Select(kv => kv.Value).Select(m => m as KnxBusEndpointMapping).Where(m => m != null))
             {
                 var valueType = valueInterface.GetGenericArguments()[0];
-                var expectedValueType = knxConfig.GetGroupAddressMeta(busMapping!.GroupAddress).Dpt.ValueType;
+                var expectedValueType = knxConfig.GetGroupAddressMeta(busMapping!.GroupAddress).Dpt.BaseType;
                 var gaName = knxConfig.GetGroupAddressMetaOrNull(busMapping.GroupAddress)?.Name ?? busMapping.GroupAddress.ToString();
 
                 if (valueType != expectedValueType)

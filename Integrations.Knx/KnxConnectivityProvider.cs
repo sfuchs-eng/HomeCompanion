@@ -392,9 +392,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                         try
                         {
                             var responseValue = target?.Value?.OValue ?? throw new Exception($"Target value for {args.DestinationAddress} is null, cannot answer read request.");
-                            responseValue = ConvertOutboundValue(responseValue);
-
                             var dpt = _dptResolver.GetDpt(args.DestinationAddress);
+                            responseValue = ConvertOutboundValue(responseValue, dpt);
                             var encodedValue = dpt.ToGroupValue(responseValue);
 
                             var responseMessage = new GroupMessageRequest(args.DestinationAddress, encodedValue, GroupEventType.ValueResponse);
@@ -462,13 +461,27 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
             if (request.NewValue is null)
             {
                 _logger.LogWarning("ValueWriteRequest for {GA}: value is null, skipping send.", ga);
+                AddValueException(request.Source, $"KNX write skipped for {ga}: value is null.");
                 return;
             }
-            encoded = dpt.ToGroupValue(ConvertOutboundValue(request.NewValue));
+
+            if (!dpt.IsScaledNumeric
+                && !typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType)
+                && request.Source.ValueType != dpt.ApplicationType
+                && !(typeof(UnitsNet.IQuantity).IsAssignableFrom(request.Source.ValueType) && IsNumericTargetType(dpt.ApplicationType)))
+            {
+                var errorMessage = $"KNX write skipped for {ga}: IValue type {request.Source.ValueType.FullName} does not match non-scaled DPT application type {dpt.ApplicationType.FullName}.";
+                _logger.LogWarning(errorMessage);
+                AddValueException(request.Source, errorMessage);
+                return;
+            }
+
+            encoded = dpt.ToGroupValue(ConvertOutboundValue(request.NewValue, dpt));
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ValueWriteRequest for {GA}: DPT encoding failed, skipping send.", ga);
+            AddValueException(request.Source, $"KNX write skipped for {ga}: DPT encoding failed ({ex.Message}).", ex);
             return;
         }
 
@@ -485,36 +498,136 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     /// </summary>
     /// <param name="value"></param>
     /// <returns></returns>
-    private static object ConvertOutboundValue(object value)
+    private static object ConvertOutboundValue(object value, DptBase dpt)
     {
+        if (TryConvertScalarToDptQuantity(value, dpt, out var quantityValue))
+            return quantityValue;
+
+        if (value is UnitsNet.IQuantity quantity
+            && TryConvertQuantityToDptScalar(quantity, dpt, out var scalarValue))
+            return scalarValue;
+
+        /* not needed any longer because the DPT encoding is done via the DPT instance which already handles UnitsNet quantities and other conversions internally
         if (value is UnitsNet.IQuantity quantity)
             return quantity.Value;
+        */
 
         return value;
     }
 
+    private static bool TryConvertQuantityToDptScalar(UnitsNet.IQuantity quantity, DptBase dpt, out object converted)
+    {
+        converted = quantity;
+
+        if (typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
+            return false;
+
+        if (!IsNumericTargetType(dpt.ApplicationType))
+            return false;
+
+        try
+        {
+            var nonNullable = Nullable.GetUnderlyingType(dpt.ApplicationType) ?? dpt.ApplicationType;
+            var magnitude = TryGetDptKnxUnitEnum(dpt, out var knxUnit)
+                ? quantity.As(knxUnit)
+                : quantity.As(quantity.Unit);
+
+            converted = Convert.ChangeType(magnitude, nonNullable, CultureInfo.InvariantCulture);
+            return converted is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void AddValueException(IValue source, string message, Exception? innerException = null)
+    {
+        if (source is not ValueBase valueBase)
+            return;
+
+        var exception = innerException is null
+            ? new ValueException(message)
+            : new ValueException(message, innerException);
+        valueBase.AddException(exception);
+    }
+
     /// <summary>
     /// Normalizes an inbound KNX value to the target IValue type. For example, it converts scalar values to UnitsNet quantities if needed.
-    /// TODO: keep it all here generic or outsource a part to the bus mapping for easy, value property specific adaptability?
     /// </summary>
     /// <param name="targetValue">The target IValue instance.</param>
     /// <param name="decodedValue">The decoded value from KNX.</param>
     /// <returns>The normalized value compatible with the target IValue type.</returns>
-    private static object? NormalizeInboundValue(IValue? targetValue, object? decodedValue, DptBase? dpt = null)
+    private object? NormalizeInboundValue(IValue? targetValue, object? decodedValue, DptBase? dpt = null)
     {
+        // nop, nothing reasonable to do if either the target value or the decoded value is null
         if (targetValue is null || decodedValue is null)
             return decodedValue;
 
-        if (targetValue.ValueType.IsInstanceOfType(decodedValue))
+        if (TryAdjustScaledUnitAwareNumeric(decodedValue, targetValue.ValueType, dpt, out var adjustedNumeric))
+            return adjustedNumeric;
+
+        // in a normal case, the decoded value is already of the correct type for the target IValue, so we can return it directly
+        if (targetValue.ValueType.IsInstanceOfType(decodedValue) || targetValue.ValueType.IsAssignableFrom(decodedValue.GetType()))
             return decodedValue;
 
-        if (dpt is not null)
+        // Log a warning that the decoded value type does not match the target IValue type, but continue with normalization attempts
+        _logger.LogDebug("Decoded value type {DecodedType} does not match target IValue type {TargetType} for IValue {ValueName}. Attempting normalization.", decodedValue.GetType().FullName, targetValue.ValueType.FullName, targetValue.Name);
+
+        // Fast path: scalar decoded value for quantity-typed target (for example non-unit-aware DPT mapped to quantity target with Unit metadata).
+        if (IsQuantityType(targetValue.ValueType) && IsNumericScalar(decodedValue))
         {
-            var expectedTypes = new[] { dpt.ValueType, dpt.ApplicationType };
-            if (!expectedTypes.Contains(targetValue.ValueType))
-                return decodedValue;
+            var numericRaw = decodedValue is IFormattable scalar
+                ? scalar.ToString(null, CultureInfo.InvariantCulture)
+                : decodedValue.ToString();
+
+            if (!string.IsNullOrWhiteSpace(numericRaw)
+                && targetValue.TryParseValue(numericRaw, out var parsedQuantity, out _, CultureInfo.InvariantCulture))
+            {
+                return parsedQuantity;
+            }
+
+            if (double.TryParse(numericRaw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var magnitude)
+                && TryCreateDptQuantityInstance(magnitude, dpt, targetValue.ValueType, out var dptQuantity))
+            {
+                return dptQuantity;
+            }
         }
 
+        // Fast path: quantity decoded value for scalar/unit-aware target. Keep bus mapper as transport authority and use value parser for local normalization.
+        if (decodedValue is UnitsNet.IQuantity quantityDecoded && !IsQuantityType(targetValue.ValueType))
+        {
+            if (TryConvertQuantityToNumericTarget(quantityDecoded, targetValue.ValueType, dpt, out var numericValue))
+                return numericValue;
+
+            var quantityRaw = quantityDecoded.ToString(CultureInfo.InvariantCulture);
+            if (targetValue.TryParseValue(quantityRaw, out var parsedScalarFromQuantity, out _, CultureInfo.InvariantCulture))
+                return parsedScalarFromQuantity;
+        }
+
+        // Fast path: scalar target with convertible decoded payload (or quantity-like object exposing a Value property).
+        if (dpt is not null
+            && typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType)
+            && TryConvertDecodedToNumericTarget(decodedValue, targetValue.ValueType, out var decodedNumericTarget))
+            return decodedNumericTarget;
+
+        // Can we use the DPT to convert the decoded value to a string for later parsing by IValue?
+        if (dpt is not null)
+        {
+            try
+            {
+                var groupValue = dpt.ToGroupValue(decodedValue);
+                var formatted = dpt.Format(groupValue, CultureInfo.InvariantCulture.TwoLetterISOLanguageName, CultureInfo.InvariantCulture, null);
+                if (targetValue.TryParseValue(formatted, out var parsedValueDpt, out _, CultureInfo.InvariantCulture))
+                    return parsedValueDpt;
+            }
+            catch
+            {
+                // ignore and fall back to the default normalization below
+            }
+        }
+
+        // Last resort: try to convert the decoded value to a string and parse it using the target IValue's TryParseValue method, which should handle common conversions (e.g., string to int, string to float, etc.)
         var rawText = decodedValue is IFormattable formattable
             ? formattable.ToString(null, CultureInfo.InvariantCulture)
             : decodedValue.ToString();
@@ -525,6 +638,160 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         if (targetValue.TryParseValue(rawText, out var parsedValue, out _, CultureInfo.InvariantCulture))
             return parsedValue;
 
+        _logger.LogWarning("Failed to normalize inbound KNX value type {DecodedType} to target type {TargetType} for value {ValueName}. Keeping decoded value as-is.", decodedValue.GetType().FullName, targetValue.ValueType.FullName, targetValue.Name);
+
         return decodedValue;
+    }
+
+    private static bool IsQuantityType(Type type)
+        => typeof(UnitsNet.IQuantity).IsAssignableFrom(type);
+
+    private static bool IsNumericTargetType(Type type)
+    {
+        var nonNullable = Nullable.GetUnderlyingType(type) ?? type;
+        return typeof(IConvertible).IsAssignableFrom(nonNullable)
+            && nonNullable != typeof(bool)
+            && !nonNullable.IsEnum;
+    }
+
+    private static bool IsNumericScalar(object value)
+        => value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
+
+    private static bool TryConvertQuantityToNumericTarget(UnitsNet.IQuantity quantity, Type targetType, DptBase? dpt, out object? converted)
+    {
+        converted = null;
+        if (!IsNumericTargetType(targetType))
+            return false;
+
+        try
+        {
+            var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            var numericValue = Convert.ToDouble(quantity.Value, CultureInfo.InvariantCulture);
+            if (dpt is DptSimple simple && simple.IsScaledNumeric)
+            {
+                var coefficient = simple.NumericInfo?.Coefficient ?? 1.0;
+                if (!coefficient.Equals(0.0) && !coefficient.Equals(1.0))
+                    numericValue /= coefficient;
+            }
+
+            converted = Convert.ChangeType(numericValue, nonNullable, CultureInfo.InvariantCulture);
+            return converted is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryConvertDecodedToNumericTarget(object decodedValue, Type targetType, out object? converted)
+    {
+        converted = null;
+        if (!IsNumericTargetType(targetType))
+            return false;
+
+        var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        try
+        {
+            if (decodedValue is IConvertible convertible)
+            {
+                converted = Convert.ChangeType(convertible, nonNullable, CultureInfo.InvariantCulture);
+                return converted is not null;
+            }
+
+            var valueProperty = decodedValue.GetType().GetProperty("Value");
+            if (valueProperty?.GetValue(decodedValue) is IConvertible scalarValue)
+            {
+                converted = Convert.ChangeType(scalarValue, nonNullable, CultureInfo.InvariantCulture);
+                return converted is not null;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static bool TryConvertScalarToDptQuantity(object value, DptBase dpt, out object converted)
+    {
+        converted = value;
+
+        if (!IsNumericScalar(value))
+            return false;
+
+        if (!TryCreateDptQuantityInstance(Convert.ToDouble(value, CultureInfo.InvariantCulture), dpt, dpt.ApplicationType, out var quantity))
+            return false;
+
+        converted = quantity;
+        return true;
+    }
+
+    private static bool TryCreateDptQuantityInstance(double magnitude, DptBase? dpt, Type expectedType, out object quantity)
+    {
+        quantity = magnitude;
+
+        if (dpt is null || !typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
+            return false;
+
+        if (!TryGetDptKnxUnitEnum(dpt, out var unitEnum))
+            return false;
+
+        try
+        {
+            var created = UnitsNet.Quantity.From(magnitude, unitEnum);
+            if (!expectedType.IsInstanceOfType(created) && created.GetType() != expectedType)
+                return false;
+
+            quantity = created;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryGetDptKnxUnitEnum(DptBase dpt, out Enum unitEnum)
+    {
+        unitEnum = default!;
+
+        var unitProperty = dpt.GetType().GetProperty("KnxUnit");
+        if (unitProperty?.GetValue(dpt) is not Enum enumValue)
+            return false;
+
+        unitEnum = enumValue;
+        return true;
+    }
+
+    private static bool TryAdjustScaledUnitAwareNumeric(object decodedValue, Type targetType, DptBase? dpt, out object? adjusted)
+    {
+        adjusted = null;
+
+        if (dpt is not DptSimple simple || !simple.IsScaledNumeric)
+            return false;
+
+        if (!IsNumericTargetType(targetType) || !typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
+            return false;
+
+        if (decodedValue is not IConvertible convertible)
+            return false;
+
+        var coefficient = simple.NumericInfo?.Coefficient ?? 1.0;
+        if (coefficient.Equals(0.0) || coefficient.Equals(1.0))
+            return false;
+
+        try
+        {
+            var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            var corrected = convertible.ToDouble(CultureInfo.InvariantCulture) / coefficient;
+            adjusted = Convert.ChangeType(corrected, nonNullable, CultureInfo.InvariantCulture);
+            return adjusted is not null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

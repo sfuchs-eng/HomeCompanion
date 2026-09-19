@@ -51,6 +51,8 @@ public ValueBase<bool> Light { get; } = new()
 
 ### 3. Inbound flow: KNX → EventBus → ValuesManager → IValue
 
+For the cross-provider canonical flow (regular runtime and initialization path split), see [architecture spec: Connectivity Provider to Value Routing](../architecture/homecompanion-connectivity-value-routing-arch-spec.md).
+
 On each inbound telegram, the provider publishes two layers of events:
 
 1. **KNX-level** (`HomeCompanion.Knx.Events`): `KnxGroupWriteReceived`, `KnxGroupReadReceived`, `KnxGroupResponseReceived` — carry raw bus detail (group address, physical source address, raw payload, decoded value).
