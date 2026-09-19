@@ -37,6 +37,24 @@ public static class IValueReactiveExtensions
             .DistinctUntilChangedWithHysteresis(hysteresisThreshold);
     }
 
+    public static IObservable<TScalar> AsObservable<TApp, TScalar>(this IValue<TApp> value, Func<TApp, TScalar> converter) where TScalar : struct, INumber<TScalar>, IConvertible
+    {
+        if (value.OValue is null or not TApp)
+        {
+            throw new InvalidOperationException($"Cannot convert IValue of type {value.GetType().Name} to IObservable<{typeof(TScalar).Name}>. The value is null.");
+        }
+
+        TScalar presentValue = converter((TApp)value.OValue);
+
+        return Observable.FromEventPattern<ValueChangedEventArgs>(
+            h => value.Changed += h,
+            h => value.Changed -= h
+        )
+        // Extract the value and cast it to the expected type
+        .Select(e => converter((TApp)e.EventArgs.NewValue))
+        .StartWith(presentValue); // Ensure the stream starts with current state
+    }
+
     public static IObservable<T> AsObservable<T>(this IValue value) where T : struct, INumber<T>, IConvertible
     {
         if (value is not IValue<T> typedValue)

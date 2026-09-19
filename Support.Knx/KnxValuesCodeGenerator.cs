@@ -81,7 +81,17 @@ public class KnxValuesCodeGenerator(
             var address = kvp.Key;
             var entry = kvp.Value;
             var dpt = dptFactory.Get(entry.Dpt);
-            var csType = GetCSharpType(dpt);
+
+            if (TryGetUnitsNetQuantityType(dpt, out var appValueType) && appValueType is not null)
+            {
+                logger.LogTrace($"DPT {dpt.Id} ({entry.Dpt}) for group address {address} with property name {entry.PropertyName} maps to UnitsNet quantity type {appValueType.FullName}. The generated ValueBase property will use this type.");
+            }
+            else
+            {
+                appValueType = Type.GetType(GetApplicationValueTypeName(dpt)) ?? typeof(object);
+                logger.LogTrace($"DPT {dpt.Id} ({entry.Dpt}) for group address {address} with property name {entry.PropertyName} does not map to a UnitsNet quantity type. The generated ValueBase property will use the DPT's native C# value type.");
+            }
+            
             var propName = MakeUnique(entry.PropertyName, usedNames);
             var addOpenHabInitializationMapping = entry.WantsOpenHabInitialization && !string.IsNullOrWhiteSpace(entry.OpenHabItemName);
             var openHabItemName = entry.OpenHabItemName;
@@ -95,7 +105,7 @@ public class KnxValuesCodeGenerator(
             sb.AppendLine($"    /// <summary>{summaryText}</summary>");
             if (!string.IsNullOrWhiteSpace(entry.Description))
                 sb.AppendLine($"    /// <remarks>{EscapeXmlComment(entry.Description!)}</remarks>");
-            sb.AppendLine($"    public ValueBase<{csType}> {propName} {{ get; }} = new(loggerFactory.CreateLogger<ValueBase<{csType}>>())");
+            sb.AppendLine($"    public ValueBase<{appValueType}> {propName} {{ get; }} = new(loggerFactory.CreateLogger<ValueBase<{appValueType}>>())");
             sb.AppendLine("    {");
             sb.AppendLine($"       Name = \"{propName}\",");
             sb.AppendLine($"       Label = {(string.IsNullOrWhiteSpace(entry.Label) ? "null" : $"\"{entry.Label}\"")},");
@@ -162,13 +172,12 @@ public class KnxValuesCodeGenerator(
     private readonly IDptFactory dptFactory = dptFactory;
     private readonly ILogger<KnxValuesCodeGenerator> logger = logger;
 
-    private bool IsUnitsNetQuantityType(DptBase dpt)
+    private static bool TryGetUnitsNetQuantityType(DptBase dpt, out Type? quantityType)
     {
+        quantityType = dpt.ApplicationType;
         if ( dpt is DptSimple dptSimple && dptSimple.ApplicationType is not null)
         {
-            var appType = dptSimple.ApplicationType;
-            // Check if the application type is a UnitsNet quantity type
-            return appType.Namespace?.StartsWith("UnitsNet") ?? false;
+            return typeof(UnitsNet.IQuantity).IsAssignableFrom(quantityType);
         }
         return false;
     }
@@ -187,7 +196,7 @@ public class KnxValuesCodeGenerator(
     /// TODO: add support for DPTs with Coefficient != 1.0 to return double for all types except double and decimal, to reflect the fact that the value range and precision of the generated properties will be different from the underlying DPT value type due to the scaling.
     /// TODO: add support for UnitsNet types for DPTs with physical units, e.g. DPT-9-1 (temperature) should map to UnitsNet.Temperature instead of float.
     /// </remarks>
-    private static string GetCSharpType(DptBase dpt)
+    private static string GetApplicationValueTypeName(DptBase dpt)
     {
         /*
         if (string.IsNullOrEmpty(dpt))
@@ -207,6 +216,14 @@ public class KnxValuesCodeGenerator(
                 return overrideMapping.CSharpType;
         }
 
+        // meanwhile we moved that into the DPT:
+        return dpt.ApplicationType.FullName ?? dpt.ApplicationType.Name;
+
+        // take it from the DPT / PDT encoder's base type
+        //var nativeType = dpt.BaseType;
+        //var nativeTypeName = nativeType.Name;
+
+        /*
         var nativeType = main switch
         {
             1 => "bool",      // 1-bit switch/boolean
@@ -229,18 +246,21 @@ public class KnxValuesCodeGenerator(
             19 => "byte[]",   // Date & time (complex), TODO: change into a DateTimeOffset type and implement proper encoding/decoding in the DPT implementation
             _ => main >= 20 && main <= 29 ? "byte" : "byte[]"
         };
+        */
 
+        /*
         if (dpt.IsScaledNumeric)
         {
             if (dpt is DptSimple dptSimple && dptSimple.NumericInfo?.Coefficient is not null && dptSimple.NumericInfo.Coefficient != 1.0)
             {
                 // If a coefficient is defined for a numeric DPT, use double for all types except double and decimal to reflect the fact that the value range and precision of the generated properties will be different from the underlying DPT value type due to the scaling.
-                if (nativeType != "double" && nativeType != "decimal")
+                if (nativeTypeName != "double" && nativeTypeName != "decimal")
                     return "double";
             }
             return dpt.ApplicationType.Name;
         }
-        return nativeType;
+        return nativeTypeName;
+        */
     }
 
     private static string MakeUnique(string name, HashSet<string> used)

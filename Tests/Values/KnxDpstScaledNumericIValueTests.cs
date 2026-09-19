@@ -65,7 +65,7 @@ public class KnxDpstScaledNumericIValueTests
                 InboundValue: 420.0,
                 OutboundValue: 815.0,
                 Tolerance: 0.2,
-                ExpectedUnitToken: "lux"))
+                ExpectedUnitToken: "lx"))
                 .SetName("NumericCompatibility_Dpst9_4_IValueIlluminance");
 
             yield return new TestCaseData(new NumericKnxIntegrationCase(
