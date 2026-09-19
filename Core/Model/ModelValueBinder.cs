@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using UnitsNet;
 
 namespace HomeCompanion.Core.Model;
 
@@ -125,8 +126,14 @@ public sealed class ModelValueBinder(
 
             if (!targetProperty.PropertyType.IsAssignableFrom(value.GetType()))
             {
+                string targetTypeNameWithGenerics = targetProperty.PropertyType.IsGenericType
+                    ? $"{targetProperty.PropertyType.Name.Split('`')[0]}<{string.Join(", ", targetProperty.PropertyType.GetGenericArguments().Select(t => t.Name))}>"
+                    : targetProperty.PropertyType.Name;
+                string valueTypeNameWithGenerics = value.GetType().IsGenericType
+                    ? $"{value.GetType().Name.Split('`')[0]}<{string.Join(", ", value.GetType().GetGenericArguments().Select(t => t.Name))}>"
+                    : value.GetType().Name;
                 throw new InvalidOperationException(
-                    $"Model binding at '{path}' cannot assign resolved value type '{value.GetType().Name}' to target '{entityType.Name}.{targetProperty.Name}' of type '{targetProperty.PropertyType.Name}'.");
+                    $"Model binding at '{path}' cannot assign resolved value type '{valueTypeNameWithGenerics}' to target '{entityType.Name}.{targetProperty.Name}' of type '{targetTypeNameWithGenerics}'.");
             }
 
             if (bindingAttribute?.RequireNumeric == true)
@@ -179,10 +186,10 @@ public sealed class ModelValueBinder(
     private static void EnsureNumericValue(IValue value, string path, string propertyName)
     {
         var type = Nullable.GetUnderlyingType(value.ValueType) ?? value.ValueType;
-        if (!IsNumericType(type))
+        if (!(typeof(IQuantity).IsAssignableFrom(type) || IsNumericType(type)))
         {
             throw new InvalidOperationException(
-                $"Model binding at '{path}' requires a numeric value for '{propertyName}', but resolved '{value.Name ?? "<unnamed>"}' of type '{value.ValueType.Name}'.");
+                $"Model binding at '{path}' requires a numeric or IQuantity value for '{propertyName}', but resolved '{value.Name ?? "<unnamed>"}' of type '{value.ValueType.Name}'.");
         }
     }
 

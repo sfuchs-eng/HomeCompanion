@@ -136,7 +136,7 @@ public class Room : ModelEntity, IConfigBackedModelEntity
     /// Bound room temperature value resolved from <see cref="CfgRoom.TemperatureReference"/>.
     /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgRoom.TemperatureReference))]
-    public IValue<float>? Temperature { get; set; }
+    public IValue<UnitsNet.Temperature>? Temperature { get; set; }
 
     /// <summary>
     /// Bound room anti-glare enable value resolved from <see cref="CfgRoom.AntiGlareEnableReference"/>.
@@ -149,10 +149,14 @@ public class Room : ModelEntity, IConfigBackedModelEntity
     /// </summary>
     public Dictionary<string, Shutter> Shutters { get; set; } = [];
 
+    /// <summary>
+    /// Gets the current room temperature in degrees Celsius, or the default room temperature if not available.
+    /// </summary>
+    /// <returns>Room temperature in degrees Celsius.</returns>
     public double GetRoomTemperatureOrDefault()
     {
-        if (Temperature?.TryGetNumericValue(out double roomTemperature) ?? false)
-            return roomTemperature;
+        if (Temperature?.TryGetValue(out UnitsNet.Temperature roomTemperature) ?? false)
+            return roomTemperature.As(UnitsNet.Units.TemperatureUnit.DegreeCelsius);
         return Configuration.DefaultRoomTemperature;
     }
 

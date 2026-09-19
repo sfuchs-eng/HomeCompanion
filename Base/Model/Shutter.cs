@@ -3,6 +3,7 @@ using HomeCompanion.Abstractions.Serialization;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
+using UnitsNet;
 
 namespace HomeCompanion.Base.Model;
 
@@ -56,12 +57,13 @@ public class CfgShutter : CfgEntity
     /// The shadowing system uses the position value in p.u. (0.0 open, 1.0 closed) for its calculations, so the scaling factor should be set accordingly.
     /// </remarks>
     /// <value></value>
+    [Obsolete("Using IValue<Ratio> now. Use Position.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) and stop worrying about scaling percent/p.u. values.")]
     public double ScaleFactorPosition { get; set; } = 100.0;
 
     /// <summary>
     /// Optional reference to the value that carries the shutter lamella angle.
     /// Required for <see cref="ShutterType.VenetianBlind"/>, ignored for other shutter types.
-    /// Must be an IValue with numeric type and percent unit, where 0% means fully open/horizontal and 100% (value 100) means fully closed/vertical.
+    /// Must be an IValue<Ratio> where 0% means fully open/horizontal and 100% means fully closed/vertical.
     /// </summary>
     /// <remarks>
     /// Supports flexible formats, including <c>ContainerType[ContainerName]:ValueName</c>.
@@ -77,6 +79,7 @@ public class CfgShutter : CfgEntity
     /// The shadowing system uses the angle value in p.u. (0.0 horizontal, 1.0 vertical) for its calculations, so the scaling factor should be set accordingly.
     /// </remarks>
     /// <value></value>
+    [Obsolete("Using IValue<Ratio> now. Use Position.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) and stop worrying about scaling percent/p.u. values.")]
     public double ScaleFactorAngle { get; set; } = 100.0;
 
     /// <summary>
@@ -282,13 +285,13 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
     /// Bound runtime position value resolved from <see cref="CfgShutter.PositionValueReference"/>.
     /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.PositionValueReference), RequireNumeric = true)]
-    public IValue? PositionValue { get; set; }
+    public IValue<Ratio>? PositionValue { get; set; }
 
     /// <summary>
     /// Bound runtime angle value resolved from <see cref="CfgShutter.AngleValueReference"/>.
     /// </summary>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.AngleValueReference), RequireNumeric = true)]
-    public IValue? AngleValue { get; set; }
+    public IValue<Ratio>? AngleValue { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShutter.OpenCloseReference))]
     public IValue<bool>? OpenCloseValue { get; set; }
@@ -322,10 +325,10 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
     {
         if (PositionValue is null)
             return -1.0;
-        var pos = PositionValue.GetNumericValueOrNull();
-        if (!pos.HasValue)
+        if (!PositionValue.IsValid)
             return -1.0;
-        return pos.Value / Configuration.ScaleFactorPosition;
+        var pos = PositionValue.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction);
+        return pos;
     }
 
     public double GetAngleInPUnit()
@@ -334,61 +337,53 @@ public class Shutter : ModelEntity, IConfigBackedModelEntity
             return 1.0; // it's closed by nature
         if (AngleValue is null)
             return -1.0;
-        var angle = AngleValue.GetNumericValueOrNull();
-        if (!angle.HasValue)
+        if ( !AngleValue.IsValid)
             return -1.0;
-        return angle.Value / Configuration.ScaleFactorAngle;
+        var angle = AngleValue.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction);
+        return angle;
     }
 
-    public void WritePositionInPUnit(double pUnitValue, object? initiator = null, ILogger? logger = null)
+    public void WritePosition(Ratio position, object? initiator = null, ILogger? logger = null)
     {
         if (PositionValue is null)
-            throw new InvalidOperationException("Cannot write position value because PositionValue is not bound.");
-        if (pUnitValue < 0.0)
-            return; // no-op semantics
-        if (pUnitValue > 1.0)
-            throw new ArgumentOutOfRangeException(nameof(pUnitValue), "Position value must be in the range [0.0, 1.0].");
-        if (!PositionValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorPosition, initiator, logger))
-        {
-            logger?.LogWarning("Failed to write position value {PositionValue} for shutter {ShutterKey}.", pUnitValue, Name);
-        }
+            logger?.LogWarning("Cannot write position value {PositionValue} for shutter {ShutterKey} because PositionValue is not bound.", position, Name);
+        else
+            PositionValue?.Write(position, initiator);
     }
 
-    public void WriteAngleInPUnit(double pUnitValue, object? initiator = null, ILogger? logger = null)
+    public void WriteAngle(Ratio angle, object? initiator = null, ILogger? logger = null)
     {
-        if (AngleValue is null)
-            throw new InvalidOperationException("Cannot write angle value because AngleValue is not bound.");
-        if (pUnitValue < 0.0)
+        if (angle.As(UnitsNet.Units.RatioUnit.DecimalFraction) < 0.0)
             return; // no-op semantics
-        if (pUnitValue > 1.0)
-            throw new ArgumentOutOfRangeException(nameof(pUnitValue), "Angle value must be in the range [0.0, 1.0].");
-        if (!AngleValue.TryWriteNumeric(pUnitValue * Configuration.ScaleFactorAngle, initiator, logger))
-        {
-            logger?.LogWarning("Failed to write angle value {AngleValue} for shutter {ShutterKey}.", pUnitValue, Name);
-        }
+        if (angle.As(UnitsNet.Units.RatioUnit.DecimalFraction) > 1.0)
+            throw new ArgumentOutOfRangeException(nameof(angle), "Angle value must be in the range [0.0, 1.0].");
+        if (AngleValue is null)
+            logger?.LogWarning("Cannot write angle value {AngleValue} for shutter {ShutterKey} because AngleValue is not bound.", angle, Name);
+        else
+            AngleValue?.Write(angle, initiator);
     }
 
     public bool IsClosed => Configuration.Type switch
     {
         ShutterType.OpenClose => OpenCloseValue?.Value ?? false,
-        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition,
-        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition && AngleValue?.GetNumericValueOrNull() >= Configuration.DefaultShadowSlat * Configuration.ScaleFactorAngle,
+        ShutterType.Positional => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.MaxClose,
+        ShutterType.VenetianBlind => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.MaxClose && AngleValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.DefaultShadowSlat,
         _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
     };
 
     public bool IsShadowing => Configuration.Type switch
     {
         ShutterType.OpenClose => (OpenCloseValue?.IsValid ?? false) && (OpenCloseValue?.Value ?? false),
-        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition,
-        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() >= Configuration.MaxClose * Configuration.ScaleFactorPosition && AngleValue?.GetNumericValueOrNull() >= Configuration.DefaultShadowSlat * Configuration.ScaleFactorAngle,
+        ShutterType.Positional => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.MaxClose,
+        ShutterType.VenetianBlind => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.MaxClose && AngleValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) >= Configuration.DefaultShadowSlat,
         _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
     };
 
     public bool IsOpen => Configuration.Type switch
     {
         ShutterType.OpenClose => (OpenCloseValue?.IsValid ?? false) && !(OpenCloseValue?.Value ?? false),
-        ShutterType.Positional => PositionValue?.GetNumericValueOrNull() <= double.Epsilon,
-        ShutterType.VenetianBlind => PositionValue?.GetNumericValueOrNull() <= double.Epsilon,
+        ShutterType.Positional => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) <= double.Epsilon,
+        ShutterType.VenetianBlind => PositionValue?.Value.As(UnitsNet.Units.RatioUnit.DecimalFraction) <= double.Epsilon,
         _ => throw new NotImplementedException($"Shutter type {Configuration.Type} not implemented."),
     };
 

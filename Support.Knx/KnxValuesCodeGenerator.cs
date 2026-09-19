@@ -191,21 +191,8 @@ public class KnxValuesCodeGenerator(
     /// For those, we want to apply the coefficient during encoding and decoding to provide a more intuitive value range for the users of the generated properties. This method ensures that the generated property names are unique, even if multiple group addresses share the same label or property name in the input mapping.
     /// The scaling results in the fact that decimal remains decimal, but all other type become double in the generated code to avoid confusion about the actual value range and precision of the generated properties, which would be different from the underlying DPT value type for types other than double and decimal.
     /// </remarks>
-    /// <remarks>
-    /// TODO: move into a shared service in SRF.Knx.Core.DPT namespace and make it public for reuse in other contexts (e.g. KnxValueFactory); and use the existing DPT master data to determine the C# type instead of hardcoding it here.
-    /// TODO: add support for DPTs with Coefficient != 1.0 to return double for all types except double and decimal, to reflect the fact that the value range and precision of the generated properties will be different from the underlying DPT value type due to the scaling.
-    /// TODO: add support for UnitsNet types for DPTs with physical units, e.g. DPT-9-1 (temperature) should map to UnitsNet.Temperature instead of float.
-    /// </remarks>
     private static string GetApplicationValueTypeName(DptBase dpt)
     {
-        /*
-        if (string.IsNullOrEmpty(dpt))
-            return "byte[]";
-
-        var parts = dpt!.Split('-');
-        if (parts.Length < 2 || !int.TryParse(parts[1], out var main))
-            return "byte[]";
-        */
         var main = dpt.Id.Main;
         var sub = dpt.Id.Sub;
 
@@ -216,51 +203,7 @@ public class KnxValuesCodeGenerator(
                 return overrideMapping.CSharpType;
         }
 
-        // meanwhile we moved that into the DPT:
         return dpt.ApplicationType.FullName ?? dpt.ApplicationType.Name;
-
-        // take it from the DPT / PDT encoder's base type
-        //var nativeType = dpt.BaseType;
-        //var nativeTypeName = nativeType.Name;
-
-        /*
-        var nativeType = main switch
-        {
-            1 => "bool",      // 1-bit switch/boolean
-            2 => "byte",      // 2-bit controlled
-            3 => "byte",      // 4-bit dimming
-            4 => "char",      // 1-byte character
-            5 => "byte",      // 1-byte unsigned (0–100 %, angles, …), see exceptions & scaling related deviations below
-            6 => "sbyte",     // 1-byte signed
-            7 => "ushort",    // 2-byte unsigned
-            8 => "short",     // 2-byte signed
-            9 => "float",     // KNX 2-byte float (EIS 5)
-            10 => "byte[]",   // Time of day (complex)
-            11 => "byte[]",   // Date (complex)
-            12 => "uint",     // 4-byte unsigned
-            13 => "int",      // 4-byte signed
-            14 => "float",    // IEEE 754 4-byte float
-            16 => "string",   // ISO 8859-1 character string
-            17 => "byte",     // Scene number
-            18 => "byte",     // Scene control
-            19 => "byte[]",   // Date & time (complex), TODO: change into a DateTimeOffset type and implement proper encoding/decoding in the DPT implementation
-            _ => main >= 20 && main <= 29 ? "byte" : "byte[]"
-        };
-        */
-
-        /*
-        if (dpt.IsScaledNumeric)
-        {
-            if (dpt is DptSimple dptSimple && dptSimple.NumericInfo?.Coefficient is not null && dptSimple.NumericInfo.Coefficient != 1.0)
-            {
-                // If a coefficient is defined for a numeric DPT, use double for all types except double and decimal to reflect the fact that the value range and precision of the generated properties will be different from the underlying DPT value type due to the scaling.
-                if (nativeTypeName != "double" && nativeTypeName != "decimal")
-                    return "double";
-            }
-            return dpt.ApplicationType.Name;
-        }
-        return nativeTypeName;
-        */
     }
 
     private static string MakeUnique(string name, HashSet<string> used)

@@ -329,36 +329,36 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
     /// </summary>
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.OutdoorTemperatureReference), RequireNumeric = true)]
-    public IValue<float>? OutdoorTemperature { get; set; }
+    public IValue<UnitsNet.Temperature>? OutdoorTemperature { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityEastReference), RequireNumeric = true)]
-    public IValue<float>? SunIntensityEast { get; set; }
+    public IValue<UnitsNet.Illuminance>? SunIntensityEast { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensitySouthReference), RequireNumeric = true)]
-    public IValue<float>? SunIntensitySouth { get; set; }
+    public IValue<UnitsNet.Illuminance>? SunIntensitySouth { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunIntensityWestReference), RequireNumeric = true)]
-    public IValue<float>? SunIntensityWest { get; set; }
+    public IValue<UnitsNet.Illuminance>? SunIntensityWest { get; set; }
 
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.GlobalIlluminanceReference), RequireNumeric = true)]
-    public IValue<float>? GlobalIlluminance { get; set; }
+    public IValue<UnitsNet.Illuminance>? GlobalIlluminance { get; set; }
 
     /// <summary>
     /// Shadowing input: Sun position azimuth in degrees.
     /// </summary>
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionAzimuthReference), RequireNumeric = true)]
-    public IValue<float>? SunPositionAzimuth { get; set; }
+    public IValue<UnitsNet.Angle>? SunPositionAzimuth { get; set; }
 
     /// <summary>
     /// Shadowing input: Sun position elevation in degrees.
     /// </summary>
     /// <value></value>
     [ModelValueBinding(SourceConfigPropertyName = nameof(CfgShadowingSpecial.SunPositionElevationReference), RequireNumeric = true)]
-    public IValue<float>? SunPositionElevation { get; set; }
+    public IValue<UnitsNet.Angle>? SunPositionElevation { get; set; }
 
     public SphericVector? SunPosition => (SunPositionAzimuth?.IsValid ?? false) && (SunPositionElevation?.IsValid ?? false)
-        ? SphericVector.FromDegrees(SunPositionAzimuth!.Value, SunPositionElevation!.Value) : null;
+        ? SphericVector.FromDegrees(SunPositionAzimuth!.Value.As(UnitsNet.Units.AngleUnit.Degree), SunPositionElevation!.Value.As(UnitsNet.Units.AngleUnit.Degree)) : null;
 
     /// <summary>
     /// See <see cref="HomeCompanion.Logics.ThermalControl.ThermalControlMode"/> for the meaning of this value and valid ranges.
@@ -397,9 +397,9 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
             try
             {
                 var (Azimuth, Elevation) = sunPosition.ToDegreesPair();
-                var succAzi = SunPositionAzimuth.TryWriteNumeric(Azimuth);
-                var succElev = SunPositionElevation.TryWriteNumeric(Elevation);
-                return succAzi && succElev;
+                SunPositionAzimuth.Write(UnitsNet.Angle.FromDegrees(Azimuth));
+                SunPositionElevation.Write(UnitsNet.Angle.FromDegrees(Elevation));
+                return true;
             }
             catch (Exception e)
             {

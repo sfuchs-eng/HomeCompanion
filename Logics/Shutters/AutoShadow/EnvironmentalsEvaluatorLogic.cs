@@ -320,7 +320,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
         RegisterSubscriptions(
             s.OutdoorTemperature?
-                .AsFilteredObservable(temperatureAveragingWindow, temperatureHysteresis)
+                .AsFilteredObservable(temperatureAveragingWindow, temperatureHysteresis, t => t.As(UnitsNet.Units.TemperatureUnit.DegreeCelsius))
                 .Subscribe(temp => { OutdoorTemperature = temp; PublishGlobalShutterAutomationComputationTrigger(s, s.OutdoorTemperature); })
         );
 

@@ -282,7 +282,7 @@ public class ShutterRuntime(
         // Global illuminance / dusk based open/close shutters
         var duskLowerThreshold = shadowingConfig.AntiBurglar.DuskTriggerLowerThresholdLux;
         var duskUpperThreshold = shadowingConfig.AntiBurglar.DuskTriggerUpperThresholdLux;
-        var globalIlluminance = shadowingSpecial?.GlobalIlluminance?.Value ?? double.NaN;
+        var globalIlluminance = shadowingSpecial?.GlobalIlluminance?.Value.As(UnitsNet.Units.IlluminanceUnit.Lux) ?? double.NaN;
 
         bool triggerDuskClosure = !double.IsNaN(globalIlluminance) && globalIlluminance < duskLowerThreshold;
         // time windows sind last closure must have passed too

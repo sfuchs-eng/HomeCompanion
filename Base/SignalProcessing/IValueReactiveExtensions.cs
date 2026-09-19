@@ -37,6 +37,13 @@ public static class IValueReactiveExtensions
             .DistinctUntilChangedWithHysteresis(hysteresisThreshold);
     }
 
+    public static IObservable<TScalar> AsFilteredObservable<TApp, TScalar>(this IValue<TApp> value, TimeSpan timeWeightedAverageWindow, double hysteresisThreshold, Func<TApp, TScalar> converter) where TScalar : struct, INumber<TScalar>, IConvertible
+    {
+        return value.AsObservable(converter)
+            .TimeWeightedAverage(timeWeightedAverageWindow)
+            .DistinctUntilChangedWithHysteresis(hysteresisThreshold);
+    }
+
     public static IObservable<TScalar> AsObservable<TApp, TScalar>(this IValue<TApp> value, Func<TApp, TScalar> converter) where TScalar : struct, INumber<TScalar>, IConvertible
     {
         if (value.OValue is null or not TApp)
