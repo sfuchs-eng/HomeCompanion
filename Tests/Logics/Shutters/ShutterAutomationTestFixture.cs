@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using HomeCompanion.Logics.Shutters.AutoShadow;
 using Microsoft.Extensions.DependencyInjection;
+using UnitsNet;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -94,15 +95,15 @@ public partial class ShutterAutomationTestFixture(
                             {
                                 ["TowerRoom"] = new CfgRoom
                                 {
-                                    TemperatureReference = "Float:TowerRoomTemperature",
+                                    TemperatureReference = "Temperature:TowerRoomTemperature",
                                     AntiGlareEnableReference = "Bool:TowerRoomAntiGlareEnable",
                                     ShutterSceneReference = "Byte:TowerRoomShutterScene",
                                     Shutters = new Dictionary<string, CfgShutter>
                                     {
-                                        ["Shutter1_NW"] = new CfgShutter { FacadeReference = "NW", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter1Position", AngleValueReference = "Float:Shutter1Angle" },
-                                        ["Shutter2_SE"] = new CfgShutter { FacadeReference = "SE", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter2Position", AngleValueReference = "Float:Shutter2Angle" },
-                                        ["Shutter3_SW"] = new CfgShutter { FacadeReference = "SW", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter3Position", AngleValueReference = "Float:Shutter3Angle" },
-                                        ["Shutter4_NE"] = new CfgShutter { FacadeReference = "NE", Type = ShutterType.VenetianBlind, PositionValueReference = "Float:Shutter4Position", AngleValueReference = "Float:Shutter4Angle" },
+                                        ["Shutter1_NW"] = new CfgShutter { FacadeReference = "NW", Type = ShutterType.VenetianBlind, PositionValueReference = "Ratio:Shutter1Position", AngleValueReference = "Ratio:Shutter1Angle" },
+                                        ["Shutter2_SE"] = new CfgShutter { FacadeReference = "SE", Type = ShutterType.VenetianBlind, PositionValueReference = "Ratio:Shutter2Position", AngleValueReference = "Ratio:Shutter2Angle" },
+                                        ["Shutter3_SW"] = new CfgShutter { FacadeReference = "SW", Type = ShutterType.VenetianBlind, PositionValueReference = "Ratio:Shutter3Position", AngleValueReference = "Ratio:Shutter3Angle" },
+                                        ["Shutter4_NE"] = new CfgShutter { FacadeReference = "NE", Type = ShutterType.VenetianBlind, PositionValueReference = "Ratio:Shutter4Position", AngleValueReference = "Ratio:Shutter4Angle" },
                                         ["Shutter5_RoofTiltedSW"] = new CfgShutter { FacadeReference = "RoofTiltedSW", Type = ShutterType.OpenClose, OpenCloseReference = "Bool:Shutter5Closed" }
                                     }
                                 }
@@ -118,12 +119,12 @@ public partial class ShutterAutomationTestFixture(
                             AutoShadowStatusReference = "Bool:AutoShadowStatus",
                             AbsenceReference = "Bool:Absence",
                             DisableAutoShadowAssessmentReference = "Bool:DisableAutoShadowAssessment",
-                            OutdoorTemperatureReference = "Float:OutdoorTemperature",
-                            SunIntensityEastReference = "Float:SunIntensityEast",
-                            SunIntensitySouthReference = "Float:SunIntensitySouth",
-                            SunIntensityWestReference = "Float:SunIntensityWest",
-                            SunPositionAzimuthReference = "Float:SunPositionAzimuth",
-                            SunPositionElevationReference = "Float:SunPositionElevation",
+                            OutdoorTemperatureReference = "Temperature:OutdoorTemperature",
+                            SunIntensityEastReference = "Illuminance:SunIntensityEast",
+                            SunIntensitySouthReference = "Illuminance:SunIntensitySouth",
+                            SunIntensityWestReference = "Illuminance:SunIntensityWest",
+                            SunPositionAzimuthReference = "Angle:SunPositionAzimuth",
+                            SunPositionElevationReference = "Angle:SunPositionElevation",
                             ThermalControlModeReference = "Byte:ThermalControlMode",
                             UvIntensityReference = null,
                         }
@@ -152,13 +153,13 @@ public partial class ShutterAutomationTestFixture(
         (shadowingSpecial.AutoShadowStatus as ValueBase<bool>)?.Write(false);
         (shadowingSpecial.Absence as ValueBase<bool>)?.Write(false);
         (shadowingSpecial.DisableAutoShadowAssessment as ValueBase<bool>)?.Write(false);
-        (shadowingSpecial.OutdoorTemperature as ValueBase<float>)?.Write(4.0f);
-        (shadowingSpecial.SunIntensityEast as ValueBase<float>)?.Write(0.0f);
-        (shadowingSpecial.SunIntensitySouth as ValueBase<float>)?.Write(0.0f);
-        (shadowingSpecial.SunIntensityWest as ValueBase<float>)?.Write(0.0f);
+        (shadowingSpecial.OutdoorTemperature as ValueBase<Temperature>)?.Write(Temperature.FromDegreesCelsius(4.0));
+        (shadowingSpecial.SunIntensityEast as ValueBase<Illuminance>)?.Write(Illuminance.FromLux(0.0));
+        (shadowingSpecial.SunIntensitySouth as ValueBase<Illuminance>)?.Write(Illuminance.FromLux(0.0));
+        (shadowingSpecial.SunIntensityWest as ValueBase<Illuminance>)?.Write(Illuminance.FromLux(0.0));
         // Sun position somewhen in spring 1980 somewhere in Switzerland, 10:00:
-        (shadowingSpecial.SunPositionAzimuth as ValueBase<float>)?.Write(137.5f);
-        (shadowingSpecial.SunPositionElevation as ValueBase<float>)?.Write(26.3f);
+        (shadowingSpecial.SunPositionAzimuth as ValueBase<Angle>)?.Write(Angle.FromDegrees(137.5));
+        (shadowingSpecial.SunPositionElevation as ValueBase<Angle>)?.Write(Angle.FromDegrees(26.3));
         (shadowingSpecial.ThermalControlMode as ValueBase<byte>)?.Write((byte)ThermalControlMode.Passive);
         (shadowingSpecial.UvIntensity as ValueBase<float>)?.Write(0.0f);
 
@@ -170,7 +171,7 @@ public partial class ShutterAutomationTestFixture(
             // set default values for the IValue properties used in the default model configuration
             (roomContext.Room.AntiGlareEnable as ValueBase<bool>)?.Write(false);
             (roomContext.Room.ShutterScene as ValueBase<byte>)?.Write((byte)RoomShutterScene.HardOpen); // value 1, HardOpen, is equivalent to KNX scene 2 = all shutters open.
-            (roomContext.Room.Temperature as ValueBase<float>)?.Write(20.0f);
+            (roomContext.Room.Temperature as ValueBase<Temperature>)?.Write(Temperature.FromDegreesCelsius(20.0));
         }
 
         var allShutters = model.EnumerateShutterContexts().ToArray();
@@ -180,8 +181,8 @@ public partial class ShutterAutomationTestFixture(
             if (shutter.Configuration.Type == ShutterType.VenetianBlind)
             {
                 // fully open and horizontal
-                (shutter.PositionValue as ValueBase<float>)?.Write(0.0f);
-                (shutter.AngleValue as ValueBase<float>)?.Write(0.0f);
+                (shutter.PositionValue as ValueBase<Ratio>)?.Write(Ratio.FromDecimalFractions(0.0));
+                (shutter.AngleValue as ValueBase<Ratio>)?.Write(Ratio.FromDecimalFractions(0.0));
             }
             else if (shutter.Configuration.Type == ShutterType.OpenClose)
             {

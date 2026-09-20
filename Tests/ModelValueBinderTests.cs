@@ -2,6 +2,7 @@ using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -11,8 +12,8 @@ public class ModelValueBinderTests
     [Test]
     public void Bind_BindsShutterValues_UsingAttributes()
     {
-        var position = CreateValue<double>("Position");
-        var angle = CreateValue<double>("Angle");
+        var position = CreateValue<Ratio>("Position");
+        var angle = CreateValue<Ratio>("Angle");
         var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
         {
             ["ref-position"] = position,
@@ -75,10 +76,10 @@ public class ModelValueBinderTests
         var autoShadowStatus = CreateValue<bool>("AutoShadowStatus");
         var absence = CreateValue<bool>("Absence");
         var disableAssessment = CreateValue<bool>("DisableAssessment");
-        var outdoorTemperature = CreateValue<float>("OutdoorTemperature");
-        var sunEast = CreateValue<float>("SunEast");
-        var sunSouth = CreateValue<float>("SunSouth");
-        var sunWest = CreateValue<float>("SunWest");
+        var outdoorTemperature = CreateValue<Temperature>("OutdoorTemperature");
+        var sunEast = CreateValue<Illuminance>("SunEast");
+        var sunSouth = CreateValue<Illuminance>("SunSouth");
+        var sunWest = CreateValue<Illuminance>("SunWest");
 
         var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
         {

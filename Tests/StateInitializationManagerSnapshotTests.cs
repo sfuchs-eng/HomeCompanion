@@ -226,7 +226,7 @@ public class StateInitializationManagerSnapshotTests
         var snapshot = (ValueSnapshotSet)store.Stored!;
         var key = "HomeCompanion.Tests.StateInitializationManagerSnapshotTests+QuantityRoundtripContainer|Temperature";
         Assert.That(snapshot.Values, Contains.Key(key));
-        Assert.That(snapshot.Values[key].PayloadJson, Does.Contain("quantityName"));
+        Assert.That(snapshot.Values[key].PayloadJson, Does.Contain("QuantityName"));
 
         var target = new QuantityRoundtripContainer();
         var loader = new StateInitializationManager(

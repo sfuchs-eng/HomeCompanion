@@ -7,6 +7,7 @@ using HomeCompanion.Logics.Shutters.AutoShadow;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using UnitsNet;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -110,9 +111,9 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.SunIntensityPUNorm = 1.0f;
         });
 
-        GetFloatValue(ctx.Values, "Float:SunIntensityEast").Write(1.0f);
-        GetFloatValue(ctx.Values, "Float:SunIntensitySouth").Write(0.0f);
-        GetFloatValue(ctx.Values, "Float:SunIntensityWest").Write(0.0f);
+        GetIlluminanceValue(ctx.Values, "Illuminance:SunIntensityEast").Write(Illuminance.FromLux(1.0));
+        GetIlluminanceValue(ctx.Values, "Illuminance:SunIntensitySouth").Write(Illuminance.FromLux(0.0));
+        GetIlluminanceValue(ctx.Values, "Illuminance:SunIntensityWest").Write(Illuminance.FromLux(0.0));
 
         var value = await WaitForNextValueAsync(ctx.Sut.GetSunIntensityObservable(ctx.Special), TimeSpan.FromSeconds(1));
         var expected = (float)Math.Sqrt(2.0 / 3.0);
@@ -130,8 +131,8 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.SunIntensityPUNorm = 1.0f;
         });
 
-        GetFloatValue(ctx.Values, "Float:SunIntensitySouth").Write(0.25f);
-        GetFloatValue(ctx.Values, "Float:SunIntensityWest").Write(0.9f);
+        GetIlluminanceValue(ctx.Values, "Illuminance:SunIntensitySouth").Write(Illuminance.FromLux(0.25));
+        GetIlluminanceValue(ctx.Values, "Illuminance:SunIntensityWest").Write(Illuminance.FromLux(0.9));
 
         var value = await WaitForNextValueAsync(ctx.Sut.GetSunIntensityObservable(ctx.Special), TimeSpan.FromSeconds(1));
 
@@ -291,7 +292,7 @@ public class EnvironmentalsEvaluatorLogicTests
         var missingAzimuthCtx = CreateContext(cfg =>
         {
             cfg.SunPositionAzimuthReference = null;
-            cfg.SunPositionElevationReference = "Float:SunPositionElevation";
+            cfg.SunPositionElevationReference = "Angle:SunPositionElevation";
         });
 
         var vectorMissingAzimuth = await WaitForNextValueAsync(
@@ -308,7 +309,7 @@ public class EnvironmentalsEvaluatorLogicTests
 
         var missingElevationCtx = CreateContext(cfg =>
         {
-            cfg.SunPositionAzimuthReference = "Float:SunPositionAzimuth";
+            cfg.SunPositionAzimuthReference = "Angle:SunPositionAzimuth";
             cfg.SunPositionElevationReference = null;
         });
 
@@ -348,11 +349,11 @@ public class EnvironmentalsEvaluatorLogicTests
     {
         var ctx = CreateContext();
 
-        var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
-        var elevation = GetFloatValue(ctx.Values, "Float:SunPositionElevation");
+        var azimuth = GetAngleValue(ctx.Values, "Angle:SunPositionAzimuth");
+        var elevation = GetAngleValue(ctx.Values, "Angle:SunPositionElevation");
 
-        azimuth.Write(295.0f);
-        elevation.Write(-6.0f);
+        azimuth.Write(Angle.FromDegrees(295.0));
+        elevation.Write(Angle.FromDegrees(-6.0));
 
         var vector = await WaitForNextValueAsync(ctx.Sut.GetSunPositionObservable(ctx.Special), TimeSpan.FromMilliseconds(250));
 
@@ -371,10 +372,10 @@ public class EnvironmentalsEvaluatorLogicTests
     {
         var ctx = CreateContext();
 
-        var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
-        var elevation = GetFloatValue(ctx.Values, "Float:SunPositionElevation");
-        azimuth.Write(295.0f);
-        elevation.Write(-6.0f);
+        var azimuth = GetAngleValue(ctx.Values, "Angle:SunPositionAzimuth");
+        var elevation = GetAngleValue(ctx.Values, "Angle:SunPositionElevation");
+        azimuth.Write(Angle.FromDegrees(295.0));
+        elevation.Write(Angle.FromDegrees(-6.0));
 
         var isAboveHorizon = await WaitForNextValueAsync(
             ctx.Sut.GetSunAboveHorizonObservable(ctx.Sut.GetSunPositionObservable(ctx.Special), ctx.Special),
@@ -393,7 +394,7 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.EnergyBalanceTemperatureScalingFactor = 0.5;
         });
 
-        GetFloatValue(ctx.Values, "Float:OutdoorTemperature").Write(18.0f);
+        GetTemperatureValue(ctx.Values, "Temperature:OutdoorTemperature").Write(Temperature.FromDegreesCelsius(18.0));
 
         var value = await WaitForNextValueAsync(
             ctx.Sut.GetEnergyBalanceObservable(ctx.Special, TimeSpan.FromMilliseconds(60)),
@@ -443,8 +444,8 @@ public class EnvironmentalsEvaluatorLogicTests
         await ctx.Sut.DisableAsync();
         ctx.EventBus.Clear();
 
-        var azimuth = GetFloatValue(ctx.Values, "Float:SunPositionAzimuth");
-        azimuth.Write(azimuth.Value + 10.0f);
+        var azimuth = GetAngleValue(ctx.Values, "Angle:SunPositionAzimuth");
+        azimuth.Write(Angle.FromDegrees(azimuth.Value.Degrees + 10.0));
         await Task.Delay(TimeSpan.FromMilliseconds(120));
 
         Assert.That(
@@ -497,6 +498,39 @@ public class EnvironmentalsEvaluatorLogicTests
 
         return value as ValueBase<float>
             ?? throw new InvalidOperationException($"Value reference {key} is not a ValueBase<float>.");
+    }
+
+    private static ValueBase<Temperature> GetTemperatureValue(IReadOnlyDictionary<string, IValue> values, string key)
+    {
+        if (!values.TryGetValue(key, out var value))
+        {
+            throw new InvalidOperationException($"Missing expected test value reference: {key}");
+        }
+
+        return value as ValueBase<Temperature>
+            ?? throw new InvalidOperationException($"Value reference {key} is not a ValueBase<Temperature>.");
+    }
+
+    private static ValueBase<Illuminance> GetIlluminanceValue(IReadOnlyDictionary<string, IValue> values, string key)
+    {
+        if (!values.TryGetValue(key, out var value))
+        {
+            throw new InvalidOperationException($"Missing expected test value reference: {key}");
+        }
+
+        return value as ValueBase<Illuminance>
+            ?? throw new InvalidOperationException($"Value reference {key} is not a ValueBase<Illuminance>.");
+    }
+
+    private static ValueBase<Angle> GetAngleValue(IReadOnlyDictionary<string, IValue> values, string key)
+    {
+        if (!values.TryGetValue(key, out var value))
+        {
+            throw new InvalidOperationException($"Missing expected test value reference: {key}");
+        }
+
+        return value as ValueBase<Angle>
+            ?? throw new InvalidOperationException($"Value reference {key} is not a ValueBase<Angle>.");
     }
 
     private static async Task<T> WaitForNextValueAsync<T>(IObservable<T> observable, TimeSpan timeout)

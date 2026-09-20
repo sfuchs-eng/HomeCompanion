@@ -1,6 +1,7 @@
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using UnitsNet;
 
 namespace HomeCompanion.Tests.TestUtilities;
 
@@ -62,6 +63,30 @@ internal class GenerativeValueProvider : IValueProvider
         {
             var valt = new ValueBase<double>(_loggerFactory.CreateLogger<ValueBase<double>>(), _timeProvider) { Name = reference };
             valt.Write(0.0);
+            val = valt;
+        }
+        else if (reference.StartsWith("Temperature:"))
+        {
+            var valt = new ValueBase<Temperature>(_loggerFactory.CreateLogger<ValueBase<Temperature>>(), _timeProvider) { Name = reference };
+            valt.Write(Temperature.FromDegreesCelsius(0.0));
+            val = valt;
+        }
+        else if (reference.StartsWith("Illuminance:"))
+        {
+            var valt = new ValueBase<Illuminance>(_loggerFactory.CreateLogger<ValueBase<Illuminance>>(), _timeProvider) { Name = reference };
+            valt.Write(Illuminance.FromLux(0.0));
+            val = valt;
+        }
+        else if (reference.StartsWith("Angle:"))
+        {
+            var valt = new ValueBase<Angle>(_loggerFactory.CreateLogger<ValueBase<Angle>>(), _timeProvider) { Name = reference };
+            valt.Write(Angle.FromDegrees(0.0));
+            val = valt;
+        }
+        else if (reference.StartsWith("Ratio:"))
+        {
+            var valt = new ValueBase<Ratio>(_loggerFactory.CreateLogger<ValueBase<Ratio>>(), _timeProvider) { Name = reference };
+            valt.Write(Ratio.FromDecimalFractions(0.0));
             val = valt;
         }
         else if (reference.StartsWith("String:"))
