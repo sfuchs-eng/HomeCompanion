@@ -185,16 +185,16 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.SunIntensityRelaxationThresholdPU = 0.1f;
         });
 
-        var source = new Subject<float>();
+        var source = new Subject<double>();
         var emissions = new List<(bool Value, DateTimeOffset Timestamp)>();
         using var subscription = ctx.Sut.GetSunIntensityAboveThresholdObservable(source, ctx.Special)
             .Subscribe(value => emissions.Add((value, DateTimeOffset.UtcNow)));
 
-        source.OnNext(0.25f);
+        source.OnNext(0.25d);
         await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(80));
         Assert.That(emissions[0].Value, Is.True);
 
-        source.OnNext(0.0f);
+        source.OnNext(0.0d);
         await Task.Delay(TimeSpan.FromMilliseconds(60));
         Assert.That(emissions.Count(e => e.Value == false), Is.EqualTo(0));
 
@@ -212,17 +212,17 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.SunIntensityRelaxationThresholdPU = 0.1f;
         });
 
-        var source = new Subject<float>();
+        var source = new Subject<double>();
         var emissions = new List<bool>();
         using var subscription = ctx.Sut.GetSunIntensityAboveThresholdObservable(source, ctx.Special)
             .Subscribe(emissions.Add);
 
-        source.OnNext(0.25f);
+        source.OnNext(0.25d);
         await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(80));
 
-        source.OnNext(0.0f);
+        source.OnNext(0.0d);
         await Task.Delay(TimeSpan.FromMilliseconds(50));
-        source.OnNext(0.25f);
+        source.OnNext(0.25d);
 
         await Task.Delay(TimeSpan.FromMilliseconds(130));
 
@@ -239,7 +239,7 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.UvIntensityHysteresisDuration = TimeSpan.FromMilliseconds(100);
         });
 
-        var uvSource = new Subject<float>();
+        var uvSource = new Subject<double>();
         var sunAboveHorizonSource = new Subject<bool>();
         var emissions = new List<bool>();
 
@@ -247,7 +247,7 @@ public class EnvironmentalsEvaluatorLogicTests
             .Subscribe(emissions.Add);
 
         sunAboveHorizonSource.OnNext(true);
-        uvSource.OnNext(0.3f);
+        uvSource.OnNext(0.3d);
 
         await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(120));
 
@@ -264,7 +264,7 @@ public class EnvironmentalsEvaluatorLogicTests
             cfg.UvIntensityHysteresisDuration = TimeSpan.FromMilliseconds(100);
         });
 
-        var uvSource = new Subject<float>();
+        var uvSource = new Subject<double>();
         var sunAboveHorizonSource = new Subject<bool>();
         var emissions = new List<bool>();
 
@@ -272,7 +272,7 @@ public class EnvironmentalsEvaluatorLogicTests
             .Subscribe(emissions.Add);
 
         sunAboveHorizonSource.OnNext(true);
-        uvSource.OnNext(0.3f);
+        uvSource.OnNext(0.3d);
         await WaitUntilAsync(() => emissions.Count >= 1, TimeSpan.FromMilliseconds(120));
         Assert.That(emissions[^1], Is.True);
 

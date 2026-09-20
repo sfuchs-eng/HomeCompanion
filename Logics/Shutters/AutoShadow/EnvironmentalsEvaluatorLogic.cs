@@ -2,6 +2,7 @@ using HomeCompanion.Diagnostics;
 using HomeCompanion.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using UnitsNet;
 
 namespace HomeCompanion.Logics.Shutters.AutoShadow;
 
@@ -163,25 +164,25 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             .DistinctUntilChanged();
     }
 
-    internal IObservable<float> GetSunIntensityObservable(ShadowingSpecial s)
+    internal IObservable<double> GetSunIntensityObservable(ShadowingSpecial s)
     {
-        IObservable<float> sunIntensityObs;
+        IObservable<double> sunIntensityObs;
 
         // 3 directional sun intensity sensors are preferred
         if (s.SunIntensityEast is not null && s.SunIntensitySouth is not null && s.SunIntensityWest is not null)
         {
             sunIntensityObs = Observable.CombineLatest(
-                s.SunIntensityEast.AsObservable<float>(),
-                s.SunIntensitySouth.AsObservable<float>(),
-                s.SunIntensityWest.AsObservable<float>(),
+                s.SunIntensityEast.AsObservable((a) => a.As(UnitsNet.Units.IlluminanceUnit.Lux)),
+                s.SunIntensitySouth.AsObservable((a) => a.As(UnitsNet.Units.IlluminanceUnit.Lux)),
+                s.SunIntensityWest.AsObservable((a) => a.As(UnitsNet.Units.IlluminanceUnit.Lux)),
                 // use p.u. scaled RMS value of the 3 directional sensors E, S, W as a good approximation of the sun intensity
-                (east, south, west) => (float)(Math.Sqrt((east * east + south * south + west * west) / 3.0f) * Math.Sqrt(2.0f) / s.Configuration.SunIntensityPUNorm)
+                (east, south, west) => Math.Sqrt((east * east + south * south + west * west) / 3.0f) * Math.Sqrt(2.0f) / s.Configuration.SunIntensityPUNorm
             );
         }
         else
         {
             // if we don't have 3, ...
-            var usedSensor = new List<(string, IValue?)>
+            var usedSensor = new List<(string, IValue<Illuminance>?)>
             {
                 ("SunIntensityEast", s.SunIntensityEast),
                 ("SunIntensitySouth", s.SunIntensitySouth),
@@ -191,13 +192,13 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             {
                 // if we don't have any, try uv intensity, otherwise fallback to 0.0f
                 logger.LogWarning("ShadowingSpecial {ShadowingSpecialKey} does not provide any sun intensity measurement. Sun intensity is routed from UV intensity if available, otherwise it is set to 0.", s.Name);
-                sunIntensityObs = s.UvIntensity?.AsObservable<float>().Select(uv => uv / s.Configuration.UvIntensityPUNorm) ?? Observable.Return(0.0f);
+                sunIntensityObs = s.UvIntensity?.AsObservable((u) => (double)u).Select(uv => uv / s.Configuration.UvIntensityPUNorm) ?? Observable.Return(0.0);
             }
             else
             {
                 // if we have 1 or 2, use the first available one
                 logger.LogTrace("ShadowingSpecial {ShadowingSpecialKey} does not provide all 3 directional sun intensity measurements. Sun intensity is routed from {SensorName}.", s.Name, usedSensor.Item1);
-                sunIntensityObs = usedSensor.Item2.AsObservable<float>().Select(v => v / s.Configuration.SunIntensityPUNorm);
+                sunIntensityObs = usedSensor.Item2.AsObservable((a) => a.As(UnitsNet.Units.IlluminanceUnit.Lux)).Select(v => v / s.Configuration.SunIntensityPUNorm);
             }
         }
 
@@ -208,7 +209,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         return sunIntensityObs;
     }
 
-    internal IObservable<bool> GetSunIntensityAboveThresholdObservable(IObservable<float> sunIntensity, ShadowingSpecial s)
+    internal IObservable<bool> GetSunIntensityAboveThresholdObservable(IObservable<double> sunIntensity, ShadowingSpecial s)
     {
         // activation: immediately when sun intensity is above threshold
         // deactivation: if the intensity remained below hysteresis threshold for the specified time
@@ -238,7 +239,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
             .DistinctUntilChanged();
     }
 
-    internal IObservable<bool> GetUvIntensityAboveThresholdObservable(IObservable<float> uvIntensity, IObservable<bool> sunAboveHorizon, ShadowingSpecial s)
+    internal IObservable<bool> GetUvIntensityAboveThresholdObservable(IObservable<double> uvIntensity, IObservable<bool> sunAboveHorizon, ShadowingSpecial s)
     {
         // activation: immediately when UV intensity is above threshold
         // deactivation: if the intensity remained below hysteresis threshold for the specified time
@@ -275,8 +276,8 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
     internal IObservable<SphericVector> GetSunPositionObservable(ShadowingSpecial s)
     {
-        var subAziObs = s.SunPositionAzimuth?.AsObservable<float>() ?? Observable.Return(0.0f);
-        var subEleObs = s.SunPositionElevation?.AsObservable<float>() ?? Observable.Return(-10.0f);
+        var subAziObs = s.SunPositionAzimuth?.AsObservable((a) => a.Degrees) ?? Observable.Return(0.0);
+        var subEleObs = s.SunPositionElevation?.AsObservable((a) => a.Degrees) ?? Observable.Return(-10.0);
 
         var sunObs = Observable.CombineLatest(
             subAziObs,
@@ -298,7 +299,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         // This value is computed from the daily average temperature difference between indoor target room temp and outdoor temperature, normalized by a reference value.
         var window = averagingWindow ?? TimeSpan.FromHours(24);
 
-        var energyBalanceObs = (s.OutdoorTemperature?.AsObservable<float>().Select(f => (double)f) ?? Observable.Return(10.0))
+        var energyBalanceObs = (s.OutdoorTemperature?.AsObservable((t) => t.As(UnitsNet.Units.TemperatureUnit.DegreeCelsius)) ?? Observable.Return(10.0))
             // energy balance = (target room temp - outdoor temp) * scaling factor
             .Select(outdoorTemp => (s.Configuration.DefaultRoomTemperatureTarget - outdoorTemp) * s.Configuration.EnergyBalanceTemperatureScalingFactor)
             // 24h average
@@ -325,7 +326,7 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
         );
 
         // Sun brightness / irraditaion / intensity
-        IObservable<float> sunIntensityObs = GetSunIntensityObservable(s)
+        IObservable<double> sunIntensityObs = GetSunIntensityObservable(s)
             .Publish() // Hot instead of cold observable, so that multiple subscribers share the same source and don't trigger multiple subscriptions to the underlying observables.
             .RefCount(); // Automatically connects when the first subscriber subscribes and disconnects when the last subscriber unsubscribes.
 

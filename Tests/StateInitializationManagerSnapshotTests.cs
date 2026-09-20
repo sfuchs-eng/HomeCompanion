@@ -4,6 +4,7 @@ using HomeCompanion.Persistence;
 using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -203,6 +204,49 @@ public class StateInitializationManagerSnapshotTests
     }
 
     [Test]
+    public async Task SaveStateAndInitializeState_roundtrips_unitsnet_quantity_value()
+    {
+        var store = new StubStateStore();
+        var lifecycle = new StubLifecycleSync();
+
+        var source = new QuantityRoundtripContainer();
+        var expected = Temperature.FromDegreesCelsius(21.5);
+        source.Temperature.InitializeValue(expected, AppLifeCycleStage.InitBusValueReceived);
+
+        var saver = new StateInitializationManager(
+            lifecycle,
+            store,
+            [source],
+            NullLogger<StateInitializationManager>.Instance,
+            TimeProvider.System);
+
+        await saver.SaveStateAsync(CancellationToken.None);
+
+        Assert.That(store.Stored, Is.TypeOf<ValueSnapshotSet>());
+        var snapshot = (ValueSnapshotSet)store.Stored!;
+        var key = "HomeCompanion.Tests.StateInitializationManagerSnapshotTests+QuantityRoundtripContainer|Temperature";
+        Assert.That(snapshot.Values, Contains.Key(key));
+        Assert.That(snapshot.Values[key].PayloadJson, Does.Contain("quantityName"));
+
+        var target = new QuantityRoundtripContainer();
+        var loader = new StateInitializationManager(
+            lifecycle,
+            store,
+            [target],
+            NullLogger<StateInitializationManager>.Instance,
+            TimeProvider.System);
+
+        await loader.InitializeStateAsync(CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(target.Temperature.Value, Is.TypeOf<Temperature>());
+            Assert.That(target.Temperature.Value.DegreesCelsius, Is.EqualTo(expected.DegreesCelsius).Within(0.000001));
+            Assert.That(target.Temperature.Status.HasFlag(ValueStatus.Initialized), Is.True);
+        });
+    }
+
+    [Test]
     public async Task InitializeState_signals_skipped_stages_without_registered_delegates()
     {
         var lifecycle = new RecordingLifecycleSync();
@@ -366,6 +410,16 @@ public class StateInitializationManagerSnapshotTests
         };
 
         public IEnumerable<IValue> GetValues() => [Mode];
+    }
+
+    private sealed class QuantityRoundtripContainer : IValuesContainer
+    {
+        public ValueBase<Temperature> Temperature { get; } = new(NullLogger<ValueBase<Temperature>>.Instance)
+        {
+            Name = "temperature",
+        };
+
+        public IEnumerable<IValue> GetValues() => [Temperature];
     }
 
     private enum ModeState

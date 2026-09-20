@@ -48,9 +48,9 @@ public class RoomRuntime : RuntimeBase, IDisposable
         this.timeProvider = timeProvider;
         this.signalStore = runtimeCreationContext.ServiceProvider.GetService<ISignalStore>();
         this.logger = logger;
-        filteredRoomTemperatureObservableCached = new CachedValue<IObservable<float>>(Observable.Empty<float>(), () =>
+        filteredRoomTemperatureObservableCached = new CachedValue<IObservable<double>>(Observable.Empty<double>(), () =>
         {
-            return GetFilteredRoomTemperatureObservable() ?? Observable.Return<float>(20.0f);
+            return GetFilteredRoomTemperatureObservable() ?? Observable.Return<double>(20.0); // fallback to a default value if the observable is null
         });
     }
 
@@ -73,14 +73,14 @@ public class RoomRuntime : RuntimeBase, IDisposable
     public bool IsRoomTemperatureAboveAutoShadowThreshold { get; private set; } = false;
 
     IDisposable? filteredRoomTemperatureSubscription = null;
-    public float FilteredRoomTemperature { get; protected set; } = 20.0f;
+    public double FilteredRoomTemperature { get; protected set; } = 20.0;
 
-    protected CachedValue<IObservable<float>> filteredRoomTemperatureObservableCached;
+    protected CachedValue<IObservable<double>> filteredRoomTemperatureObservableCached;
 
-    protected virtual IObservable<float>? GetFilteredRoomTemperatureObservable()
+    protected virtual IObservable<double>? GetFilteredRoomTemperatureObservable()
     {
         // throttle to max 15 min and put a hysteresis of 0.2°C to avoid rapid toggling of the above/below threshold state due to small fluctuations around the threshold value
-        var filteredRoomTemperatureObservable = RoomContext.Room.Temperature?.AsObservable<float>()
+        var filteredRoomTemperatureObservable = RoomContext.Room.Temperature?.AsObservable((t) => t.As(UnitsNet.Units.TemperatureUnit.DegreeCelsius))
             .DistinctUntilChangedWithHysteresis(0.2f)
             .Throttle(TimeSpan.FromMinutes(15))
             .Publish()
@@ -95,7 +95,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
         if (filteredRoomTemperatureObservable == null)
         {
             logger.LogWarning("Filtered room temperature observable is null for room {RoomKey}. Cannot monitor filtered temperature changes.", RoomKey.Key);
-            filteredRoomTemperatureObservable = Observable.Return<float>((float)RoomContext.Room.Configuration.TargetRoomTemperature); // fallback to an empty observable to avoid null reference exceptions
+            filteredRoomTemperatureObservable = Observable.Return<double>((double)RoomContext.Room.Configuration.TargetRoomTemperature); // fallback to an empty observable to avoid null reference exceptions
         }
 
         return filteredRoomTemperatureObservable?

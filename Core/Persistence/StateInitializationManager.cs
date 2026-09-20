@@ -2,9 +2,11 @@ using HomeCompanion.Abstractions;
 using HomeCompanion.Persistence;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using UnitsNet;
 
 namespace HomeCompanion.Core.Persistence;
 
@@ -209,7 +211,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
 
             try
             {
-                var deserialized = JsonSerializer.Deserialize(stateEntry.PayloadJson, binding.Value.ValueType, SnapshotJsonOptions);
+                var deserialized = DeserializeSnapshotValue(stateEntry.PayloadJson, binding.Value.ValueType);
                 if (!binding.Value.InitializeValue(deserialized!, AppLifeCycleStage.InitLoadFromStore))
                 {
                     failed++;
@@ -275,7 +277,7 @@ public class StateInitializationManager : IStateInitializationRegistrar
 
             try
             {
-                var payloadJson = JsonSerializer.Serialize(currentValue, binding.Value.ValueType, SnapshotJsonOptions);
+                var payloadJson = SerializeSnapshotValue(currentValue, binding.Value.ValueType);
 
                 if (!snapshot.Values.TryAdd(binding.Key, new ValueSnapshotEntry
                 {
@@ -318,6 +320,108 @@ public class StateInitializationManager : IStateInitializationRegistrar
             failed);
     }
 
+    private static string SerializeSnapshotValue(object? value, Type valueType)
+    {
+        if (value is IQuantity quantity)
+        {
+            var snapshot = new QuantitySnapshot
+            {
+                QuantityName = quantity.QuantityInfo.Name,
+                UnitName = quantity.Unit.ToString(),
+                Magnitude = Convert.ToDouble(quantity.As(quantity.Unit), CultureInfo.InvariantCulture),
+            };
+            return JsonSerializer.Serialize(snapshot, SnapshotJsonOptions);
+        }
+
+        return JsonSerializer.Serialize(value, valueType, SnapshotJsonOptions);
+    }
+
+    private static object? DeserializeSnapshotValue(string payloadJson, Type valueType)
+    {
+        if (typeof(IQuantity).IsAssignableFrom(valueType)
+            && TryDeserializeQuantitySnapshot(payloadJson, valueType, out var quantityValue))
+        {
+            return quantityValue;
+        }
+
+        return JsonSerializer.Deserialize(payloadJson, valueType, SnapshotJsonOptions);
+    }
+
+    private static bool TryDeserializeQuantitySnapshot(string payloadJson, Type valueType, out object? value)
+    {
+        value = null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(payloadJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return TryParseLegacyQuantityPayload(payloadJson, valueType, out value);
+            }
+
+            var root = document.RootElement;
+            if (!root.TryGetProperty(nameof(QuantitySnapshot.QuantityName), out var quantityNameElement)
+                || !root.TryGetProperty(nameof(QuantitySnapshot.UnitName), out var unitNameElement)
+                || !root.TryGetProperty(nameof(QuantitySnapshot.Magnitude), out var magnitudeElement))
+            {
+                return false;
+            }
+
+            var quantityName = quantityNameElement.GetString();
+            var unitName = unitNameElement.GetString();
+            if (string.IsNullOrWhiteSpace(quantityName) || string.IsNullOrWhiteSpace(unitName))
+                return false;
+
+            var quantityInfo = Quantity.Infos.FirstOrDefault(info => string.Equals(info.Name, quantityName, StringComparison.OrdinalIgnoreCase));
+            if (quantityInfo is null || !quantityInfo.UnitType.IsEnum)
+                return false;
+
+            if (!Enum.TryParse(quantityInfo.UnitType, unitName, true, out var unitValue))
+                return false;
+
+            var unitEnum = (Enum)unitValue;
+            var magnitude = magnitudeElement.GetDouble();
+            if (!Quantity.TryFrom(magnitude, unitEnum, out var quantity)
+                || quantity is null)
+            {
+                return false;
+            }
+
+            if (!valueType.IsInstanceOfType(quantity))
+                return false;
+
+            value = quantity;
+            return true;
+        }
+        catch
+        {
+            return TryParseLegacyQuantityPayload(payloadJson, valueType, out value);
+        }
+    }
+
+    private static bool TryParseLegacyQuantityPayload(string payloadJson, Type valueType, out object? value)
+    {
+        value = null;
+
+        var trimmedPayload = payloadJson.Trim();
+        if (trimmedPayload.Length >= 2 && trimmedPayload.StartsWith('"') && trimmedPayload.EndsWith('"'))
+        {
+            trimmedPayload = trimmedPayload[1..^1];
+        }
+
+        if (string.IsNullOrWhiteSpace(trimmedPayload))
+            return false;
+
+        if (Quantity.TryParse(CultureInfo.InvariantCulture, valueType, trimmedPayload, out var parsedQuantity)
+            && parsedQuantity is not null)
+        {
+            value = parsedQuantity;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool TryReadCurrentValue(IValue value, out object? currentValue)
     {
         var valueProperty = value.GetType().GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
@@ -329,6 +433,13 @@ public class StateInitializationManager : IStateInitializationRegistrar
 
         currentValue = valueProperty.GetValue(value);
         return true;
+    }
+
+    private sealed class QuantitySnapshot
+    {
+        public string QuantityName { get; init; } = string.Empty;
+        public string UnitName { get; init; } = string.Empty;
+        public double Magnitude { get; init; }
     }
 
     private IEnumerable<ValueBinding> GetValueBindings()
