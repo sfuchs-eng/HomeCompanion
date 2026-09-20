@@ -564,9 +564,6 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         if (targetValue is null || decodedValue is null)
             return decodedValue;
 
-        if (TryAdjustScaledUnitAwareNumeric(decodedValue, targetValue.ValueType, dpt, out var adjustedNumeric))
-            return adjustedNumeric;
-
         // in a normal case, the decoded value is already of the correct type for the target IValue, so we can return it directly
         if (targetValue.ValueType.IsInstanceOfType(decodedValue) || targetValue.ValueType.IsAssignableFrom(decodedValue.GetType()))
             return decodedValue;
@@ -597,7 +594,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         // Fast path: quantity decoded value for scalar/unit-aware target. Keep bus mapper as transport authority and use value parser for local normalization.
         if (decodedValue is UnitsNet.IQuantity quantityDecoded && !IsQuantityType(targetValue.ValueType))
         {
-            if (TryConvertQuantityToNumericTarget(quantityDecoded, targetValue.ValueType, dpt, out var numericValue))
+            if (TryConvertQuantityToNumericTarget(quantityDecoded, targetValue.ValueType, out var numericValue))
                 return numericValue;
 
             var quantityRaw = quantityDecoded.ToString(CultureInfo.InvariantCulture);
@@ -657,7 +654,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     private static bool IsNumericScalar(object value)
         => value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
 
-    private static bool TryConvertQuantityToNumericTarget(UnitsNet.IQuantity quantity, Type targetType, DptBase? dpt, out object? converted)
+    private static bool TryConvertQuantityToNumericTarget(UnitsNet.IQuantity quantity, Type targetType, out object? converted)
     {
         converted = null;
         if (!IsNumericTargetType(targetType))
@@ -667,12 +664,6 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         {
             var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
             var numericValue = Convert.ToDouble(quantity.Value, CultureInfo.InvariantCulture);
-            if (dpt is DptSimple simple && simple.IsScaledNumeric)
-            {
-                var coefficient = simple.NumericInfo?.Coefficient ?? 1.0;
-                if (!coefficient.Equals(0.0) && !coefficient.Equals(1.0))
-                    numericValue /= coefficient;
-            }
 
             converted = Convert.ChangeType(numericValue, nonNullable, CultureInfo.InvariantCulture);
             return converted is not null;
@@ -765,33 +756,4 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         return true;
     }
 
-    private static bool TryAdjustScaledUnitAwareNumeric(object decodedValue, Type targetType, DptBase? dpt, out object? adjusted)
-    {
-        adjusted = null;
-
-        if (dpt is not DptSimple simple || !simple.IsScaledNumeric)
-            return false;
-
-        if (!IsNumericTargetType(targetType) || !typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
-            return false;
-
-        if (decodedValue is not IConvertible convertible)
-            return false;
-
-        var coefficient = simple.NumericInfo?.Coefficient ?? 1.0;
-        if (coefficient.Equals(0.0) || coefficient.Equals(1.0))
-            return false;
-
-        try
-        {
-            var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
-            var corrected = convertible.ToDouble(CultureInfo.InvariantCulture) / coefficient;
-            adjusted = Convert.ChangeType(corrected, nonNullable, CultureInfo.InvariantCulture);
-            return adjusted is not null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

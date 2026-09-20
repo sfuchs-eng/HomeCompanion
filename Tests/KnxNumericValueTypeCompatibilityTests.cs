@@ -13,6 +13,7 @@ using SRF.Knx.Core.DPT;
 using SRF.Knx.Core.Master;
 using SRF.Network.Knx.Dpt;
 using System.Globalization;
+using UnitsNet;
 
 namespace HomeCompanion.Tests;
 
@@ -41,6 +42,26 @@ public class KnxNumericValueTypeCompatibilityTests
         Assert.That(display, Is.Not.Null);
         Assert.That(display, Does.Contain("22,5"));
         Assert.That(display, Does.Contain("°C"));
+    }
+
+    [Test]
+    public void KnxMapping_FormatValueForDisplay_ScaledRatioDpt_UsesCorrectPercentValue()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddKnxCore();
+        services.AddSingleton<IKnxMasterDataProvider>(KnxMasterDataProviderStub.Create());
+
+        var provider = services.BuildServiceProvider(validateScopes: false);
+        var dptFactory = provider.GetRequiredService<IDptFactory>();
+        var mapping = new KnxBusEndpointMapping("1/0/3", "DPST-5-1", dptFactory);
+
+        var display = mapping.FormatValueForDisplay(Ratio.FromPercent(100), CultureInfo.InvariantCulture);
+
+        Assert.That(display, Is.Not.Null);
+        Assert.That(display, Does.Contain("100"));
+        Assert.That(display, Does.Contain("%"));
     }
 
     [Test]

@@ -58,18 +58,13 @@ public static class IValueReactiveExtensions
             h => value.Changed -= h
         )
         // Extract the value and cast it to the expected type
-        .Select(e => converter((TApp)e.EventArgs.NewValue))
+        .Select(e => converter((TApp)(e.EventArgs.NewValue.OValue ?? throw new InvalidOperationException($"Cannot convert IValue of type {value.GetType().Name} to IObservable<{typeof(TScalar).Name}>. The value is null."))))
         .StartWith(presentValue); // Ensure the stream starts with current state
     }
 
-    public static IObservable<T> AsObservable<T>(this IValue value) where T : struct, INumber<T>, IConvertible
+    public static IObservable<T> AsObservable<T>(this IValue<T> value) where T : struct, INumber<T>, IConvertible
     {
-        if (value is not IValue<T> typedValue)
-        {
-            throw new InvalidOperationException($"Cannot convert IValue of type {value.GetType().Name} to IObservable<{typeof(T).Name}>. The value is not of the expected type.");
-        }
-
-        if (((T?)value.OValue) is null)
+        if (value.OValue as T? is null)
         {
             throw new InvalidOperationException($"Cannot convert IValue of type {value.GetType().Name} to IObservable<{typeof(T).Name}>. The value is null.");
         }
