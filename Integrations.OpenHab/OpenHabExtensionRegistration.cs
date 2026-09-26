@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SRF.Knx.Config;
 using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.Items;
@@ -18,9 +17,7 @@ namespace HomeCompanion.Integrations.OpenHab;
 
 /// <summary>
 /// Registers the OpenHAB connector and related services, and performs initial synchronization of values with OpenHAB items on application startup.
-/// This OpenHAB extension is KNX aware. Means it's initializing KNX-mapped IValues with the corresponding OpenHAB item state converted to the KNX DPT value type. See <see cref="OpenHabStateConverter"/> for details on supported conversions.
-/// If no KNX mapping is present, it will try to initialize the value with the raw item state string if the property name matches or if there's a corresponding OpenHAB bus mapping defined via <see cref="OpenHabBusEndpointMapping"/>.
-/// This allows basic integration of non-KNX-mapped values as well, which can be useful for simple state monitoring or for integrations that don't require KNX-specific value types.
+/// Value initialization uses OpenHAB-native type conversion and falls back to the generic target value parser.
 /// </summary>
 public class OpenHabExtensionRegistration(
     ILogger<OpenHabExtensionRegistration> logger
@@ -50,6 +47,8 @@ public class OpenHabExtensionRegistration(
         }
         context.Builder.Services.AddOpenHabConnector();
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
+        context.Builder.Services.AddSingleton<OpenHabTypeConversionRegistry>();
+        context.Builder.Services.AddSingleton<OpenHabItemMetadataCache>();
         context.Builder.Services.AddSingleton<OpenHabStateConverter>();
         context.Builder.Services.AddSingleton<OpenHabConnectivityProvider>();
         context.Builder.Services.AddSingleton<IConnectivityProvider>(sp => sp.GetRequiredService<OpenHabConnectivityProvider>());
@@ -67,7 +66,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
     private readonly IRestApiClient restApiClient;
     private readonly EventBusClientOptions openHabOptions;
     private readonly OpenHabIntegrationOptions openHabIntegrationOptions;
-    private readonly KnxSystemConfigOptions knxConfig;
+    private readonly OpenHabItemMetadataCache itemMetadataCache;
     private readonly OpenHabStateConverter stateConverter;
     private readonly ILogger<OpenHabExtensionRegistrationBackgroundService> logger;
 
@@ -78,7 +77,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         IRestApiClient restApiClient,
         IOptions<EventBusClientOptions> openHabOptions,
         IOptions<OpenHabIntegrationOptions> openHabIntegrationOptions,
-        IOptions<KnxSystemConfigOptions> knxConfig,
+        OpenHabItemMetadataCache itemMetadataCache,
         OpenHabStateConverter stateConverter,
         ILogger<OpenHabExtensionRegistrationBackgroundService> logger)
     {
@@ -88,7 +87,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
         this.restApiClient = restApiClient;
         this.openHabOptions = openHabOptions.Value;
         this.openHabIntegrationOptions = openHabIntegrationOptions.Value;
-        this.knxConfig = knxConfig.Value;
+        this.itemMetadataCache = itemMetadataCache;
         this.stateConverter = stateConverter;
         this.logger = logger;
         stateInitializationManager.RegisterInitialization(AppLifeCycleStage.InitRetrieveFromEnvironment, InitializeValuesFromOpenHabAsync);
@@ -131,6 +130,8 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
             .GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
+        itemMetadataCache.Update(itemsByName.Values);
+
         var stateMap = LoadStateMap();
         var initializedValues = new HashSet<IValue>(ReferenceEqualityComparer.Instance);
 
@@ -150,7 +151,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                 continue;
 
             // Try DPT-aware conversion first if value has KNX mapping
-            if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
+            if (stateConverter.TryConvertValue(item.State, value, item.Type, item, out var convertedValue) && convertedValue is not null)
             {
                 if (value.InitializeValue(convertedValue, AppLifeCycleStage.InitRetrieveFromEnvironment))
                 {
@@ -188,7 +189,7 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                     continue;
 
                 // Try DPT-aware conversion first if value has KNX mapping
-                if (stateConverter.TryConvertValue(item.State, value, out var convertedValue) && convertedValue is not null)
+                if (stateConverter.TryConvertValue(item.State, value, item.Type, item, out var convertedValue) && convertedValue is not null)
                 {
                     if (value.InitializeValue(convertedValue, AppLifeCycleStage.InitRetrieveFromEnvironment))
                     {
@@ -239,7 +240,10 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
 
     private Dictionary<string, string> LoadStateMap()
     {
-        var stateMapPath = Path.Combine(knxConfig.OpenHab.TemplatesFolder, openHabIntegrationOptions.StateMapFile);
+        var stateMapPath = ResolvePath(openHabIntegrationOptions.StateMapFile);
+        if (string.IsNullOrWhiteSpace(stateMapPath))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         if (!File.Exists(stateMapPath))
         {
             logger.LogDebug("No OpenHAB state map file found at '{StateMapPath}'. Continuing without custom state mapping.", stateMapPath);
@@ -259,6 +263,21 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
             logger.LogWarning(ex, "Failed to load OpenHAB state map from '{StateMapPath}'. Continuing without custom state mapping.", stateMapPath);
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private string? ResolvePath(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        if (Path.IsPathRooted(fileName))
+            return fileName;
+
+        var folder = string.IsNullOrWhiteSpace(openHabIntegrationOptions.MappingsFolder)
+            ? AppContext.BaseDirectory
+            : openHabIntegrationOptions.MappingsFolder;
+
+        return Path.Combine(folder, fileName);
     }
 
     private bool TryGetPreparedState(Item item, Dictionary<string, string> stateMap, out object preparedState)

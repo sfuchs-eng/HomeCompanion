@@ -5,10 +5,6 @@ using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SRF.Knx.Config;
-using SRF.Knx.Core;
-using SRF.Knx.Core.DPT;
-using SRF.Knx.Core.Master;
 using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.Items;
@@ -24,8 +20,6 @@ public class OpenHabExtensionRegistrationTests
         var tempDir = CreateTempDir();
         try
         {
-            File.WriteAllText(Path.Combine(tempDir, "OpenHabStateMapping.json"), "{\"ON\":\"true\",\"OFF\":\"false\"}");
-
             var container = new TestContainer();
             var stateManager = new CapturingStateInitializationManager();
             _ = CreateBackgroundService(
@@ -33,23 +27,17 @@ public class OpenHabExtensionRegistrationTests
                 [container],
                 new StubRestApiClient(
                 [
-                    new Item { Name = "MappedBoolItem", State = "ON" },
-                    new Item { Name = "PropertyMatchOnly", State = "21" },
-                    new Item { Name = nameof(TestContainer.SameNameAndMapping), State = "OFF" },
+                    new Item { Name = "MappedBoolItem", Type = "Switch", State = "ON" },
+                    new Item { Name = "PropertyMatchOnly", Type = "Number", State = "21" },
+                    new Item { Name = nameof(TestContainer.SameNameAndMapping), Type = "Switch", State = "OFF" },
                 ]),
                 enableOpenHab: true,
                 integrationOptions: new OpenHabIntegrationOptions
                 {
                     EnablePropertyNameMatching = true,
-                    StateMapFile = "OpenHabStateMapping.json",
+                    MappingsFolder = tempDir,
                 },
-                new KnxSystemConfigOptions
-                {
-                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
-                    {
-                        TemplatesFolder = tempDir,
-                    },
-                });
+                tempDir);
 
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
@@ -87,13 +75,7 @@ public class OpenHabExtensionRegistrationTests
                 ]),
                 enableOpenHab: true,
                 integrationOptions: new OpenHabIntegrationOptions(),
-                new KnxSystemConfigOptions
-                {
-                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
-                    {
-                        TemplatesFolder = tempDir,
-                    },
-                });
+                tempDir);
 
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
@@ -128,14 +110,8 @@ public class OpenHabExtensionRegistrationTests
                 [container],
                 restClient,
                 enableOpenHab: false,
-                integrationOptions: new OpenHabIntegrationOptions { EnablePropertyNameMatching = true },
-                new KnxSystemConfigOptions
-                {
-                    OpenHab = new KnxSystemConfigOptions.OpenHabOptions
-                    {
-                        TemplatesFolder = tempDir,
-                    },
-                });
+                integrationOptions: new OpenHabIntegrationOptions { EnablePropertyNameMatching = true, MappingsFolder = tempDir },
+                tempDir);
 
             Assert.That(stateManager.Initialization, Is.Not.Null);
 
@@ -168,13 +144,12 @@ public class OpenHabExtensionRegistrationTests
         StubRestApiClient restApiClient,
         bool enableOpenHab,
         OpenHabIntegrationOptions integrationOptions,
-        KnxSystemConfigOptions knxConfiguration)
+        string mappingsFolder)
     {
-        // Create a stub converter - won't be used in these tests since there's no KNX integration
-        var converter = new OpenHabStateConverter(
-            new StubKnxSystemConfiguration(),
-            new StubMasterDataProvider(),
-            NullLogger<OpenHabStateConverter>.Instance);
+        integrationOptions.MappingsFolder = mappingsFolder;
+        var metadataCache = new OpenHabItemMetadataCache();
+        var registry = new OpenHabTypeConversionRegistry(Options.Create(integrationOptions), NullLogger<OpenHabTypeConversionRegistry>.Instance);
+        var converter = new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
 
         return new OpenHabExtensionRegistrationBackgroundService(
             new StubLifeCycleManager(false, false),
@@ -183,33 +158,9 @@ public class OpenHabExtensionRegistrationTests
             restApiClient,
             Options.Create(new EventBusClientOptions { Enable = enableOpenHab }),
             Options.Create(integrationOptions),
-            Options.Create(knxConfiguration),
+            metadataCache,
             converter,
             NullLogger<OpenHabExtensionRegistrationBackgroundService>.Instance);
-    }
-
-    private class StubKnxSystemConfiguration : IKnxSystemConfiguration
-    {
-        public DptBase GetDpt(GroupAddress groupAddress) => throw new NotImplementedException();
-        public void ClearCache() { }
-        public DptBase GetDptFromId(string dptId) => throw new NotImplementedException();
-        public GroupAddressMeta GetGroupAddressMeta(GroupAddress groupAddress) => throw new NotImplementedException();
-        public GroupAddressMeta GetGroupAddressMeta(string name) => throw new NotImplementedException();
-        public GroupAddressMeta? GetGroupAddressMetaOrNull(GroupAddress groupAddress) => null;
-        public GroupAddressMeta? GetGroupAddressMetaOrNull(string name) => null;
-        public bool TryGetGroupAddressMeta(GroupAddress ga, out GroupAddressMeta? gaConfig) { gaConfig = null; return false; }
-    }
-
-    private class StubMasterDataProvider : IKnxMasterDataProvider
-    {
-        public KnxMasterData GetMasterData() => new KnxMasterData();
-
-        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
-        {
-            dpt = null;
-            dptSubtype = null;
-            return false;
-        }
     }
 
     private sealed class CapturingStateInitializationManager : IStateInitializationRegistrar

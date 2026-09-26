@@ -1,7 +1,7 @@
 namespace HomeCompanion.Integrations.OpenHab;
 
 /// <summary>
-/// Options controlling OpenHAB to HomeCompanion initialization behavior.
+/// Options controlling OpenHAB initialization and type conversion behavior.
 /// </summary>
 public sealed class OpenHabIntegrationOptions
 {
@@ -19,11 +19,18 @@ public sealed class OpenHabIntegrationOptions
     public bool EnablePropertyNameMatching { get; set; } = true;
 
     /// <summary>
-    /// File name of the optional JSON state mapping dictionary, located in
-    /// <c>Knx:OpenHab:TemplatesFolder</c>.
+    /// Folder containing optional OpenHAB mapping files.
     /// </summary>
-    /// <remarks>
+    public string MappingsFolder { get; set; } = AppContext.BaseDirectory;
+
+    /// <summary>
+    /// File name of the optional JSON state mapping dictionary.
     /// Expected format: { "ON": "true", "OFF": "false" }.
-    /// </remarks>
+    /// </summary>
     public string StateMapFile { get; set; } = "OpenHabStateMapping.json";
+
+    /// <summary>
+    /// File name of the optional shared OpenHAB type mapping registry.
+    /// </summary>
+    public string TypeMappingFile { get; set; } = "OpenHabTypeMapping.json";
 }

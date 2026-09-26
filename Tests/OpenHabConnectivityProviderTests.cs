@@ -6,13 +6,8 @@ using HomeCompanion.Integrations.OpenHab;
 using HomeCompanion.Integrations.OpenHab.Events;
 using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SRF.Knx.Config;
-using SRF.Knx.Core;
-using SRF.Knx.Core.DPT;
-using SRF.Knx.Core.Master;
 using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus;
@@ -47,24 +42,26 @@ public class OpenHabConnectivityProviderTests
         IValuesContainer? container = null,
         IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null)
     {
-        var converter = new OpenHabStateConverter(
-            new StubKnxSystemConfiguration(),
-            new StubMasterDataProvider(),
-            NullLogger<OpenHabStateConverter>.Instance);
+        var options = Options.Create(new OpenHabIntegrationOptions { Enable = true });
+        var metadataCache = new OpenHabItemMetadataCache();
+        var registry = new OpenHabTypeConversionRegistry(options, NullLogger<OpenHabTypeConversionRegistry>.Instance);
+        var converter = new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
 
         var containers = container is not null ? [container] : Array.Empty<IValuesContainer>();
         var lifecycle = lifeCycleSynchronization ?? new StubLifecycleSync();
         var valuesManager = new TestValuesManager(subscriber);
         InitializeValues(containers, publisher, valuesManager);
         return new OpenHabConnectivityProvider(
-            Options.Create(new OpenHabIntegrationOptions { Enable = true }),
+            options,
             publisher,
             subscriber,
             eventBusClient,
             restApiClient,
             containers,
             lifecycle,
+            metadataCache,
             converter,
+            registry,
             NullLogger<OpenHabConnectivityProvider>.Instance);
     }
 
@@ -233,33 +230,9 @@ public class OpenHabConnectivityProviderTests
         }
     }
 
-    private sealed class StubKnxSystemConfiguration : IKnxSystemConfiguration
-    {
-        public DptBase GetDpt(GroupAddress groupAddress) => throw new NotImplementedException();
-        public void ClearCache() { }
-        public DptBase GetDptFromId(string dptId) => throw new NotImplementedException();
-        public GroupAddressMeta GetGroupAddressMeta(GroupAddress groupAddress) => throw new NotImplementedException();
-        public GroupAddressMeta GetGroupAddressMeta(string name) => throw new NotImplementedException();
-        public GroupAddressMeta? GetGroupAddressMetaOrNull(GroupAddress groupAddress) => null;
-        public GroupAddressMeta? GetGroupAddressMetaOrNull(string name) => null;
-        public bool TryGetGroupAddressMeta(GroupAddress ga, out GroupAddressMeta? gaConfig) { gaConfig = null; return false; }
-    }
-
-    private sealed class StubMasterDataProvider : IKnxMasterDataProvider
-    {
-        public KnxMasterData GetMasterData() => new();
-
-        public bool TryGetDptMaster(DataPointTypeId dptId, out DatapointType? dpt, out DatapointSubtype? dptSubtype)
-        {
-            dpt = null;
-            dptSubtype = null;
-            return false;
-        }
-    }
-
     private sealed class TestContainer : IValuesContainer
     {
-        public ValueBase<bool> Light { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
+        public ValueBase<bool> Light { get; } = new(NullLogger<ValueBase<bool>>.Instance)
         {
             BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("MyLight") },
         };
@@ -269,12 +242,12 @@ public class OpenHabConnectivityProviderTests
 
     private sealed class DuplicateItemNameContainer : IValuesContainer
     {
-        public ValueBase<bool> LightA { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
+        public ValueBase<bool> LightA { get; } = new(NullLogger<ValueBase<bool>>.Instance)
         {
             BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("DuplicateLight") },
         };
 
-        public ValueBase<bool> LightB { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<bool>>())
+        public ValueBase<bool> LightB { get; } = new(NullLogger<ValueBase<bool>>.Instance)
         {
             BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("DuplicateLight") },
         };
@@ -399,6 +372,7 @@ public class OpenHabConnectivityProviderTests
 
         Assert.That(restApi.SetCalls, Has.Count.EqualTo(1));
         Assert.That(restApi.SetCalls[0].ItemName, Is.EqualTo("MyLight"));
+        Assert.That(restApi.SetCalls[0].State, Is.EqualTo("ON"));
     }
 
     [Test]
@@ -423,7 +397,7 @@ public class OpenHabConnectivityProviderTests
 
     private sealed class QuantityContainer : IValuesContainer
     {
-        public ValueBase<Temperature> Temperature { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<Temperature>>())
+        public ValueBase<Temperature> Temperature { get; } = new(NullLogger<ValueBase<Temperature>>.Instance)
         {
             Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C"),
             BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("TemperatureItem") },

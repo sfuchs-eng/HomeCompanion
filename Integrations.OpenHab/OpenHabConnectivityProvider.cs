@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using SRF.Network.OpenHab;
 using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus.Events;
-using System.Globalization;
+using SRF.Network.OpenHab.Items;
 using Microsoft.Extensions.Options;
 
 namespace HomeCompanion.Integrations.OpenHab;
@@ -45,7 +45,9 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     private readonly IRestApiClient _restApiClient;
     private readonly IReadOnlyList<IValuesContainer> _containers;
     private readonly IHomeCompanionLifeCycleSynchronization _lifeCycleSynchronization;
+    private readonly OpenHabItemMetadataCache _itemMetadataCache;
     private readonly OpenHabStateConverter _stateConverter;
+    private readonly OpenHabTypeConversionRegistry _typeConversionRegistry;
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
     private volatile bool _isInitializationFinished;
@@ -70,7 +72,9 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         IRestApiClient restApiClient,
         IEnumerable<IValuesContainer> containers,
         IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
+        OpenHabItemMetadataCache itemMetadataCache,
         OpenHabStateConverter stateConverter,
+        OpenHabTypeConversionRegistry typeConversionRegistry,
         ILogger<OpenHabConnectivityProvider> logger)
     {
         this.options = options;
@@ -80,7 +84,9 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         _restApiClient = restApiClient;
         _containers = [.. containers];
         _lifeCycleSynchronization = lifeCycleSynchronization;
+        _itemMetadataCache = itemMetadataCache;
         _stateConverter = stateConverter;
+        _typeConversionRegistry = typeConversionRegistry;
         _logger = logger;
     }
 
@@ -183,7 +189,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
             return;
         }
 
-        var decodedValue = ConvertStateValue(itemName, stateChange.Value, target?.Value);
+        var decodedValue = ConvertStateValue(itemName, stateChange.Value, stateChange.Type, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemStateChanged
         {
@@ -213,7 +219,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
             return;
         }
 
-        var decodedValue = ConvertStateValue(itemName, rawState, target?.Value);
+        var decodedValue = ConvertStateValue(itemName, rawState, stateEvent.State.Type, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemState
         {
@@ -242,7 +248,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
             return;
         }
 
-        var decodedValue = ConvertStateValue(itemName, rawCommand, target?.Value);
+        var decodedValue = ConvertStateValue(itemName, rawCommand, commandEvent.State.Type, target?.Value);
 
         _ = _publisher.PublishAsync(new OpenHabItemCommandReceived
         {
@@ -254,7 +260,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         });
     }
 
-    private object? ConvertStateValue(string itemName, string rawState, IValue? target)
+    private object? ConvertStateValue(string itemName, string rawState, string? stateType, IValue? target)
     {
         if (target is null)
         {
@@ -262,68 +268,13 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
             return null;
         }
 
-        if (_stateConverter.TryConvertValue(rawState, target, out var decodedValue))
-            return decodedValue;
+        _itemMetadataCache.TryGetItem(itemName, out var itemMetadata);
 
-        if (target.TryParseValue(rawState, out decodedValue, out _, CultureInfo.InvariantCulture))
-            return decodedValue;
-
-        if (TryConvertByTargetType(rawState, target.ValueType, out decodedValue))
+        if (_stateConverter.TryConvertValue(rawState, target, stateType, itemMetadata, out var decodedValue))
             return decodedValue;
 
         _logger.LogDebug("State conversion failed for OpenHab item '{ItemName}' with value '{State}'.", itemName, rawState);
         return null;
-    }
-
-    private static bool TryConvertByTargetType(string rawState, Type targetType, out object? converted)
-    {
-        converted = null;
-
-        var nonNullable = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-        if (nonNullable == typeof(string))
-        {
-            converted = rawState;
-            return true;
-        }
-
-        if (nonNullable == typeof(bool))
-        {
-            if (rawState.Equals("ON", StringComparison.OrdinalIgnoreCase) || rawState.Equals("OPEN", StringComparison.OrdinalIgnoreCase) || rawState.Equals("TRUE", StringComparison.OrdinalIgnoreCase))
-            {
-                converted = true;
-                return true;
-            }
-
-            if (rawState.Equals("OFF", StringComparison.OrdinalIgnoreCase) || rawState.Equals("CLOSED", StringComparison.OrdinalIgnoreCase) || rawState.Equals("FALSE", StringComparison.OrdinalIgnoreCase))
-            {
-                converted = false;
-                return true;
-            }
-
-            return false;
-        }
-
-        if (nonNullable.IsEnum)
-        {
-            if (Enum.TryParse(nonNullable, rawState, ignoreCase: true, out var enumValue))
-            {
-                converted = enumValue;
-                return true;
-            }
-
-            return false;
-        }
-
-        try
-        {
-            converted = Convert.ChangeType(rawState, nonNullable, CultureInfo.InvariantCulture);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -361,24 +312,22 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         }
     }
 
-    private static string FormatStateForOutboundWrite(IValue source, object value)
+    private string FormatStateForOutboundWrite(IValue source, object value)
     {
         if (value is null)
             return string.Empty;
 
-        if (value is UnitsNet.IQuantity quantity)
-            return quantity.ToString(CultureInfo.InvariantCulture);
+        Item? itemMetadata = null;
+        OpenHabBusMappingConfiguration? config = null;
 
-        if (source.Unit is null)
-            return value.ToString() ?? string.Empty;
-
-        if (value is IFormattable formattable)
+        if (source.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping))
         {
-            var invariantValue = formattable.ToString(null, CultureInfo.InvariantCulture) ?? value.ToString() ?? string.Empty;
-            return $"{invariantValue} {source.Unit.DisplayUnit}";
+            config = mapping?.Config;
+            if (mapping is not null)
+                _itemMetadataCache.TryGetItem(mapping.ItemName, out itemMetadata);
         }
 
-        return $"{value} {source.Unit.DisplayUnit}";
+        return _typeConversionRegistry.FormatOutboundValue(source, value, itemMetadata, config);
     }
 
 }

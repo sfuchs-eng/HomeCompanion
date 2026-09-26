@@ -21,6 +21,15 @@ public sealed class OpenHabBusEndpointMapping : ValueBusMapping<string, string>
     /// <summary>The OpenHAB item name this value is mapped to.</summary>
     public string ItemName => Address;
 
+    /// <summary>
+    /// Strongly typed OpenHAB-specific mapping configuration.
+    /// </summary>
+    public new OpenHabBusMappingConfiguration? Config
+    {
+        get => base.Config as OpenHabBusMappingConfiguration;
+        init => base.Config = value;
+    }
+
     /// <param name="itemName">OpenHAB item name.</param>
-    public OpenHabBusEndpointMapping(string itemName) : base(BusId, itemName, null) { }
+    public OpenHabBusEndpointMapping(string itemName, OpenHabBusMappingConfiguration? config = null) : base(BusId, itemName, config) { }
 }
