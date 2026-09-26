@@ -490,6 +490,11 @@
     private static string NormalizeDisplay(object? value)
     {
         var text = value?.ToString();
+        // Clamp content, if any, to maximum length for better readability in the UI.
+        var maxLength = 60;
+        if (text is not null && text.Length > maxLength)
+            text = text.Substring(0, maxLength) + "...";
+        // Replace empty or whitespace-only strings with a dash for better visibility in the UI.
         return string.IsNullOrWhiteSpace(text) ? "-" : text;
     }
 

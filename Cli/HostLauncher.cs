@@ -41,7 +41,12 @@ public class HostLauncher<TCommand>() where TCommand : BackgroundService
         var userConfigPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var userConfigFiles = new[] { "HomeCompanion.json", "HomeCompanion.Cli.json" };
 
-        configurationBuilder.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+        var executablePath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        if (executablePath is not null)
+        {
+            Console.WriteLine($"Adding config from '{executablePath}/appsettings.json'");
+            configurationBuilder.AddJsonFile(new PhysicalFileProvider(executablePath), "appsettings.json", optional: true, reloadOnChange: true);
+        }
 
         foreach (var userConfigFile in userConfigFiles)
         {

@@ -18,7 +18,7 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
         }
 
         handlers.Add((evt, ct) => handler.HandleAsync((T)evt, ct));
-        logger.LogTrace("Subscribed handler {HandlerType} for event type {EventType}.", handler.GetType().Name, typeof(T).Name);
+        //logger.LogTrace("Subscribed handler {HandlerType} for event type {EventType}.", handler.GetType().Name, typeof(T).Name);
     }
 
     public async ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
@@ -59,6 +59,6 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
         }
 
         handlers.Add((evt, ct) => handler((T)evt, ct));
-        logger.LogTrace("Subscribed delegate handler for event type {EventType}.", typeof(T).Name);
+        //logger.LogTrace("Subscribed delegate handler for event type {EventType}.", typeof(T).Name);
     }
 }
