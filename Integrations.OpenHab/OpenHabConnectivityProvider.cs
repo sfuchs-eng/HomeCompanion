@@ -8,6 +8,7 @@ using SRF.Network.OpenHab.Client;
 using SRF.Network.OpenHab.EventBus.Events;
 using SRF.Network.OpenHab.Items;
 using Microsoft.Extensions.Options;
+using System.Threading;
 
 namespace HomeCompanion.Integrations.OpenHab;
 
@@ -51,6 +52,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
     private volatile bool _isInitializationFinished;
+    private int _firstInboundRawEventLogged;
 
     /// <inheritdoc/>
     public override bool IsEnabled => options.Value.Enable; // OpenHab is enabled based on the configuration
@@ -115,7 +117,48 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         // Subscribe to incoming events from OpenHab
         _eventBusClient.EventReceived += OnEventBusClientEventReceived;
-        await _eventBusClient.ConnectAsync(cancellationToken);
+
+        // Explicitly request the item event types this provider consumes.
+        // TODO: only enque the filter should be sufficient. Simplify.
+        // Some OpenHAB websocket setups only deliver control/websocket events until a type filter is set.
+        try
+        {
+            await _eventBusClient.SendAsync(_eventBusClient.EventFactory.CreateFilterType([
+                SRF.Network.OpenHab.EventBus.EventType.ItemStateEvent,
+                SRF.Network.OpenHab.EventBus.EventType.ItemStateChangedEvent,
+                SRF.Network.OpenHab.EventBus.EventType.ItemCommandEvent,
+            ]), cancellationToken);
+
+            _logger.LogInformation(
+                "Applied OpenHAB websocket type filter for item events via direct send: {EventTypes}.",
+                "ItemStateEvent, ItemStateChangedEvent, ItemCommandEvent");
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _eventBusClient.EnqueueTransmit(_eventBusClient.EventFactory.CreateFilterType([
+                SRF.Network.OpenHab.EventBus.EventType.ItemStateEvent,
+                SRF.Network.OpenHab.EventBus.EventType.ItemStateChangedEvent,
+                SRF.Network.OpenHab.EventBus.EventType.ItemCommandEvent,
+            ]));
+
+            _logger.LogInformation(
+                "Queued OpenHAB websocket type filter for item events: {EventTypes}. It will be applied once the websocket transmit loop is ready.",
+                "ItemStateEvent, ItemStateChangedEvent, ItemCommandEvent");
+            _logger.LogDebug(ex, "Direct type-filter send failed; queued type-filter instead.");
+        }
+
+        // Connection lifecycle is owned by OpenHabConnector (IHostedService) registered via AddOpenHabConnector().
+        // Do not await ConnectAsync() here: that call is session-long and would block host startup.
+        if (_eventBusClient.IsActive)
+        {
+            _logger.LogInformation(
+                "OpenHab event bus client is already active. Inbound events should start flowing immediately.");
+        }
+        else
+        {
+            _logger.LogWarning(
+                "OpenHab event bus client is not active yet. This is expected during startup: OpenHabConnector manages background (re)connect and events will flow once connected.");
+        }
 
         _logger.LogInformation("OpenHabConnectivityProvider started and listening to event bus.");
 
@@ -156,6 +199,13 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     private void OnEventBusClientEventReceived(object? sender, EventReceivedEventArgs e)
     {
         LogFirstInboundAfterStartupGate(_logger, ProviderName, "event");
+
+        if (Interlocked.CompareExchange(ref _firstInboundRawEventLogged, 1, 0) == 0)
+        {
+            _logger.LogInformation(
+                "First inbound OpenHAB websocket event received ({EventType}).",
+                e.Received.GetType().Name);
+        }
 
         switch (e.Received)
         {

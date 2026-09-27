@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using SRF.Network.OpenHab;
+using SRF.Network.OpenHab.Client;
 
 namespace HomeCompanion.Tests;
 
@@ -30,6 +31,8 @@ public class OpenHabExtensionServiceRegistrationTests
             Assert.That(builder.Services.Any(sd => sd.ImplementationType == typeof(OpenHabConnectivityProvider)), Is.False);
             Assert.That(builder.Services.Any(sd => sd.ImplementationType == typeof(OpenHabExtensionRegistrationBackgroundService)), Is.False);
             Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IConnectivityProvider)), Is.False);
+            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IEventBusClient)), Is.False);
+            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IRestApiClient)), Is.False);
         });
     }
 
@@ -51,6 +54,8 @@ public class OpenHabExtensionServiceRegistrationTests
             Assert.That(builder.Services.Any(sd => sd.ImplementationType == typeof(OpenHabConnectivityProvider)), Is.True);
             Assert.That(builder.Services.Any(sd => sd.ImplementationType == typeof(OpenHabExtensionRegistrationBackgroundService)), Is.True);
             Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IConnectivityProvider)), Is.True);
+            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IEventBusClient) && sd.ImplementationType == typeof(EventBusClient)), Is.True);
+            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IRestApiClient) && sd.ImplementationType == typeof(RestApiClient)), Is.True);
         });
     }
 

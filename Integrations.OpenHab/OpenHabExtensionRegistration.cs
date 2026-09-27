@@ -42,9 +42,27 @@ public class OpenHabExtensionRegistration(
         var integrationOptions = configSection.Get<OpenHabIntegrationOptions>();
         if (integrationOptions is null || !integrationOptions.Enable)
         {
-            logger.LogInformation("OpenHAB integration is disabled via configuration. Skipping OpenHAB extension registration.");
+            logger.LogWarning(
+                "OpenHAB integration is disabled via configuration (OpenHAB:Enable=false). Skipping registration of connector/provider services. " +
+                "To receive OpenHAB events, set OpenHAB:Enable=true in the active runtime profile (for example appsettings.Development.json or external HomeCompanion.json overrides)." );
             return;
         }
+
+        var accessTokenConfigured = !string.IsNullOrWhiteSpace(configSection[nameof(EventBusClientOptions.AccessToken)]);
+        logger.LogDebug(
+            "Registering OpenHAB integration with section '{SectionName}'. WebSocket='{WebSocket}', RestApi='{RestApi}', SourceEntity='{SourceEntity}', FilterSource={FilterSource}, AccessTokenConfigured={AccessTokenConfigured}.",
+            OpenHabIntegrationOptions.SectionName,
+            configSection[nameof(EventBusClientOptions.WebSocket)] ?? "<unset>",
+            configSection[nameof(EventBusClientOptions.RestApi)] ?? "<unset>",
+            configSection[nameof(EventBusClientOptions.SourceEntity)] ?? "<unset>",
+            configSection.GetValue<bool?>(nameof(EventBusClientOptions.FilterSource)),
+            accessTokenConfigured);
+
+        logger.LogTrace(
+            "OpenHAB websocket lifecycle is managed by {HostedService}. {Provider} subscribes to events only and must not call ConnectAsync during startup.",
+            nameof(OpenHabConnector),
+            nameof(OpenHabConnectivityProvider));
+
         context.Builder.Services.AddOpenHabConnector();
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
         context.Builder.Services.AddSingleton<OpenHabTypeConversionRegistry>();
@@ -142,9 +160,13 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
 
         foreach (var (propertyName, value) in EnumerateContainerValues())
         {
+            bool isByMapping = true;
             if (!value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping) || mapping is null)
-                if ( !openHabIntegrationOptions.EnablePropertyNameMatching)
+            {
+                isByMapping = false;
+                if (!openHabIntegrationOptions.EnablePropertyNameMatching)
                     continue;
+            }
 
             if (!itemsByName.TryGetValue(mapping?.ItemName ?? propertyName, out var item))
                 continue;
@@ -155,7 +177,10 @@ internal class OpenHabExtensionRegistrationBackgroundService : BackgroundService
                 if (value.InitializeValue(convertedValue, AppLifeCycleStage.InitRetrieveFromEnvironment))
                 {
                     initializedValues.Add(value);
-                    initializedByMapping++;
+                    if (isByMapping)
+                        initializedByMapping++;
+                    else
+                        initializedByPropertyName++;
                 }
                 else
                 {

@@ -15,6 +15,7 @@ using SRF.Network.OpenHab.EventBus.Events;
 using SRF.Network.OpenHab.Items;
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.Json;
 using UnitsNet;
 
 namespace HomeCompanion.Tests;
@@ -203,15 +204,28 @@ public class OpenHabConnectivityProviderTests
 
     private sealed class StubEventBusClient : IEventBusClient
     {
+        private readonly IEventFactory _eventFactory = new EventFactory(NullLogger<EventFactory>.Instance);
+
         public bool IsActive { get; set; }
-        public IEventFactory EventFactory => throw new NotSupportedException();
+        public int ConnectAsyncCallCount { get; private set; }
+        public List<SRF.Network.OpenHab.IEvent> EnqueuedEvents { get; } = [];
+        public List<SRF.Network.OpenHab.IEvent> SentEvents { get; } = [];
+        public IEventFactory EventFactory => _eventFactory;
         public event EventHandler<EventReceivedEventArgs>? EventReceived;
 
-        public Task ConnectAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public void EnqueueTransmit(SRF.Network.OpenHab.IEvent sendEvent) { }
+        public Task ConnectAsync(CancellationToken cancellationToken)
+        {
+            ConnectAsyncCallCount++;
+            return Task.CompletedTask;
+        }
+        public void EnqueueTransmit(SRF.Network.OpenHab.IEvent sendEvent) => EnqueuedEvents.Add(sendEvent);
         public void Command<ItemStateType>(string itemName, ItemStateType state) where ItemStateType : struct { }
         public Task CloseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SendAsync(SRF.Network.OpenHab.IEvent sendEvent, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SendAsync(SRF.Network.OpenHab.IEvent sendEvent, CancellationToken cancellationToken)
+        {
+            SentEvents.Add(sendEvent);
+            return Task.CompletedTask;
+        }
         public Task SendAsync(string packet, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public void Raise(SRF.Network.OpenHab.IEvent evt) => EventReceived?.Invoke(this, new EventReceivedEventArgs(evt, DateTimeOffset.UtcNow));
@@ -446,6 +460,53 @@ public class OpenHabConnectivityProviderTests
             await provider.StartAsync(CancellationToken.None);
             Assert.That(provider.IsConnected, Is.False);
         });
+    }
+
+    [Test]
+    public async Task StartAsync_DoesNotCallConnectAsync_DuringProviderStartup()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient { IsActive = false };
+        var restApi = new StubRestApiClient();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+        });
+
+        Assert.That(eventBusClient.ConnectAsyncCallCount, Is.EqualTo(0),
+            "Provider startup must stay non-blocking and must not own websocket connect lifecycle.");
+    }
+
+    [Test]
+    public async Task StartAsync_RequestsItemTypeFilter_OnEventBusClient()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient { IsActive = true };
+        var restApi = new StubRestApiClient();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+        });
+
+        var filterEvent = eventBusClient.SentEvents
+            .Concat(eventBusClient.EnqueuedEvents)
+            .OfType<WebSocketEvent>()
+            .FirstOrDefault(e => e.IsFilterType);
+
+        Assert.That(filterEvent, Is.Not.Null, "Provider should enqueue a websocket type filter event.");
+
+        var payload = JsonSerializer.Deserialize<string[]>(filterEvent!.PayloadJson);
+        Assert.That(payload, Is.Not.Null);
+        Assert.That(payload, Is.EquivalentTo(new[]
+        {
+            EventType.ItemStateEvent.GetTypeName(),
+            EventType.ItemStateChangedEvent.GetTypeName(),
+            EventType.ItemCommandEvent.GetTypeName(),
+        }));
     }
 
     private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : HomeCompanion.Events.IEvent

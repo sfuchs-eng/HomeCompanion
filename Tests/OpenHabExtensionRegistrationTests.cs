@@ -149,7 +149,6 @@ public class OpenHabExtensionRegistrationTests
         integrationOptions.MappingsFolder = mappingsFolder;
         var metadataCache = new OpenHabItemMetadataCache();
         var registry = new OpenHabTypeConversionRegistry(Options.Create(integrationOptions), NullLogger<OpenHabTypeConversionRegistry>.Instance);
-        var converter = new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
 
         return new OpenHabExtensionRegistrationBackgroundService(
             new StubLifeCycleManager(false, false),
@@ -159,7 +158,7 @@ public class OpenHabExtensionRegistrationTests
             Options.Create(new EventBusClientOptions { Enable = enableOpenHab }),
             Options.Create(integrationOptions),
             metadataCache,
-            converter,
+            registry,
             NullLogger<OpenHabExtensionRegistrationBackgroundService>.Instance);
     }
 
