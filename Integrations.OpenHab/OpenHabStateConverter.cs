@@ -6,19 +6,14 @@ namespace HomeCompanion.Integrations.OpenHab;
 
 /// <summary>
 /// Converts OpenHAB item state strings to typed CLR values using OpenHAB-native state semantics.
+/// TODO: replace entirely by <see cref="OpenHabTypeConversionRegistry"/> and remove this class.
 /// </summary>
-public class OpenHabStateConverter
+public class OpenHabStateConverter(
+    OpenHabTypeConversionRegistry registry,
+    ILogger<OpenHabStateConverter> logger)
 {
-    private readonly OpenHabTypeConversionRegistry _registry;
-    private readonly ILogger<OpenHabStateConverter> _logger;
-
-    public OpenHabStateConverter(
-        OpenHabTypeConversionRegistry registry,
-        ILogger<OpenHabStateConverter> logger)
-    {
-        _registry = registry;
-        _logger = logger;
-    }
+    private readonly OpenHabTypeConversionRegistry _registry = registry;
+    private readonly ILogger<OpenHabStateConverter> _logger = logger;
 
     /// <summary>
     /// Attempts to convert an OpenHAB state string to a typed value using OpenHAB-native type metadata.
@@ -30,25 +25,5 @@ public class OpenHabStateConverter
     /// Attempts to convert an OpenHAB state string to a typed value using explicit state type and cached item metadata when available.
     /// </summary>
     public bool TryConvertValue(string stateString, IValue value, string? stateType, Item? itemMetadata, out object? convertedValue)
-    {
-        convertedValue = null;
-
-        OpenHabBusMappingConfiguration? localConfig = null;
-        if (value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping))
-            localConfig = mapping?.Config;
-
-        if (_registry.TryConvertValue(stateString, value, stateType, itemMetadata, localConfig, out convertedValue))
-            return true;
-
-        if (value.TryParseValue(stateString, out var parsedValue, out _, System.Globalization.CultureInfo.InvariantCulture))
-        {
-            convertedValue = parsedValue;
-            return true;
-        }
-
-        _logger.LogDebug("OpenHAB state conversion failed for value '{ValueName}' with state '{State}' and state type '{StateType}'.", value.Name, stateString, stateType);
-
-        return false;
-    }
+        => _registry.TryConvertValue(stateString, value, stateType, itemMetadata, localConfig: null, out convertedValue);
 }
-

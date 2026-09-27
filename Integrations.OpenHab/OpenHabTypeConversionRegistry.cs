@@ -2,6 +2,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SRF.Network.OpenHab.Items;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using UnitsNet;
@@ -9,7 +10,17 @@ using UnitsNet.Units;
 
 namespace HomeCompanion.Integrations.OpenHab;
 
-public sealed class OpenHabTypeConversionRegistry
+/// <summary>
+/// Provides type conversion for OpenHAB item states to .NET types and vice versa.
+/// TODO: regime change: put encoders/decoders straight into the bus mapping, use this class as fall back for generic type conversion. Remove <see cref="OpenHabStateConverter"/>.
+/// </summary>
+/// <remarks>
+/// AI generated, seems to need some manual refactoring to match OpenHAB type semantics and architecture.
+/// </remarks>
+/// <typeparam name="OpenHabIntegrationOptions"></typeparam>
+public sealed class OpenHabTypeConversionRegistry(
+    IOptions<OpenHabIntegrationOptions> options,
+    ILogger<OpenHabTypeConversionRegistry> logger)
 {
     private static readonly Dictionary<string, (bool? TrueValue, bool? FalseValue)> BuiltInBooleanFamilies = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -24,22 +35,45 @@ public sealed class OpenHabTypeConversionRegistry
         ["Refresh"] = (true, null),
     };
 
-    private readonly OpenHabIntegrationOptions _options;
-    private readonly ILogger<OpenHabTypeConversionRegistry> _logger;
+    private readonly OpenHabIntegrationOptions _options = options.Value;
+    private readonly ILogger<OpenHabTypeConversionRegistry> _logger = logger;
     private readonly Lock _mappingsLock = new();
     private IReadOnlyList<OpenHabTypeMappingDefinition>? _sharedMappings;
 
     private sealed record BooleanFamily(string Name, bool? TrueValue, bool? FalseValue);
 
-    public OpenHabTypeConversionRegistry(
-        IOptions<OpenHabIntegrationOptions> options,
-        ILogger<OpenHabTypeConversionRegistry> logger)
+    /// <summary>
+    /// Tries to convert the raw OpenHAB item state to the target .NET type.
+    /// Uses the provided state type, item metadata, IValue bus mapping (if available) and local mapping configuration to determine the appropriate conversion logic.
+    /// </summary>
+    /// <param name="rawState"></param>
+    /// <param name="target"></param>
+    /// <param name="item"></param>
+    /// <param name="convertedValue"></param>
+    /// <returns></returns>
+    public bool TryConvertValue(string rawState, IValue target, Item? item, [MaybeNullWhen(false)] out object? convertedValue)
     {
-        _options = options.Value;
-        _logger = logger;
+        var busMappingConfig = target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
+            ? mapping?.Config
+            : null;
+
+        return TryConvertValue(rawState, target, item?.Type, item, busMappingConfig, out convertedValue);
     }
 
-    public bool TryConvertValue(string rawState, IValue target, string? stateType, Item? itemMetadata, OpenHabBusMappingConfiguration? localConfig, out object? convertedValue)
+    /// <summary>
+    /// Tries to convert the raw OpenHAB item state to the target .NET type.
+    /// </summary>
+    /// <remarks>
+    /// Prefer using the overload <see cref="TryConvertValue(string, IValue, Item?, out object?)"/>. It looks up relevant information from Item and IValue automatically.
+    /// </remarks>
+    /// <param name="rawState">The raw state string from the OpenHAB item.</param>
+    /// <param name="target">The target value container.</param>
+    /// <param name="stateType">The OpenHAB state type. E.g. "Switch", "Contact", "Number", "String", "DateTime".</param>
+    /// <param name="itemMetadata">Metadata of the OpenHAB item.</param>
+    /// <param name="localConfig">Local mapping configuration for the OpenHAB bus endpoint.</param>
+    /// <param name="convertedValue">The converted .NET value if conversion succeeds.</param>
+    /// <returns>True if conversion was successful; otherwise, false.</returns>
+    public bool TryConvertValue(string rawState, IValue target, string? stateType, Item? itemMetadata, OpenHabBusMappingConfiguration? localConfig, [MaybeNullWhen(false)] out object? convertedValue)
     {
         convertedValue = null;
 
@@ -67,6 +101,8 @@ public sealed class OpenHabTypeConversionRegistry
 
         if (target.TryParseValue(rawState, out convertedValue, out _, CultureInfo.InvariantCulture))
             return true;
+
+        _logger.LogDebug("OpenHAB state conversion failed for value '{ValueName}' from OpenHAB item '{ItemName}' with state '{State}' and state type '{StateType}'.", target.Name, itemMetadata?.Name, rawState, effectiveStateType);
 
         return false;
     }

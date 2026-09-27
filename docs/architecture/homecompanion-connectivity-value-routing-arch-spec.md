@@ -89,6 +89,27 @@ sequenceDiagram
 - OpenHAB
 : `OpenHabConnectivityProvider.OnEventBusClientEventReceived(...)` converts OpenHAB events and publishes `OpenHabItemState` / `OpenHabItemStateChanged` (update path) or `OpenHabItemCommandReceived` (write path).
 
+### 4.2.1 OpenHAB Conversion Semantics
+
+OpenHAB conversion is intentionally independent from KNX and other bus integrations. The provider uses `OpenHabTypeConversionRegistry` to convert raw item states into the target `IValue<T>` while respecting item metadata and mapping configuration. This keeps the value framework bus-agnostic and ensures that OpenHAB-specific conversion rules are owned by the OpenHAB integration instead of being re-used from KNX DPT logic.
+
+The conversion hierarchy is:
+
+1. value-local `OpenHabBusMappingConfiguration` for the specific endpoint
+2. shared registry mappings loaded from the configured mapping file in `OpenHAB:MappingsFolder`
+3. built-in boolean and numeric OpenHAB families such as `OnOff`, `OpenClosed`, `IncreaseDecrease`, and number-like state types
+4. final generic `IValue.TryParseValue(...)` fallback when no registry or built-in rule applies
+
+This precedence allows both local overrides and repository-wide defaults without introducing cross-provider coupling.
+
+For numeric states, the registry normalizes floating-point strings before the generic parse fallback:
+
+- `"0.0"` and `"1.0"` convert to `false` and `true` respectively for boolean targets
+- integer-like values such as `"14.0"` convert to integral values when the target is `byte`, `int`, `long`, and similar integral `IValue` types and remain in range
+- non-integral values or out-of-range conversions are rejected by the numeric fast path and handled by standard validation logic
+
+The same mapping configuration also drives outbound formatting for writes back to OpenHAB, including literal overrides, boolean string mapping, and unit-aware quantity formatting.
+
 ### 4.3 Failure and Drop Semantics
 
 Inbound events are intentionally dropped (with diagnostics/logging) when:

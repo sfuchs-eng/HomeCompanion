@@ -109,6 +109,40 @@ var subscription = temperatureValue
     .Subscribe(avgTemp => { /* trigger logic with avgTemp */ });
 ```
 
+### OpenHAB-native conversion and configuration
+
+OpenHAB conversion is intentionally provider-owned and not coupled to KNX DPT semantics. The integration uses `OpenHabTypeConversionRegistry` to normalize raw OpenHAB item states to the target `IValue<T>` before falling back to the generic `IValue.TryParseValue(...)` path.
+
+The effective conversion order is:
+
+1. per-value `OpenHabBusMappingConfiguration` overrides
+2. shared registry entries loaded from the configured `OpenHAB:TypeMappingFile` / `MappingsFolder`
+3. built-in OpenHAB boolean and numeric families
+4. generic typed parsing via `IValue.TryParseValue(...)`
+
+This enables transparent overrides without hardcoding KNX-specific conversion rules. It also means item metadata such as `itemType` and `stateType` can be used to select the correct conversion path while preserving a clean separation between bus technology and value logic.
+
+Important numeric behavior:
+
+- floating-point literals such as `"0.0"` and `"1.0"` are normalized for boolean targets before generic parsing, so `0.0` maps to `false` and `1.0` maps to `true`
+- integer-like floating values such as `"14.0"` are accepted for integer targets when the target type is integral and the value is within range, producing `14` for `byte`, `int`, and similar integer `IValue` types
+- values that are not integral or are out of range fail the numeric fast path and fall back to the normal parsing/diagnostic behavior
+
+Outbound formatting follows the same mapping layer: value writes can use boolean literal overrides, literal mapping rules, or configured unit conversion before the message is sent back to OpenHAB.
+
+The configuration surface is intentionally simple:
+
+```json
+{
+  "OpenHAB": {
+    "MappingsFolder": "./config",
+    "TypeMappingFile": "OpenHabTypeMapping.json"
+  }
+}
+```
+
+The shared file can contain per-item-type or per-state-type overrides, while individual values can still provide a local `OpenHabBusMappingConfiguration` for exceptional cases. This gives the project a clean override hierarchy without cross-integration coupling.
+
 ### Model value binding (generic, hybrid)
 
 The runtime model is generated based on its configuration counterpart.

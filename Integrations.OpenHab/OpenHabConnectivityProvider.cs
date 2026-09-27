@@ -115,6 +115,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         // Subscribe to incoming events from OpenHab
         _eventBusClient.EventReceived += OnEventBusClientEventReceived;
+        await _eventBusClient.ConnectAsync(cancellationToken);
 
         _logger.LogInformation("OpenHabConnectivityProvider started and listening to event bus.");
 
@@ -329,5 +330,4 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         return _typeConversionRegistry.FormatOutboundValue(source, value, itemMetadata, config);
     }
-
 }
