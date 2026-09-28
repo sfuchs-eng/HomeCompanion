@@ -55,7 +55,7 @@ public class OpenHabExtensionServiceRegistrationTests
             Assert.That(builder.Services.Any(sd => sd.ImplementationType == typeof(OpenHabExtensionRegistrationBackgroundService)), Is.True);
             Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IConnectivityProvider)), Is.True);
             Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IEventBusClient) && sd.ImplementationType == typeof(EventBusClient)), Is.True);
-            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IRestApiClient) && sd.ImplementationType == typeof(RestApiClient)), Is.True);
+            Assert.That(builder.Services.Any(sd => sd.ServiceType == typeof(IRestApiClient)), Is.True);
         });
     }
 

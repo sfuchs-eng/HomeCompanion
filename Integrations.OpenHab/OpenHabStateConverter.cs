@@ -19,11 +19,23 @@ public class OpenHabStateConverter(
     /// Attempts to convert an OpenHAB state string to a typed value using OpenHAB-native type metadata.
     /// </summary>
     public bool TryConvertValue(string stateString, IValue value, out object? convertedValue)
-        => TryConvertValue(stateString, value, stateType: null, itemMetadata: null, out convertedValue);
+    {
+        var localConfig = value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
+            ? mapping?.Config
+            : null;
+
+        return _registry.TryConvertValue(stateString, value, stateType: null, itemMetadata: null, localConfig, out convertedValue);
+    }
 
     /// <summary>
     /// Attempts to convert an OpenHAB state string to a typed value using explicit state type and cached item metadata when available.
     /// </summary>
     public bool TryConvertValue(string stateString, IValue value, string? stateType, Item? itemMetadata, out object? convertedValue)
-        => _registry.TryConvertValue(stateString, value, stateType, itemMetadata, localConfig: null, out convertedValue);
+    {
+        var localConfig = value.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
+            ? mapping?.Config
+            : null;
+
+        return _registry.TryConvertValue(stateString, value, stateType, itemMetadata, localConfig, out convertedValue);
+    }
 }
