@@ -120,6 +120,7 @@ public static class HostingExtensions
     ///   <item><c>/etc/HomeCompanion.json</c> — system-wide defaults</item>
     ///   <item><c>/etc/homecompanion/HomeCompanion.json</c> — system defaults in config folder style</item>
     ///   <item><c>$XDG_CONFIG_HOME/HomeCompanion.json</c> (<c>~/.config/HomeCompanion.json</c> on Linux) — per-user overrides</item>
+    ///   <item>configured directories from <c>HomeCompanion:ConfigDirectory</c>/<c>HomeCompanion:ConfigDirectories</c> found in appsettings and external HomeCompanion JSON files (two-pass discovery)</item>
     ///   <item>top-level <c>*.json</c> files in <c>/etc/homecompanion</c> (alphabetical order)</item>
     ///   <item>top-level <c>*.json</c> files in <c>$XDG_CONFIG_HOME/homecompanion</c> and <c>~/.config/homecompanion</c> (alphabetical order)</item>
     /// </list>
@@ -130,10 +131,6 @@ public static class HostingExtensions
     /// <returns>The modified <see cref="IHostApplicationBuilder"/> for chaining.</returns>
     public static IHostApplicationBuilder AddHomeCompanionConfiguration(this IHostApplicationBuilder builder)
     {
-        var configuredConfigDirectories = ResolveConfiguredConfigDirectories(builder.Configuration, builder.Environment.ContentRootPath);
-        var extraPaths = ResolveHomeCompanionJsonConfigurationPaths(configuredConfigDirectories: configuredConfigDirectories);
-        var extraPathSet = new HashSet<string>(extraPaths, StringComparer.OrdinalIgnoreCase);
-
         var sources = builder.Configuration.Sources;
 
         // Keep env vars and command line as highest-precedence sources by temporarily
@@ -145,13 +142,36 @@ public static class HostingExtensions
         foreach (var source in tailSources)
             sources.Remove(source);
 
+        // First pass: load external HomeCompanion JSON files discoverable without relying on
+        // directory settings from those external files.
+        var firstPassConfiguredDirectories = ResolveConfiguredConfigDirectories(builder.Configuration, builder.Environment.ContentRootPath);
+        var firstPassPaths = ResolveHomeCompanionJsonConfigurationPaths(configuredConfigDirectories: firstPassConfiguredDirectories);
+        ReplaceHomeCompanionJsonSources(sources, firstPassPaths);
+
+        // Second pass: now that external HomeCompanion JSON files are part of the configuration,
+        // re-evaluate configured directories so HomeCompanion:ConfigDirectories declared in those
+        // files are also scanned during startup.
+        var secondPassConfiguredDirectories = ResolveConfiguredConfigDirectories(builder.Configuration, builder.Environment.ContentRootPath);
+        var secondPassPaths = ResolveHomeCompanionJsonConfigurationPaths(configuredConfigDirectories: secondPassConfiguredDirectories);
+        ReplaceHomeCompanionJsonSources(sources, secondPassPaths);
+
+        foreach (var source in tailSources)
+            sources.Add(source);
+
+        return builder;
+    }
+
+    private static void ReplaceHomeCompanionJsonSources(IList<IConfigurationSource> sources, IReadOnlyList<string> paths)
+    {
+        var pathSet = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+
         // Remove previous HomeCompanion JSON sources to keep this operation idempotent.
         for (int i = sources.Count - 1; i >= 0; i--)
         {
             if (sources[i] is JsonConfigurationSource jsonSource)
             {
                 var path = jsonSource.Path;
-                if (!string.IsNullOrWhiteSpace(path) && extraPathSet.Contains(NormalizePath(path)))
+                if (!string.IsNullOrWhiteSpace(path) && pathSet.Contains(NormalizePath(path)))
                 {
                     sources.RemoveAt(i);
                 }
@@ -159,15 +179,10 @@ public static class HostingExtensions
         }
 
         // Append in order of entries
-        foreach (var path in extraPaths)
+        foreach (var path in paths)
         {
             sources.Add(BuildJsonSource(path));
         }
-
-        foreach (var source in tailSources)
-            sources.Add(source);
-
-        return builder;
     }
 
     internal static IReadOnlyList<string> ResolveConfiguredConfigDirectories(IConfiguration configuration, string contentRootPath)

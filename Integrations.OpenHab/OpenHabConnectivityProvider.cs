@@ -321,11 +321,30 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
 
         _itemMetadataCache.TryGetItem(itemName, out var itemMetadata);
 
-        if (_stateConverter.TryConvertValue(rawState, target, stateType, itemMetadata, out var decodedValue))
+        if (_stateConverter.TryConvertValue(rawState, target, stateType, itemMetadata, out var decodedValue, out var errorMessage))
             return decodedValue;
 
+        AddConversionFailure(itemName, rawState, stateType, target, errorMessage);
         _logger.LogDebug("State conversion failed for OpenHab item '{ItemName}' with value '{State}'.", itemName, rawState);
         return null;
+    }
+
+    private static void AddConversionFailure(string itemName, string rawState, string? stateType, IValue target, string? errorMessage)
+    {
+        if (target is not ValueBase valueBase)
+            return;
+
+        var message = string.IsNullOrWhiteSpace(errorMessage)
+            ? $"OpenHAB state conversion failed for item '{itemName}' with state '{rawState}'."
+            : $"OpenHAB state conversion failed for item '{itemName}' with state '{rawState}': {errorMessage}";
+
+        if (target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping) && mapping is not null)
+        {
+            valueBase.AddException(new ValueReceptionException(itemName, mapping, message, new FormatException(message)));
+            return;
+        }
+
+        valueBase.AddException(new ValueException(message, new FormatException(message)));
     }
 
     // -------------------------------------------------------------------------

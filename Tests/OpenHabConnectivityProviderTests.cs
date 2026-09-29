@@ -41,10 +41,12 @@ public class OpenHabConnectivityProviderTests
         StubEventBusClient eventBusClient,
         StubRestApiClient restApiClient,
         IValuesContainer? container = null,
-        IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null)
+        IHomeCompanionLifeCycleSynchronization? lifeCycleSynchronization = null,
+        Action<OpenHabItemMetadataCache>? configureMetadataCache = null)
     {
         var options = Options.Create(new OpenHabIntegrationOptions { Enable = true });
         var metadataCache = new OpenHabItemMetadataCache();
+        configureMetadataCache?.Invoke(metadataCache);
         var registry = new OpenHabTypeConversionRegistry(options, NullLogger<OpenHabTypeConversionRegistry>.Instance);
         var converter = new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
 
@@ -409,6 +411,97 @@ public class OpenHabConnectivityProviderTests
         Assert.That(restApi.SetCalls[0].State.Split("°C").Length - 1, Is.EqualTo(1));
     }
 
+    [Test]
+    public async Task InboundNumberWithDimension_ParsesIntoScalarDouble()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApi = new StubRestApiClient();
+        var container = new PressureScalarContainer();
+        var provider = CreateProvider(
+            bus,
+            bus,
+            eventBusClient,
+            restApi,
+            container,
+            configureMetadataCache: cache => cache.Update([new Item { Name = "PressureItem", Type = "Number:Pressure" }]));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var evt = new ItemEventTypeValue();
+            evt.Configure(EventType.ItemStateEvent);
+            evt.ItemName = "PressureItem";
+            evt.State = new TypeValuePayload { Type = "Quantity", Value = "1.5 bar" };
+
+            eventBusClient.Raise(evt);
+            await Task.Delay(100);
+        });
+
+        Assert.That(container.Pressure.Value, Is.EqualTo(1.5d).Within(0.0001d));
+        Assert.That(container.Pressure.Status.HasFlag(ValueStatus.Error), Is.False);
+    }
+
+    [Test]
+    public async Task InboundNumberWithDimension_ParsesIntoQuantityTarget()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApi = new StubRestApiClient();
+        var container = new PressureQuantityContainer();
+        var provider = CreateProvider(
+            bus,
+            bus,
+            eventBusClient,
+            restApi,
+            container,
+            configureMetadataCache: cache => cache.Update([new Item { Name = "PressureQuantityItem", Type = "Number:Pressure" }]));
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var evt = new ItemEventTypeValue();
+            evt.Configure(EventType.ItemStateEvent);
+            evt.ItemName = "PressureQuantityItem";
+            evt.State = new TypeValuePayload { Type = "Quantity", Value = "1.5 bar" };
+
+            eventBusClient.Raise(evt);
+            await Task.Delay(100);
+        });
+
+        Assert.That(container.Pressure.Value.Bars, Is.EqualTo(1.5d).Within(0.0001d));
+        Assert.That(container.Pressure.Status.HasFlag(ValueStatus.Error), Is.False);
+    }
+
+    [Test]
+    public async Task InboundConversionFailure_IsRetainedOnTargetValue()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApi = new StubRestApiClient();
+        var container = new TestContainer();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi, container);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var evt = new ItemEventTypeValue();
+            evt.Configure(EventType.ItemStateEvent);
+            evt.ItemName = "MyLight";
+            evt.State = new TypeValuePayload { Type = "String", Value = "not-a-bool" };
+
+            eventBusClient.Raise(evt);
+            await Task.Delay(100);
+        });
+
+        Assert.That(container.Light.Status.HasFlag(ValueStatus.Error), Is.True);
+        Assert.That(container.Light.Exceptions, Is.Not.Empty);
+        Assert.That(container.Light.Exceptions[^1].Message, Does.Contain("not-a-bool"));
+    }
+
     private sealed class QuantityContainer : IValuesContainer
     {
         public ValueBase<Temperature> Temperature { get; } = new(NullLogger<ValueBase<Temperature>>.Instance)
@@ -418,6 +511,26 @@ public class OpenHabConnectivityProviderTests
         };
 
         public IEnumerable<IValue> GetValues() => [Temperature];
+    }
+
+    private sealed class PressureScalarContainer : IValuesContainer
+    {
+        public ValueBase<double> Pressure { get; } = new(NullLogger<ValueBase<double>>.Instance)
+        {
+            BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("PressureItem") },
+        };
+
+        public IEnumerable<IValue> GetValues() => [Pressure];
+    }
+
+    private sealed class PressureQuantityContainer : IValuesContainer
+    {
+        public ValueBase<Pressure> Pressure { get; } = new(NullLogger<ValueBase<Pressure>>.Instance)
+        {
+            BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping("PressureQuantityItem") },
+        };
+
+        public IEnumerable<IValue> GetValues() => [Pressure];
     }
 
     [Test]

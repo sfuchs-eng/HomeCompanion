@@ -218,7 +218,7 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
                 await _batchWriter.WriteBatchAsync(bucket, measurements, cancellationToken);
                 var elapsed = _timeProvider.GetElapsedTime(started);
 
-                _logger.LogInformation(
+                _logger.LogTrace(
                     "Flushed {Count} internal signal measurements to bucket '{Bucket}' in {ElapsedMs} ms.",
                     measurements.Count,
                     bucket,
@@ -227,15 +227,24 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation(
-                    "Influx internal signal flush canceled for bucket '{Bucket}' with {Count} pending measurements.",
-                    bucket,
-                    measurements.Count);
+                if (measurements.Count > 0)
+                {
+                    _logger.LogWarning(
+                        "Influx internal signal flush canceled for bucket '{Bucket}' with {Count} pending measurements.",
+                        bucket,
+                        measurements.Count);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Influx internal signal flush canceled for bucket '{Bucket}' with no pending measurements.",
+                        bucket);
+                }
                 throw;
             }
             catch (ObjectDisposedException)
             {
-                _logger.LogInformation(
+                _logger.LogWarning(
                     "Influx internal signal flush encountered disposed resources during shutdown for bucket '{Bucket}'.",
                     bucket);
                 return false;

@@ -61,6 +61,18 @@ public sealed class OpenHabTypeConversionRegistry(
     }
 
     /// <summary>
+    /// Tries to convert the raw OpenHAB item state to the target .NET type and returns a conversion error message when the conversion fails.
+    /// </summary>
+    public bool TryConvertValue(string rawState, IValue target, Item? item, [MaybeNullWhen(false)] out object? convertedValue, [MaybeNullWhen(false)] out string? errorMessage)
+    {
+        var busMappingConfig = target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
+            ? mapping?.Config
+            : null;
+
+        return TryConvertValue(rawState, target, item?.Type, item, busMappingConfig, out convertedValue, out errorMessage);
+    }
+
+    /// <summary>
     /// Tries to convert the raw OpenHAB item state to the target .NET type.
     /// </summary>
     /// <remarks>
@@ -75,7 +87,27 @@ public sealed class OpenHabTypeConversionRegistry(
     /// <returns>True if conversion was successful; otherwise, false.</returns>
     public bool TryConvertValue(string rawState, IValue target, string? stateType, Item? itemMetadata, OpenHabBusMappingConfiguration? localConfig, [MaybeNullWhen(false)] out object? convertedValue)
     {
+        return TryConvertValue(rawState, target, stateType, itemMetadata, localConfig, out convertedValue, out _);
+    }
+
+    /// <summary>
+    /// Tries to convert the raw OpenHAB item state to the target .NET type.
+    /// </summary>
+    /// <remarks>
+    /// Prefer using the overload <see cref="TryConvertValue(string, IValue, Item?, out object?, out string?)"/>. It looks up relevant information from Item and IValue automatically.
+    /// </remarks>
+    /// <param name="rawState">The raw state string from the OpenHAB item.</param>
+    /// <param name="target">The target value container.</param>
+    /// <param name="stateType">The OpenHAB state type. E.g. "Switch", "Contact", "Number", "String", "DateTime".</param>
+    /// <param name="itemMetadata">Metadata of the OpenHAB item.</param>
+    /// <param name="localConfig">Local mapping configuration for the OpenHAB bus endpoint.</param>
+    /// <param name="convertedValue">The converted .NET value if conversion succeeds.</param>
+    /// <param name="errorMessage">The reason why conversion failed, if it failed.</param>
+    /// <returns>True if conversion was successful; otherwise, false.</returns>
+    public bool TryConvertValue(string rawState, IValue target, string? stateType, Item? itemMetadata, OpenHabBusMappingConfiguration? localConfig, [MaybeNullWhen(false)] out object? convertedValue, [MaybeNullWhen(false)] out string? errorMessage)
+    {
         convertedValue = null;
+        errorMessage = null;
 
         var effectiveConfig = GetEffectiveConfiguration(localConfig, itemMetadata?.Type, stateType, target.ValueType);
         var effectiveItemType = localConfig?.ItemType ?? itemMetadata?.Type;
@@ -99,7 +131,10 @@ public sealed class OpenHabTypeConversionRegistry(
         if (TryConvertFloatingNumericToTarget(rawState, target.ValueType, out convertedValue))
             return true;
 
-        if (target.TryParseValue(rawState, out convertedValue, out _, CultureInfo.InvariantCulture))
+        if (TryConvertDimensionedQuantityValue(rawState, target.ValueType, effectiveItemType, out convertedValue, out errorMessage))
+            return true;
+
+        if (target.TryParseValue(rawState, out convertedValue, out errorMessage, CultureInfo.InvariantCulture))
             return true;
 
         _logger.LogDebug("OpenHAB state conversion failed for value '{ValueName}' from OpenHAB item '{ItemName}' with state '{State}' and state type '{StateType}'.", target.Name, itemMetadata?.Name, rawState, effectiveStateType);
@@ -591,6 +626,87 @@ public sealed class OpenHabTypeConversionRegistry(
         }
 
         return false;
+    }
+
+    private static bool TryConvertDimensionedQuantityValue(string rawState, Type targetType, string? itemType, [MaybeNullWhen(false)] out object? convertedValue, [MaybeNullWhen(false)] out string? errorMessage)
+    {
+        convertedValue = null;
+        errorMessage = null;
+
+        var nonNullableType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (!TryResolveQuantityNameFromItemType(itemType, out var quantityName))
+            return false;
+
+        if (!TryResolveQuantityInfo(quantityName, out var quantityInfo))
+        {
+            errorMessage = $"OpenHAB item type '{itemType}' refers to unknown UnitsNet quantity '{quantityName}'.";
+            return false;
+        }
+
+        if (!Quantity.TryParse(CultureInfo.InvariantCulture, quantityInfo.ValueType, rawState, out var parsedQuantity)
+            || parsedQuantity is null)
+        {
+            errorMessage = $"Failed to parse value '{rawState}' as UnitsNet quantity '{quantityInfo.Name}' from OpenHAB item type '{itemType}'.";
+            return false;
+        }
+
+        if (nonNullableType.IsInstanceOfType(parsedQuantity))
+        {
+            convertedValue = parsedQuantity;
+            return true;
+        }
+
+        if (TryConvertQuantityToNumericTarget(parsedQuantity, targetType, out var numericValue))
+        {
+            convertedValue = numericValue;
+            return true;
+        }
+
+        errorMessage = $"Parsed OpenHAB quantity '{rawState}' for item type '{itemType}' as '{quantityInfo.Name}', but it could not be converted to target type '{nonNullableType.Name}'.";
+        return false;
+    }
+
+    private static bool TryResolveQuantityNameFromItemType(string? itemType, out string quantityName)
+    {
+        quantityName = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(itemType) || !itemType.StartsWith("Number:", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        quantityName = itemType["Number:".Length..].Trim();
+        return !string.IsNullOrWhiteSpace(quantityName);
+    }
+
+    private static bool TryResolveQuantityInfo(string quantityName, out QuantityInfo quantityInfo)
+    {
+        var found = Quantity.Infos.FirstOrDefault(info => string.Equals(info.Name, quantityName, StringComparison.OrdinalIgnoreCase));
+        if (found is null)
+        {
+            quantityInfo = default!;
+            return false;
+        }
+
+        quantityInfo = found;
+        return true;
+    }
+
+    private static bool TryConvertQuantityToNumericTarget(IQuantity quantity, Type targetType, out object? numericValue)
+    {
+        numericValue = null;
+        var nonNullableType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        if (!typeof(IConvertible).IsAssignableFrom(nonNullableType) || nonNullableType == typeof(bool) || nonNullableType.IsEnum)
+            return false;
+
+        try
+        {
+            numericValue = Convert.ChangeType(quantity.As(quantity.Unit), nonNullableType, CultureInfo.InvariantCulture);
+            return numericValue is not null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? ResolveStateType(string? liveStateType, string? configuredStateType, string? itemType, string? rawState)

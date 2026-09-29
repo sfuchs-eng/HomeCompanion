@@ -1,5 +1,6 @@
 using HomeCompanion.Core;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace HomeCompanion.Tests;
 
@@ -160,6 +161,67 @@ public class HostingExtensionsConfigurationTests
         Assert.That(result, Does.Contain(HostingExtensions.NormalizePath("/etc/homecompanion")));
         Assert.That(result.Count(path => string.Equals(path, HostingExtensions.NormalizePath("/workspace/Config"), StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
     }
+
+        [Test]
+        public void AddHomeCompanionConfiguration_HonorsConfigDirectoriesDefinedInExternalHomeCompanionJson()
+        {
+                var tempRoot = CreateTempDirectory();
+                var xdgConfigHome = Path.Combine(tempRoot, "xdg");
+                var dynamicConfigDirectory = Path.Combine(tempRoot, "dynamic-config");
+
+                var previousXdgConfigHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+                var previousHome = Environment.GetEnvironmentVariable("HOME");
+
+                try
+                {
+                        Directory.CreateDirectory(xdgConfigHome);
+                        Directory.CreateDirectory(dynamicConfigDirectory);
+
+                        File.WriteAllText(
+                                Path.Combine(xdgConfigHome, "HomeCompanion.json"),
+                                $$"""
+                                {
+                                    "HomeCompanion": {
+                                        "ConfigDirectories": [
+                                            "{{dynamicConfigDirectory}}"
+                                        ]
+                                    }
+                                }
+                                """);
+
+                        File.WriteAllText(
+                                Path.Combine(dynamicConfigDirectory, "20-dynamic.json"),
+                                """
+                                {
+                                    "DynamicProbe": {
+                                        "Loaded": "yes"
+                                    }
+                                }
+                                """);
+
+                        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", xdgConfigHome);
+                        Environment.SetEnvironmentVariable("HOME", Path.Combine(tempRoot, "home"));
+
+                        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+                        {
+                                ContentRootPath = tempRoot,
+                                EnvironmentName = Environments.Production,
+                        });
+
+                        builder.AddHomeCompanionConfiguration();
+
+                        Assert.That(builder.Configuration["DynamicProbe:Loaded"], Is.EqualTo("yes"));
+
+                        var resolvedDirectories = HostingExtensions.ResolveConfiguredConfigDirectories(builder.Configuration, tempRoot);
+                        Assert.That(resolvedDirectories, Does.Contain(HostingExtensions.NormalizePath(dynamicConfigDirectory)));
+                }
+                finally
+                {
+                        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", previousXdgConfigHome);
+                        Environment.SetEnvironmentVariable("HOME", previousHome);
+                        Directory.Delete(tempRoot, recursive: true);
+                }
+        }
 
     private static string CreateTempDirectory()
     {
