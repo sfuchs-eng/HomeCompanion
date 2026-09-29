@@ -44,7 +44,9 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         //      this.eventSubscriber = eventSubscriber;
         //      this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
-        computationTriggerQueueFeeder = new FeedTriggerQueueViaEventBus(eventPublisher);
+        computationTriggerQueueFeeder = new EventBusQueueFeeder<ShutterAutomationComputationTriggerContext>(
+            eventPublisher,
+            trigger => new ShutterAutomationComputationTriggerEvent { Context = trigger });
         //      this.loggerFactory = loggerFactory;
         this.logger = loggerFactory.CreateLogger<ShadowingRuntimesController>();
         runtimesFactory = new(
@@ -87,30 +89,6 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
             schedulerFactory: schedulerFactory,
             loggerFactory: loggerFactory,
             logger: loggerFactory.CreateLogger<RuntimesFactory>());
-    }
-
-    /// <summary>
-    /// Feeds shutter automation computation triggers into the event bus.
-    /// </summary>
-    private class FeedTriggerQueueViaEventBus(IEventPublisher eventPublisher) : IQueueFeeder<ShutterAutomationComputationTriggerContext>
-    {
-        private readonly IEventPublisher eventPublisher = eventPublisher;
-
-        public void Enqueue(ShutterAutomationComputationTriggerContext trigger)
-        {
-            // Enqueue the trigger by publishing it as an event to the event bus.
-            eventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent { Context = trigger }).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public async ValueTask EnqueueAsync(ShutterAutomationComputationTriggerContext item, CancellationToken cancellationToken = default)
-        {
-            await eventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent { Context = item }, cancellationToken).ConfigureAwait(false);
-        }
-
-        async Task IQueueFeeder<ShutterAutomationComputationTriggerContext>.EnqueueAsync(ShutterAutomationComputationTriggerContext trigger, CancellationToken token)
-        {
-            await EnqueueAsync(trigger, token);
-        }
     }
 
     protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)

@@ -24,3 +24,20 @@ Both ILogic classes base on the runtimes classes managed by `ShadowingRuntimesCo
 
 The runtime classes react to system events and publish `ShutterAutomationComputationTriggerEvent` events to trigger the shutter control logic to compute the new shutter positions.
 The events are published by `ShadowingRuntimesController` which implements time window gating, prioritization and aggregation of events. The events are consumed mostly by `ShutterController` and `RoomShutterSceneLogic`.
+
+### Trigger flow and queue architecture
+
+The shutter automation pipeline uses a layered design:
+
+1. `BuildingRuntime`, `RoomRuntime`, and `ShutterRuntime` create `ShutterAutomationComputationTriggerContext` instances when a relevant input changes.
+2. Those contexts are handed to a generic `IQueueFeeder<ShutterAutomationComputationTriggerContext>`.
+3. The concrete implementation is an event-bus adapter that converts the context into a `ShutterAutomationComputationTriggerEvent` and publishes it via `IEventPublisher`.
+4. `ShutterController` subscribes to `ShutterAutomationComputationTriggerEvent` and feeds those events into `shutterAutomationTriggerCollector`.
+5. The collector batches and prioritizes pending triggers based on urgency and age, grouping them by scope (global, room-specific, shutter-specific).
+6. Only the matured batch is forwarded to the state-computation loop for the actual decision logic.
+
+This means the event bus is not the final batching point. It is the distribution mechanism for trigger intents. The actual pacing and coalescing policy is implemented in `ShutterController` using `BackgroundRunner<T>` channels and urgency windows.
+
+Key rule: the queue feeder is intentionally generic and does not encode a specific target key. The target selection happens in the trigger `Context`, which carries the list of affected thing keys. Quartz jobs such as `ShutterResetExternalOverrideJob` can use the same queue abstraction to enqueue a recomputation trigger without needing a keyed or job-specific queue service.
+
+This is why the service is registered as a singleton for `IQueueFeeder<ShutterAutomationComputationTriggerContext>` rather than as a keyed service. All trigger producers publish to the same logical queue, and the event subscribers decide which scope(s) and runtime(s) actually consume the event.

@@ -1,5 +1,7 @@
+using HomeCompanion.Base.Utilities;
 using HomeCompanion.Core;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Values;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,5 +28,18 @@ public class HostingExtensionsCoreDiagnosticsTests
             Assert.That(diagnosableDescriptors.Length, Is.GreaterThanOrEqualTo(2));
             Assert.That(diagnosableDescriptors.All(d => d.ImplementationFactory is not null || d.ImplementationType is not null), Is.True);
         });
+    }
+
+    [Test]
+    public void AddHomeCompanionCore_RegistersShutterAutomationQueueFeeder()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.AddHomeCompanionCore();
+
+        using var provider = builder.Services.BuildServiceProvider();
+
+        var queueFeeder = provider.GetRequiredService<IQueueFeeder<ShutterAutomationComputationTriggerContext>>();
+
+        Assert.That(queueFeeder, Is.Not.Null);
     }
 }
