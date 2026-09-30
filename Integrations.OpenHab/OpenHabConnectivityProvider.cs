@@ -47,7 +47,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
     private readonly IReadOnlyList<IValuesContainer> _containers;
     private readonly IHomeCompanionLifeCycleSynchronization _lifeCycleSynchronization;
     private readonly OpenHabItemMetadataCache _itemMetadataCache;
-    private readonly OpenHabStateConverter _stateConverter;
     private readonly OpenHabTypeConversionRegistry _typeConversionRegistry;
     private readonly ILogger<OpenHabConnectivityProvider> _logger;
 
@@ -75,7 +74,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         IEnumerable<IValuesContainer> containers,
         IHomeCompanionLifeCycleSynchronization lifeCycleSynchronization,
         OpenHabItemMetadataCache itemMetadataCache,
-        OpenHabStateConverter stateConverter,
         OpenHabTypeConversionRegistry typeConversionRegistry,
         ILogger<OpenHabConnectivityProvider> logger)
     {
@@ -87,7 +85,6 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         _containers = [.. containers];
         _lifeCycleSynchronization = lifeCycleSynchronization;
         _itemMetadataCache = itemMetadataCache;
-        _stateConverter = stateConverter;
         _typeConversionRegistry = typeConversionRegistry;
         _logger = logger;
     }
@@ -266,7 +263,7 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         }
         if (!target.Mapping.Communication.HasFlag(BusCommunication.Receive))
         {
-            _logger.LogTrace("Received ItemStateEvent for item '{ItemName}' with state '{State}', but target value does not allow read communication. Skipping.", itemName, rawState);
+            //_logger.LogTrace("Received ItemStateEvent for item '{ItemName}' with state '{State}', but target value does not allow read communication. Skipping.", itemName, rawState);
             return;
         }
 
@@ -320,8 +317,11 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         }
 
         _itemMetadataCache.TryGetItem(itemName, out var itemMetadata);
+        var localConfig = target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
+            ? mapping?.Config
+            : null;
 
-        if (_stateConverter.TryConvertValue(rawState, target, stateType, itemMetadata, out var decodedValue, out var errorMessage))
+        if (_typeConversionRegistry.TryConvertValue(rawState, target, stateType, itemMetadata, localConfig, out var decodedValue, out var errorMessage))
             return decodedValue;
 
         AddConversionFailure(itemName, rawState, stateType, target, errorMessage);

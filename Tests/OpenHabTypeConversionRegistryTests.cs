@@ -8,7 +8,7 @@ using UnitsNet;
 namespace HomeCompanion.Tests;
 
 [TestFixture]
-public class OpenHabStateConverterTests
+public class OpenHabTypeConversionRegistryTests
 {
     private static ValueBase<T> ValueWithoutKnxMapping<T>() where T : notnull
         => new(NullLogger<ValueBase<T>>.Instance);
@@ -19,22 +19,18 @@ public class OpenHabStateConverterTests
             BusMappings = new() { [OpenHabBusEndpointMapping.BusId] = new OpenHabBusEndpointMapping(itemName, config) },
         };
 
-    private static OpenHabStateConverter CreateConverter(OpenHabIntegrationOptions? options = null)
-    {
-        var registry = new OpenHabTypeConversionRegistry(
+    private static OpenHabTypeConversionRegistry CreateRegistry(OpenHabIntegrationOptions? options = null)
+        => new(
             Options.Create(options ?? new OpenHabIntegrationOptions()),
             NullLogger<OpenHabTypeConversionRegistry>.Instance);
-
-        return new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
-    }
 
     [Test]
     public void TryConvertValue_WithOnOffStateType_ReturnsTrueForOn()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<bool>();
 
-        var result = converter.TryConvertValue("ON", value, "OnOff", null, out var converted);
+        var result = registry.TryConvertValue("ON", value, "OnOff", null, null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(true));
@@ -43,10 +39,10 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithOpenClosedStateType_UsesReversedBooleanMapping()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<bool>();
 
-        var result = converter.TryConvertValue("OPEN", value, "OpenClosed", null, out var converted);
+        var result = registry.TryConvertValue("OPEN", value, "OpenClosed", null, null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(false));
@@ -55,11 +51,11 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithSwitchItemMetadata_InfersOnOffStateType()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<bool>();
         var item = new Item { Name = "MySwitch", Type = "Switch", State = "OFF" };
 
-        var result = converter.TryConvertValue("OFF", value, stateType: null, item, out var converted);
+        var result = registry.TryConvertValue("OFF", value, stateType: null, item, localConfig: null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(false));
@@ -68,11 +64,11 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithUnitMetadata_ParsesQuantityAwareScalar()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<double>();
         value.Unit = new ValueUnitInfo("Speed", "MeterPerSecond", "m/s");
 
-        var result = converter.TryConvertValue("12 m/s", value, "Quantity", null, out var converted);
+        var result = registry.TryConvertValue("12 m/s", value, "Quantity", null, null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(12d).Within(0.0001d));
@@ -81,11 +77,11 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithQuantityTarget_UsesTargetParser()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<Temperature>();
         value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "°C");
 
-        var result = converter.TryConvertValue("21.5 °C", value, "Quantity", null, out var converted);
+        var result = registry.TryConvertValue("21.5 °C", value, "Quantity", null, null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.TypeOf<Temperature>());
@@ -95,7 +91,7 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithLocalLiteralOverride_UsesConfiguredMapping()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithOpenHabMapping<int>("MyMode", new OpenHabBusMappingConfiguration
         {
             LiteralMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -104,7 +100,13 @@ public class OpenHabStateConverterTests
             },
         });
 
-        var result = converter.TryConvertValue("AUTO", value, stateType: null, itemMetadata: null, out var converted);
+        var result = registry.TryConvertValue(
+            "AUTO",
+            value,
+            stateType: null,
+            itemMetadata: null,
+            localConfig: (OpenHabBusMappingConfiguration?)value.BusMappings[OpenHabBusEndpointMapping.BusId].Config,
+            out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(2));
@@ -130,10 +132,10 @@ public class OpenHabStateConverterTests
             }
             """);
 
-            var converter = CreateConverter(new OpenHabIntegrationOptions { MappingsFolder = tempDir });
+            var registry = CreateRegistry(new OpenHabIntegrationOptions { MappingsFolder = tempDir });
             var value = ValueWithoutKnxMapping<int>();
 
-            var result = converter.TryConvertValue("AUTO", value, "String", null, out var converted);
+            var result = registry.TryConvertValue("AUTO", value, "String", null, null, out var converted);
 
             Assert.That(result, Is.True);
             Assert.That(converted, Is.EqualTo(7));
@@ -147,10 +149,10 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithoutOpenHabSemantics_FallsBackToTargetParser()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<double>();
 
-        var result = converter.TryConvertValue("0", value, out var converted);
+        var result = registry.TryConvertValue("0", value, stateType: null, itemMetadata: null, localConfig: null, out var converted);
 
         Assert.Multiple(() =>
         {
@@ -162,10 +164,10 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithCanonicalOnOffLiteral_InfersBooleanState()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<bool>();
 
-        var result = converter.TryConvertValue("ON", value, out var converted);
+        var result = registry.TryConvertValue("ON", value, stateType: null, itemMetadata: null, localConfig: null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(true));
@@ -176,10 +178,10 @@ public class OpenHabStateConverterTests
     [TestCase("14.0", true)]
     public void TryConvertValue_WithFloatingNumericBooleanTarget_ConvertsToExpectedBoolean(string raw, bool expected)
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<bool>();
 
-        var result = converter.TryConvertValue(raw, value, out var converted);
+        var result = registry.TryConvertValue(raw, value, stateType: null, itemMetadata: null, localConfig: null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.EqualTo(expected));
@@ -188,10 +190,10 @@ public class OpenHabStateConverterTests
     [Test]
     public void TryConvertValue_WithFloatingNumericAndByteTarget_ParsesIntegralByte()
     {
-        var converter = CreateConverter();
+        var registry = CreateRegistry();
         var value = ValueWithoutKnxMapping<byte>();
 
-        var result = converter.TryConvertValue("14.0", value, out var converted);
+        var result = registry.TryConvertValue("14.0", value, stateType: null, itemMetadata: null, localConfig: null, out var converted);
 
         Assert.That(result, Is.True);
         Assert.That(converted, Is.TypeOf<byte>());

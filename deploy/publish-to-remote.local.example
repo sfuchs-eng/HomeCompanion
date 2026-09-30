@@ -12,6 +12,10 @@ PUBLISH_USER=homecompanion
 # Remote directory that should receive the published server output.
 PUBLISH_PATH=/opt/homecompanion
 
+# Optional systemd service name to stop/start during deployment.
+# Defaults to "homecompanion".
+#PUBLISH_SERVICE_NAME=homecompanion
+
 # Optional publish configuration passed to dotnet publish.
 PUBLISH_CONFIGURATION=Production
 

@@ -48,7 +48,6 @@ public class OpenHabConnectivityProviderTests
         var metadataCache = new OpenHabItemMetadataCache();
         configureMetadataCache?.Invoke(metadataCache);
         var registry = new OpenHabTypeConversionRegistry(options, NullLogger<OpenHabTypeConversionRegistry>.Instance);
-        var converter = new OpenHabStateConverter(registry, NullLogger<OpenHabStateConverter>.Instance);
 
         var containers = container is not null ? [container] : Array.Empty<IValuesContainer>();
         var lifecycle = lifeCycleSynchronization ?? new StubLifecycleSync();
@@ -63,7 +62,6 @@ public class OpenHabConnectivityProviderTests
             containers,
             lifecycle,
             metadataCache,
-            converter,
             registry,
             NullLogger<OpenHabConnectivityProvider>.Instance);
     }

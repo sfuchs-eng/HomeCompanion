@@ -12,7 +12,7 @@ namespace HomeCompanion.Integrations.OpenHab;
 
 /// <summary>
 /// Provides type conversion for OpenHAB item states to .NET types and vice versa.
-/// TODO: regime change: put encoders/decoders straight into the bus mapping, use this class as fall back for generic type conversion. Remove <see cref="OpenHabStateConverter"/>.
+/// This is the single canonical conversion service for inbound state parsing and outbound formatting.
 /// </summary>
 /// <remarks>
 /// AI generated, seems to need some manual refactoring to match OpenHAB type semantics and architecture.

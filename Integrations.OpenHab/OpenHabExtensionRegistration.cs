@@ -67,7 +67,6 @@ public class OpenHabExtensionRegistration(
         context.Builder.Services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
         context.Builder.Services.AddSingleton<OpenHabTypeConversionRegistry>();
         context.Builder.Services.AddSingleton<OpenHabItemMetadataCache>();
-        context.Builder.Services.AddSingleton<OpenHabStateConverter>();
         context.Builder.Services.AddSingleton<OpenHabConnectivityProvider>();
         context.Builder.Services.AddSingleton<IConnectivityProvider>(sp => sp.GetRequiredService<OpenHabConnectivityProvider>());
         context.Builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<OpenHabConnectivityProvider>());
