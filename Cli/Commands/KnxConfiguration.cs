@@ -24,11 +24,14 @@ public class KnxConfiguration : HostLauncher<KnxConfiguration.Worker>
     protected override void AddServices(IServiceCollection services, CliContext cliContext)
     {
         base.AddServices(services, cliContext);
+        services.AddKnxConfigSupport();
+        /*
         services.AddKnxCore();
         services.AddKnxConfig();
         services.AddKnxOpenHabConfig();
         services.AddSingleton<KnxValuesCodeGenerator>();
         services.AddSingleton<IHomeCompanionKnxConfigFactory, HomeCompanionKnxConfigFactory>();
+        */
     }
 
     public class Worker(

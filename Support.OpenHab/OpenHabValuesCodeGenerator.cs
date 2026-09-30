@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SRF.Network.OpenHab;
 
-namespace HomeCompanion.Cli.OpenHab;
+namespace HomeCompanion.Support.OpenHab;
 
 public class OpenHabValuesCodeGenOptions
 {
+    public static string ConfigSectionName => "OpenHab:CodeGen";
     public bool IgnoreItemsWithKnxMapping { get; set; } = true;
 }
 

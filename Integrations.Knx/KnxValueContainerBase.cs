@@ -18,7 +18,7 @@ public abstract class KnxValueContainerBase : ValueContainerBase
     /// <returns></returns>
     public KnxValueContainerBase(IServiceProvider serviceProvider, ILogger<KnxValueContainerBase> logger) : base(logger)
     {
-        var gaMeta = serviceProvider.GetService<IKnxSystemConfiguration>() ?? throw new InvalidOperationException("IKnxSystemConfiguration is required for KnxValueContainerBase but not registered in the service provider.");
+        var gaMeta = serviceProvider.GetService<IKnxSystemConfigurationResolver>() ?? throw new InvalidOperationException("IKnxSystemConfiguration is required for KnxValueContainerBase but not registered in the service provider.");
         if (!GetType().IsIValuePropertiesWithCorrectValueType(gaMeta, logger))
         {
             throw new InvalidOperationException("One or more IValue properties have incorrect value types.");
@@ -33,7 +33,7 @@ public abstract class KnxValueContainerBase : ValueContainerBase
 /// </summary>
 public static class KnxValueContainerHelpers
 {
-    public static bool IsIValuePropertiesWithCorrectValueType(this Type type, IKnxSystemConfiguration knxConfig, ILogger logger)
+    public static bool IsIValuePropertiesWithCorrectValueType(this Type type, IKnxSystemConfigurationResolver knxConfig, ILogger logger)
     {
         logger.LogTrace("Checking IValue properties of type {TypeName} for correct value types based on KNX configuration.", type.Name);
         var properties = type.GetIValueProperties();

@@ -165,8 +165,8 @@ public class KnxConnectivityProviderTests
         public void ClearCache() { }
     }
 
-    /// <summary>Stub <see cref="IKnxSystemConfiguration"/> that maps every group address to a <see cref="BoolDpt"/>.</summary>
-    private sealed class StubKnxSystemConfiguration : IKnxSystemConfiguration
+    /// <summary>Stub <see cref="IKnxSystemConfigurationResolver"/> that maps every group address to a <see cref="BoolDpt"/>.</summary>
+    private sealed class StubKnxSystemConfiguration : IKnxSystemConfigurationResolver
     {
         public DptBase GetDpt(GroupAddress groupAddress) => BoolDpt.CreateDefault();
         public void ClearCache() { }

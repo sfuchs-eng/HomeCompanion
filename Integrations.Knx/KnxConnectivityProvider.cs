@@ -53,7 +53,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
 
     private readonly IReadOnlyList<IKnxConnection> _connections;
     private readonly KnxIntegrationOptions _integrationOptions;
-    private readonly IKnxSystemConfiguration knxSystemConfiguration;
+    private readonly IKnxSystemConfigurationResolver knxSystemConfiguration;
     private readonly IEnumerable<IKnxConnection> connections;
     private readonly IEventPublisher _publisher;
     private readonly IEventSubscriber _subscriber;
@@ -86,7 +86,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     /// </summary>
     public KnxConnectivityProvider(
         IOptions<KnxIntegrationOptions> integrationOptions,
-        IKnxSystemConfiguration knxSystemConfiguration,
+        IKnxSystemConfigurationResolver knxSystemConfiguration,
         IEnumerable<IKnxConnection> connections,
         IEventPublisher publisher,
         IEventSubscriber subscriber,

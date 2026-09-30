@@ -602,7 +602,7 @@ public class KnxDpstScaledNumericIValueTests
         }
     }
 
-    private sealed class StubKnxSystemConfiguration(IDptResolver resolver) : IKnxSystemConfiguration
+    private sealed class StubKnxSystemConfiguration(IDptResolver resolver) : IKnxSystemConfigurationResolver
     {
         public DptBase GetDpt(GroupAddress groupAddress) => resolver.GetDpt(groupAddress);
 

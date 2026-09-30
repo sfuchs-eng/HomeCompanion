@@ -104,7 +104,7 @@ public class KnxDptResolverIntegrationTests
     /// <see cref="DomainConfiguration"/> and <see cref="IDptResolver"/> in the DI container,
     /// including <see cref="IKnxMasterDataProvider"/> → <see cref="SRF.Knx.Config.KnxMasterDataProvider"/>.
     /// Also verifies that <see cref="IDptResolver"/> resolves to the same singleton that
-    /// implements <see cref="IKnxSystemConfiguration"/>.
+    /// implements <see cref="IKnxSystemConfigurationResolver"/>.
     /// </summary>
     [Test]
     public void AddKnxConnections_RegistersDomainConfigurationAndDptResolver()
@@ -136,9 +136,9 @@ public class KnxDptResolverIntegrationTests
             "DomainConfiguration should be registered by AddKnxConnections → AddKnxIpRouting → AddKnxConfig");
 
         var dptResolver = sp.GetRequiredService<IDptResolver>();
-        var systemConfig = sp.GetRequiredService<IKnxSystemConfiguration>();
+        var systemConfig = sp.GetRequiredService<IKnxSystemConfigurationResolver>();
 
-        Assert.That(dptResolver, Is.AssignableTo<IKnxSystemConfiguration>(),
+        Assert.That(dptResolver, Is.AssignableTo<IKnxSystemConfigurationResolver>(),
             "IDptResolver should resolve via IKnxSystemConfiguration through the full DI chain");
         Assert.That(dptResolver, Is.SameAs(systemConfig),
             "IDptResolver and IKnxSystemConfiguration should be the same singleton instance");

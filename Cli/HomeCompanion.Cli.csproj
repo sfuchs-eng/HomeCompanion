@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Support.Knx\HomeCompanion.Support.Knx.csproj" />
+    <ProjectReference Include="..\Support.OpenHab\HomeCompanion.Support.OpenHab.csproj" />
   </ItemGroup>
 
 </Project>
