@@ -1,3 +1,4 @@
+using HomeCompanion.Integrations.OpenHab;
 using Microsoft.Extensions.Hosting;
 using SRF.Network.OpenHab;
 using SRF.Knx.Config;
@@ -13,6 +14,7 @@ public static class OpenHabSupportHostingHelpers
     {
         services.AddKnxConfigSupport();
         services.AddOpenHabConnector();
+        services.AddOptions<OpenHabIntegrationOptions>().BindConfiguration(OpenHabIntegrationOptions.SectionName);
         services.AddSingleton<OpenHabValuesCodeGenerator>();
         services.AddSingleton<IHomeCompanionOpenHabConfigFactory, HomeCompanionOpenHabConfigFactory>();
         return services;

@@ -90,6 +90,43 @@ public class OpenHabBusMappingConfiguration : IBusMappingConfiguration
 public sealed class OpenHabTypeMappingDefinition : OpenHabBusMappingConfiguration
 {
     /// <summary>
+    /// Optional OpenHAB item name selector for exact matching (case-insensitive).
+    /// </summary>
+    public string? ItemName { get; init; }
+
+    /// <summary>
+    /// Optional OpenHAB item name selector as pattern (wildcard or regex).
+    /// </summary>
+    public string? ItemNamePattern { get; init; }
+
+    /// <summary>
+    /// Optional OpenHAB item type selector as pattern (wildcard or regex).
+    /// </summary>
+    public string? ItemTypePattern { get; init; }
+
+    /// <summary>
+    /// Optional override for generated value type, e.g. "double" or "global::UnitsNet.Temperature".
+    /// </summary>
+    public string? GeneratedValueType { get; init; }
+
+    /// <summary>
+    /// Optional quantity name for generated value unit metadata, e.g. "Temperature".
+    /// Requires <see cref="GeneratedUnitName"/> to be set as well.
+    /// </summary>
+    public string? GeneratedUnitQuantityName { get; init; }
+
+    /// <summary>
+    /// Optional unit name for generated value unit metadata, e.g. "DegreeCelsius".
+    /// Requires <see cref="GeneratedUnitQuantityName"/> to be set as well.
+    /// </summary>
+    public string? GeneratedUnitName { get; init; }
+
+    /// <summary>
+    /// Optional display symbol for generated value unit metadata, e.g. "°C".
+    /// </summary>
+    public string? GeneratedUnitSymbol { get; init; }
+
+    /// <summary>
     /// Optional CLR target type selector.
     /// Supports aliases such as bool, int, long, double, string and full CLR type names.
     /// </summary>

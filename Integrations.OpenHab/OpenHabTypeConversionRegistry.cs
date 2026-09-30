@@ -5,6 +5,7 @@ using SRF.Network.OpenHab.Items;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using UnitsNet;
 using UnitsNet.Units;
 
@@ -109,7 +110,7 @@ public sealed class OpenHabTypeConversionRegistry(
         convertedValue = null;
         errorMessage = null;
 
-        var effectiveConfig = GetEffectiveConfiguration(localConfig, itemMetadata?.Type, stateType, target.ValueType);
+        var effectiveConfig = GetEffectiveConfiguration(localConfig, itemMetadata?.Name, itemMetadata?.Type, stateType, target.ValueType);
         var effectiveItemType = localConfig?.ItemType ?? itemMetadata?.Type;
         var effectiveStateType = ResolveStateType(stateType, localConfig?.StateType, effectiveItemType, rawState);
 
@@ -144,7 +145,7 @@ public sealed class OpenHabTypeConversionRegistry(
 
     public string FormatOutboundValue(IValue source, object value, Item? itemMetadata, OpenHabBusMappingConfiguration? localConfig)
     {
-        var effectiveConfig = GetEffectiveConfiguration(localConfig, itemMetadata?.Type, stateType: null, source.ValueType);
+        var effectiveConfig = GetEffectiveConfiguration(localConfig, itemMetadata?.Name, itemMetadata?.Type, stateType: null, source.ValueType);
         var effectiveItemType = localConfig?.ItemType ?? itemMetadata?.Type;
         var effectiveStateType = ResolveStateType(localConfig?.StateType, localConfig?.StateType, effectiveItemType, rawState: null);
 
@@ -430,9 +431,9 @@ public sealed class OpenHabTypeConversionRegistry(
         return false;
     }
 
-    private OpenHabBusMappingConfiguration? GetEffectiveConfiguration(OpenHabBusMappingConfiguration? localConfig, string? itemType, string? stateType, Type targetType)
+    private OpenHabBusMappingConfiguration? GetEffectiveConfiguration(OpenHabBusMappingConfiguration? localConfig, string? itemName, string? itemType, string? stateType, Type targetType)
     {
-        var sharedConfig = FindSharedMapping(itemType, stateType, targetType);
+        var sharedConfig = FindSharedMapping(itemName, itemType, stateType, targetType);
         if (sharedConfig is null)
             return localConfig;
 
@@ -453,21 +454,36 @@ public sealed class OpenHabTypeConversionRegistry(
         };
     }
 
-    private OpenHabBusMappingConfiguration? FindSharedMapping(string? itemType, string? stateType, Type targetType)
+    private OpenHabBusMappingConfiguration? FindSharedMapping(string? itemName, string? itemType, string? stateType, Type targetType)
     {
         var mappings = GetSharedMappings();
         var match = mappings
-            .Select(mapping => new { Mapping = mapping, Score = GetSpecificityScore(mapping, itemType, stateType, targetType) })
+            .Select((mapping, index) => new { Mapping = mapping, Index = index, Score = GetSpecificityScore(mapping, itemName, itemType, stateType, targetType) })
             .Where(candidate => candidate.Score >= 0)
             .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Index)
             .FirstOrDefault();
 
         return match?.Mapping;
     }
 
-    private static int GetSpecificityScore(OpenHabTypeMappingDefinition mapping, string? itemType, string? stateType, Type targetType)
+    private static int GetSpecificityScore(OpenHabTypeMappingDefinition mapping, string? itemName, string? itemType, string? stateType, Type targetType)
     {
         var score = 0;
+
+        if (!string.IsNullOrWhiteSpace(mapping.ItemName))
+        {
+            if (!string.Equals(mapping.ItemName, itemName, StringComparison.OrdinalIgnoreCase))
+                return -1;
+            score += 16;
+        }
+
+        if (!string.IsNullOrWhiteSpace(mapping.ItemNamePattern))
+        {
+            if (!MatchesPattern(mapping.ItemNamePattern, itemName))
+                return -1;
+            score += 12;
+        }
 
         if (!string.IsNullOrWhiteSpace(mapping.StateType))
         {
@@ -483,6 +499,13 @@ public sealed class OpenHabTypeConversionRegistry(
             score += 2;
         }
 
+        if (!string.IsNullOrWhiteSpace(mapping.ItemTypePattern))
+        {
+            if (!MatchesPattern(mapping.ItemTypePattern, itemType))
+                return -1;
+            score += 1;
+        }
+
         if (!string.IsNullOrWhiteSpace(mapping.TargetType))
         {
             if (!MatchesTargetType(mapping.TargetType, targetType))
@@ -491,6 +514,29 @@ public sealed class OpenHabTypeConversionRegistry(
         }
 
         return score;
+    }
+
+    private static bool MatchesPattern(string pattern, string? input)
+    {
+        if (string.IsNullOrWhiteSpace(pattern) || string.IsNullOrWhiteSpace(input))
+            return false;
+
+        var trimmedPattern = pattern.Trim();
+        if (trimmedPattern.Length == 0)
+            return false;
+
+        if (trimmedPattern.StartsWith("^", StringComparison.Ordinal) || trimmedPattern.EndsWith("$", StringComparison.Ordinal))
+            return Regex.IsMatch(input, trimmedPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        if (trimmedPattern.Contains('*') || trimmedPattern.Contains('?'))
+        {
+            var regexPattern = "^" + Regex.Escape(trimmedPattern)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+            return Regex.IsMatch(input, regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        return Regex.IsMatch(input, trimmedPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private IReadOnlyList<OpenHabTypeMappingDefinition> GetSharedMappings()

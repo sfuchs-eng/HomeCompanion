@@ -3,10 +3,14 @@ using HomeCompanion.Support.OpenHab;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SRF.Knx.Config;
+using SRF.Knx.Config.OpenHab;
+using SRF.Network.OpenHab;
 
 namespace HomeCompanion.Cli.Commands;
 
-[CliCommand(Description = "Generates C# code for HomeCompanion values based on a live OpenHAB instance", Parent = typeof(Root))]
+[CliCommand(Alias = "ohvcg", Description = "Generates C# code for HomeCompanion values, pulling the items from the live OpenHAB instance", Parent = typeof(Root))]
 public class OpenHabValuesCodeGen : HostLauncher<OpenHabValuesCodeGen.Worker>
 {
     protected override void AddServices(IServiceCollection services, CliContext cliContext)
@@ -17,13 +21,13 @@ public class OpenHabValuesCodeGen : HostLauncher<OpenHabValuesCodeGen.Worker>
 
     public class Worker(
         OpenHabValuesCodeGen cmd,
-        HomeCompanionOpenHabConfigFactory openHabConfigFactory,
+        IHomeCompanionOpenHabConfigFactory openHabConfigFactory,
         IHostApplicationLifetime appLifetime,
         ILogger<OpenHabValuesCodeGen> logger
         ) : BackgroundService
     {
         private readonly OpenHabValuesCodeGen cmd = cmd;
-        private readonly HomeCompanionOpenHabConfigFactory openHabConfigFactory = openHabConfigFactory;
+        private readonly IHomeCompanionOpenHabConfigFactory openHabConfigFactory = openHabConfigFactory;
         private readonly IHostApplicationLifetime appLifetime = appLifetime;
         private readonly ILogger<OpenHabValuesCodeGen> logger = logger;
 

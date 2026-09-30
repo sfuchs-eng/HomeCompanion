@@ -143,6 +143,36 @@ The configuration surface is intentionally simple:
 
 The shared file can contain per-item-type or per-state-type overrides, while individual values can still provide a local `OpenHabBusMappingConfiguration` for exceptional cases. This gives the project a clean override hierarchy without cross-integration coupling.
 
+Example `OpenHabTypeMapping.json` entries for generated value types:
+
+```json
+{
+  "mappings": [
+    {
+      "itemName": "OutdoorTemperature",
+      "generatedValueType": "UnitsNet.Temperature",
+      "generatedUnitQuantityName": "Temperature",
+      "generatedUnitName": "DegreeCelsius",
+      "generatedUnitSymbol": "°C"
+    },
+    {
+      "itemType": "Number:Pressure",
+      "generatedValueType": "double"
+    },
+    {
+      "itemNamePattern": "^Room_.*_Temp$",
+      "generatedValueType": "UnitsNet.Temperature"
+    },
+    {
+      "itemTypePattern": "Number:.*Speed",
+      "generatedValueType": "UnitsNet.Speed"
+    }
+  ]
+}
+```
+
+Resolution precedence is: exact item name, item-name pattern, exact item type, then item-type pattern.
+
 ### Model value binding (generic, hybrid)
 
 The runtime model is generated based on its configuration counterpart.

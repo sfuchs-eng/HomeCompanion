@@ -146,6 +146,90 @@ public class OpenHabTypeConversionRegistryTests
         }
     }
 
+        [Test]
+        public void TryConvertValue_WithSharedItemNameExactOverride_UsesNameRule()
+        {
+                var tempDir = CreateTempDir();
+                try
+                {
+                        File.WriteAllText(Path.Combine(tempDir, "OpenHabTypeMapping.json"), """
+                        {
+                            "mappings": [
+                                {
+                                    "itemType": "String",
+                                    "targetType": "int",
+                                    "literalMappings": {
+                                        "AUTO": "5"
+                                    }
+                                },
+                                {
+                                    "itemName": "ExactItem",
+                                    "targetType": "int",
+                                    "literalMappings": {
+                                        "AUTO": "9"
+                                    }
+                                }
+                            ]
+                        }
+                        """);
+
+                        var registry = CreateRegistry(new OpenHabIntegrationOptions { MappingsFolder = tempDir });
+                        var value = ValueWithoutKnxMapping<int>();
+                        var item = new Item { Name = "ExactItem", Type = "String", State = "AUTO" };
+
+                        var result = registry.TryConvertValue("AUTO", value, stateType: "String", itemMetadata: item, localConfig: null, out var converted);
+
+                        Assert.That(result, Is.True);
+                        Assert.That(converted, Is.EqualTo(9));
+                }
+                finally
+                {
+                        Directory.Delete(tempDir, recursive: true);
+                }
+        }
+
+        [Test]
+        public void TryConvertValue_WithSharedItemNamePatternOverride_UsesPatternRule()
+        {
+                var tempDir = CreateTempDir();
+                try
+                {
+                        File.WriteAllText(Path.Combine(tempDir, "OpenHabTypeMapping.json"), """
+                        {
+                            "mappings": [
+                                {
+                                    "itemType": "String",
+                                    "targetType": "int",
+                                    "literalMappings": {
+                                        "AUTO": "3"
+                                    }
+                                },
+                                {
+                                    "itemNamePattern": "^Room_.*_Mode$",
+                                    "targetType": "int",
+                                    "literalMappings": {
+                                        "AUTO": "11"
+                                    }
+                                }
+                            ]
+                        }
+                        """);
+
+                        var registry = CreateRegistry(new OpenHabIntegrationOptions { MappingsFolder = tempDir });
+                        var value = ValueWithoutKnxMapping<int>();
+                        var item = new Item { Name = "Room_Living_Mode", Type = "String", State = "AUTO" };
+
+                        var result = registry.TryConvertValue("AUTO", value, stateType: "String", itemMetadata: item, localConfig: null, out var converted);
+
+                        Assert.That(result, Is.True);
+                        Assert.That(converted, Is.EqualTo(11));
+                }
+                finally
+                {
+                        Directory.Delete(tempDir, recursive: true);
+                }
+        }
+
     [Test]
     public void TryConvertValue_WithoutOpenHabSemantics_FallsBackToTargetParser()
     {
