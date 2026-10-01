@@ -620,6 +620,7 @@ public class OpenHabConnectivityProviderTests
         }));
     }
 
+/* moved to TestUtilities/LambdaHandler.cs
     private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : HomeCompanion.Events.IEvent
     {
         public ValueTask HandleAsync(T @event, CancellationToken cancellationToken = default)
@@ -628,4 +629,5 @@ public class OpenHabConnectivityProviderTests
             return ValueTask.CompletedTask;
         }
     }
+*/
 }

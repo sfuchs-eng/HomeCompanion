@@ -137,9 +137,10 @@ public class EventBusTests
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
+/* Move to TestUtilities/LambdaHandler.cs
     private sealed class LambdaHandler<T>(Func<T, ValueTask> fn) : IEventHandler<T> where T : IEvent
     {
         public ValueTask HandleAsync(T @event, CancellationToken cancellationToken = default) => fn(@event);
     }
+    */
 }

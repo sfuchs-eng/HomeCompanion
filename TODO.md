@@ -8,10 +8,11 @@ Scratchpad, don't take this all for granted.
 
 ... production testing & fixing
 
-### Port existing functionality from the old HomeCompanion solution into the one at hand
+### Port existing functionality from the old HomeCompanion solution (not disclosed) into the one at hand
 
 - [x] InfluxDB connectivity
 - [x] MQTT connectivity
+- [ ] MQTT to IValue mapping (bus mapping, routing), payload to/from `IValue<T>` transcoding, MQTT specific IValueContainer
 - [x] e-Mail notifications
 - [x] generic alerting/notification framework
 - [x] port from legacy: Spheric vector
@@ -19,56 +20,5 @@ Scratchpad, don't take this all for granted.
 
 ### Furthermore
 
-- [x] Make HomeCompanion.Integrations.OpenHab.OpenHabStateConverter unit aware (e.g. parse "0 m/s" as double if double is the target type) (tests pending, should be ok)
-- [x] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions). Likely takes a bus mapping specific value sanitizer approach.
-- [x] IValuesContainer with OpenHabItems that are not mapped to any KNX group address. Add code-gen to HomeCompanion.Cli as for KNX, same command `kc -hc` all in one go. (done, but in separate command ohvc)
 - [ ] Have an IValuesContainer for dynamic, internal values. This allows Logics to create/manage their own values without needing to define them in the ETS export or OpenHab item list, which is more flexible and decoupled from the bus-specific configuration. This can be a simple implementation of IValuesContainer that allows adding arbitrary `IValue<T>` properties at runtime, and can be injected into Logics for their internal state management.
 - [ ] Refactor the KNX connectivity provider to support multiple KNX connections in parallel, each with its own configuration and set of group addresses. This involves changing the internal value mapping to consider the connection/bus context, and updating the configuration and initialization logic to handle multiple connections. This allows for more complex setups with multiple KNX systems or segments.
-
----
-
-## Priority 3 — Improvements, Refactoring, Cleanup, Enhancements
-
-### 3.1 Consistency in KNX configuration properties
-
-There is ConnectionString in `KnxConnectionOptions` and in `SRF.Knx.Config.KnxConfiguration`.
-
-Review for duplications of KNX related configuration classes used in `IOptions<>` and evaluate consolidation options to prevent confusion and code duplication.
-
-Additionally, there are ConnectionString properties as well as more structured properties (e.g. MulticastAddress, Port) for the same KNX connection configuration. Review and consolidate to a single consistent approach supporting both. E.g. support parsing an optional ConnectionString while keeping the structured properties as the main configuration surface.
-
-Make those improvements with focus on HomeCompanion.Server usage but pull the SRF.Network.Cli tool along to use the same approach.
-
-### 3.2 Rethink ILogic testing strategy ✅
-
-It's foreseen that Logics inject `IValuesContainer` implementations by specific type, e.g. inject `KnxValues` directly rather than via an interface.
-This allows easy access to the full set of values including context help, code completion, etc.
-However, it makes testing more difficult as the logic tests must now use the concrete `KnxValues` class.
-
-The following approach is foreseen:
-
-Instantiate the `KnxValues` class in the test. Because the connection to the bus is done during initialization while otherwise the KnxValues class is bus agnostic, just yet another IValuesContainer implementation, the test could use the KnxValues class without any bus connection.
-
-The test rig should even foresee fully event bus connected IValuesContainers to allow for more end-to-end testing of the logic, but the basic unit tests can be done with just the KnxValues class instantiated and used as a simple container for the values, without any bus connectivity.
-
-Create test framework utilities to facilitate ILogic testing for logics that interact via the event bus.
-Have the test framework also provide all IValuesContainer implementations, but initialized without bus connectivity, so that logics can be tested with real values containers but without needing a bus connection.
-Done:
-
-See `HomeCompanion.Tests.Logics.Shutters.ShutterAutomationTestFixture.Craete(...)` for an example.
-
----
-
-## Priority 4 — Cleanup
-
-### 4.1 Extract shared `LambdaHandler<T>` test utility
-
-`LambdaHandler<T>` is defined identically in both `EventBusTests.cs` and `KnxConnectivityProviderTests.cs`. Extract to a shared `TestHelpers.cs` in `HomeCompanion.Tests`.
-
-### 4.2 Harden `IValuesManager` startup synchronization and diagnostics ✅
-
-`IValuesManager` is implemented and DI-registered. Focus on startup/routing hardening:
-
-- [x] gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered` (provider-side gate already in place; central defensive guard added in `ValuesManager` that drops and counts pre-stage events)
-- [x] keep lifecycle waits non-mutating (waiting must not signal) — enforced by interface contract and existing `HomeCompanionLifeCycleSynchronization` implementation; verified by test
-- [x] improve startup/runtime diagnostics for dropped/routed events and stage transitions — `ValuesManager` and `HomeCompanionLifeCycleSynchronization` now implement `IDiagnosable`, exposing per-category drop counters, routed counts, handler failures, startup timestamps, and per-stage completion state/timestamps through `IDiagnosticBrowser`; both services are registered as `IDiagnosable` in `HostingExtensions`

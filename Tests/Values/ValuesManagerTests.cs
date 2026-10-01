@@ -381,7 +381,7 @@ public class ValuesManagerTests
         => node.Records.Single(record => record.Name == name).Value?.FormattedValue;
 
     // ── Shared helper ─────────────────────────────────────────────────────────
-
+/* moved to TestUtilities/LambdaHandler.cs
     private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : IEvent
     {
         public ValueTask HandleAsync(T @event, CancellationToken cancellationToken = default)
@@ -390,4 +390,5 @@ public class ValuesManagerTests
             return ValueTask.CompletedTask;
         }
     }
+    */
 }

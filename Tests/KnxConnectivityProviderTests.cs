@@ -835,15 +835,16 @@ public class KnxConnectivityProviderTests
     }
 
     // ── Helper: inline event handler ─────────────────────────────────────────
-
-    private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : IEvent
-    {
-        public ValueTask HandleAsync(T @event, CancellationToken cancellationToken = default)
+    /* moved to TestUtilities/LambdaHandler.cs
+        private sealed class LambdaHandler<T>(Action<T> action) : IEventHandler<T> where T : IEvent
         {
-            action(@event);
-            return ValueTask.CompletedTask;
+            public ValueTask HandleAsync(T @event, CancellationToken cancellationToken = default)
+            {
+                action(@event);
+                return ValueTask.CompletedTask;
+            }
         }
-    }
+    */
 
     private sealed class QuantityTargetContainer : IValuesContainer
     {
