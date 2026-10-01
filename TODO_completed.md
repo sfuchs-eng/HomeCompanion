@@ -15,6 +15,12 @@ Use IHomeCompanionLifeCycleSynchronization for this purpose.
 
 Introduce a scheme to resolve Extension dependencies on other Extensions (via constructor parameters or similar) to allow for correct initialization order of Extensions. E.g. OpenHabExtension might depend on KnxExtension to be initialized first, so it can consume the KNX values and bus services.
 
+### Furthermore
+
+- [x] Make HomeCompanion.Integrations.OpenHab.OpenHabStateConverter unit aware (e.g. parse "0 m/s" as double if double is the target type) (tests pending, should be ok)
+- [x] Resolve initialization bugs related to value conversions (e.g. OpenHAB sends string `""` while the target is `IValue<bool>` which cannot be converted, causing exceptions). Likely takes a bus mapping specific value sanitizer approach.
+- [x] IValuesContainer with OpenHabItems that are not mapped to any KNX group address. Add code-gen to HomeCompanion.Cli as for KNX, same command `kc -hc` all in one go. (done, but in separate command ohvc)
+
 ---
 
 ## Priority 1 — Blockers (system cannot run without these)
@@ -129,6 +135,34 @@ The test verifies that numeric `IValue<T>` KNX mappings resolve to DPTs with mat
 
 `DptBase.Format` now formats decoded values with richer type-aware handling and appends unit information for numeric DPTs when `NumericInfo.Unit` is available.
 
+### 3.1 Consistency in KNX configuration properties ✅
+
+There is ConnectionString in `KnxConnectionOptions` and in `SRF.Knx.Config.KnxConfiguration`.
+
+Review for duplications of KNX related configuration classes used in `IOptions<>` and evaluate consolidation options to prevent confusion and code duplication.
+
+Additionally, there are ConnectionString properties as well as more structured properties (e.g. MulticastAddress, Port) for the same KNX connection configuration. Review and consolidate to a single consistent approach supporting both. E.g. support parsing an optional ConnectionString while keeping the structured properties as the main configuration surface.
+
+Make those improvements with focus on HomeCompanion.Server usage but pull the SRF.Network.Cli tool along to use the same approach.
+
+### 3.2 Rethink ILogic testing strategy ✅
+
+It's foreseen that Logics inject `IValuesContainer` implementations by specific type, e.g. inject `KnxValues` directly rather than via an interface.
+This allows easy access to the full set of values including context help, code completion, etc.
+However, it makes testing more difficult as the logic tests must now use the concrete `KnxValues` class.
+
+The following approach is foreseen:
+
+Instantiate the `KnxValues` class in the test. Because the connection to the bus is done during initialization while otherwise the KnxValues class is bus agnostic, just yet another IValuesContainer implementation, the test could use the KnxValues class without any bus connection.
+
+The test rig should even foresee fully event bus connected IValuesContainers to allow for more end-to-end testing of the logic, but the basic unit tests can be done with just the KnxValues class instantiated and used as a simple container for the values, without any bus connectivity.
+
+Create test framework utilities to facilitate ILogic testing for logics that interact via the event bus.
+Have the test framework also provide all IValuesContainer implementations, but initialized without bus connectivity, so that logics can be tested with real values containers but without needing a bus connection.
+Done:
+
+See `HomeCompanion.Tests.Logics.Shutters.ShutterAutomationTestFixture.Craete(...)` for an example.
+
 ### ~~3.3 Enhance `IValue` and KNX mappings for unit-aware display formatting~~ ✓
 
 Implemented architecture around `IValue.DisplayValue`/`IValue.Format(CultureInfo?)` with bus-mapping based formatter selection and culture-aware fallback behavior.
@@ -150,6 +184,22 @@ Completed parts:
 
 HomeCompanionAutoGenEntry currently includes the ETS export name (from DomainConfiguration) and group address, which are included in the generated `KnxValues` property XML comments.
 Add the Label (to property's XML comment summary) and Description (to property's XML comment remarks) from the ETS export.
+
+---
+
+## Priority 4 — Cleanup
+
+### 4.1 Extract shared `LambdaHandler<T>` test utility ✅
+
+`LambdaHandler<T>` is defined identically in both `EventBusTests.cs` and `KnxConnectivityProviderTests.cs`. Extract to a shared `TestHelpers.cs` in `HomeCompanion.Tests`.
+
+### 4.2 Harden `IValuesManager` startup synchronization and diagnostics ✅
+
+`IValuesManager` is implemented and DI-registered. Focus on startup/routing hardening:
+
+- [x] gate inbound connectivity-provider processing on lifecycle stage `InitValuesRegistered` (provider-side gate already in place; central defensive guard added in `ValuesManager` that drops and counts pre-stage events)
+- [x] keep lifecycle waits non-mutating (waiting must not signal) — enforced by interface contract and existing `HomeCompanionLifeCycleSynchronization` implementation; verified by test
+- [x] improve startup/runtime diagnostics for dropped/routed events and stage transitions — `ValuesManager` and `HomeCompanionLifeCycleSynchronization` now implement `IDiagnosable`, exposing per-category drop counters, routed counts, handler failures, startup timestamps, and per-stage completion state/timestamps through `IDiagnosticBrowser`; both services are registered as `IDiagnosable` in `HostingExtensions`
 
 ---
 
