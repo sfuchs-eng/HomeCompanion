@@ -12,7 +12,7 @@ Scratchpad, don't take this all for granted.
 
 - [x] InfluxDB connectivity
 - [x] MQTT connectivity
-- [ ] MQTT to IValue mapping (bus mapping, routing), payload to/from `IValue<T>` transcoding, MQTT specific IValueContainer
+- [ ] MQTT to IValue mapping (bus mapping, routing), payload to/from `IValue<T>` transcoding, MQTT specific IValueContainer: refine `MqttPayloadConverter` to support UnitsNet.Quantity and related types.
 - [x] e-Mail notifications
 - [x] generic alerting/notification framework
 - [x] port from legacy: Spheric vector
