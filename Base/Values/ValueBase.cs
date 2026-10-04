@@ -1,6 +1,4 @@
 using HomeCompanion.Abstractions;
-using HomeCompanion.Diagnostics;
-using HomeCompanion.Persistence;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -995,28 +993,61 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
         if (Unit is not null
             && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var magnitude)
             && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var configuredUnitQuantity)
-            && configuredUnitQuantity.GetType() == typeof(T))
+            && TryAssignParsedQuantity(configuredUnitQuantity, out parsedValue))
         {
-            parsedValue = configuredUnitQuantity;
             return true;
         }
 
-        if (Quantity.TryParse(formatProvider, typeof(T), rawValue, out var parsedQuantity))
+        var quantityParseType = typeof(T);
+        if (quantityParseType == typeof(IQuantity)
+            && Unit is not null
+            && TryResolveQuantityInfo(Unit.QuantityName, out var configuredQuantityInfo))
         {
-            parsedValue = parsedQuantity;
+            quantityParseType = configuredQuantityInfo.ValueType;
+        }
+
+        if (Quantity.TryParse(formatProvider, quantityParseType, rawValue, out var parsedQuantity)
+            && TryAssignParsedQuantity(parsedQuantity, out parsedValue))
+        {
             return true;
         }
 
         if (Unit is not null && double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out magnitude)
             && Quantity.TryFrom(magnitude, Unit.QuantityName, Unit.UnitName, out var inferredQuantity)
-            && inferredQuantity.GetType() == typeof(T))
+            && TryAssignParsedQuantity(inferredQuantity, out parsedValue))
         {
-            parsedValue = inferredQuantity;
             return true;
         }
 
         errorMessage = $"Failed to parse value '{rawValue}' as UnitsNet quantity type {typeof(T).Name}.";
         return false;
+    }
+
+    private bool TryAssignParsedQuantity(IQuantity parsedQuantity, out object? parsedValue)
+    {
+        parsedValue = null;
+
+        var candidate = parsedQuantity;
+        if (Unit is not null && TryResolveUnitEnum(Unit, out var targetUnit))
+        {
+            if (!string.Equals(candidate.QuantityInfo.Name, Unit.QuantityName, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            try
+            {
+                candidate = candidate.ToUnit(targetUnit);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        if (!typeof(T).IsAssignableFrom(candidate.GetType()) && !(typeof(T).IsInterface && typeof(IQuantity).IsAssignableFrom(typeof(T))))
+            return false;
+
+        parsedValue = candidate;
+        return true;
     }
 
     private bool TryParseNumericWithUnitMetadata(string rawValue, IFormatProvider formatProvider, out object? parsedValue, out string? errorMessage)

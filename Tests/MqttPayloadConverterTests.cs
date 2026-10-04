@@ -3,6 +3,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using UnitsNet;
+using UnitsNet.Units;
 
 namespace HomeCompanion.Tests;
 
@@ -181,6 +182,112 @@ public class MqttPayloadConverterTests
         Assert.That(success, Is.True);
         Assert.That(decoded, Is.TypeOf<double>());
         Assert.That((double)decoded!, Is.EqualTo(20d).Within(0.01));
+    }
+
+    [TestCase("22", 22d)]
+    [TestCase("22.5", 22.5d)]
+    [TestCase("22 \u00B0C", 22d)]
+    [TestCase("22.5 \u00B0C", 22.5d)]
+    [TestCase("71.6 \u00B0F", 22d)]
+    public void TryDecode_RawUtf8_QuantityText_ParsesAndNormalizesToConfiguredUnit(string payload, double expectedCelsius)
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var value = CreateValue<Temperature>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "\u00B0C");
+
+        var success = _converter.TryDecode(payload, value, mapping, out var decoded);
+
+        Assert.That(success, Is.True);
+        Assert.That(decoded, Is.TypeOf<Temperature>());
+        var quantity = (Temperature)decoded!;
+        Assert.That(quantity.Unit, Is.EqualTo(TemperatureUnit.DegreeCelsius));
+        Assert.That(quantity.DegreesCelsius, Is.EqualTo(expectedCelsius).Within(0.01));
+    }
+
+    [Test]
+    public void TryDecode_RawUtf8_QuantityTargetAsIQuantity_ParsesAndNormalizes()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var value = CreateValue<UnitsNet.IQuantity>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "\u00B0C");
+
+        var success = _converter.TryDecode("71.6 \u00B0F", value, mapping, out var decoded);
+
+        Assert.That(success, Is.True);
+        Assert.That(decoded, Is.AssignableTo<UnitsNet.IQuantity>());
+        var quantity = (UnitsNet.IQuantity)decoded!;
+        Assert.That(quantity.QuantityInfo.Name, Is.EqualTo("Temperature"));
+        Assert.That(quantity.Unit, Is.EqualTo((Enum)TemperatureUnit.DegreeCelsius));
+        Assert.That(quantity.As(TemperatureUnit.DegreeCelsius), Is.EqualTo(22d).Within(0.01));
+    }
+
+    [TestCase("22", 22d)]
+    [TestCase("22.5", 22.5d)]
+    [TestCase("\"22 \u00B0C\"", 22d)]
+    [TestCase("\"22.5 \u00B0C\"", 22.5d)]
+    [TestCase("\"71.6 \u00B0F\"", 22d)]
+    public void TryDecode_JsonScalar_QuantityText_ParsesAndNormalizesToConfiguredUnit(string payload, double expectedCelsius)
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.JsonScalar },
+        };
+
+        var value = CreateValue<Temperature>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "\u00B0C");
+
+        var success = _converter.TryDecode(payload, value, mapping, out var decoded);
+
+        Assert.That(success, Is.True);
+        Assert.That(decoded, Is.TypeOf<Temperature>());
+        var quantity = (Temperature)decoded!;
+        Assert.That(quantity.Unit, Is.EqualTo(TemperatureUnit.DegreeCelsius));
+        Assert.That(quantity.DegreesCelsius, Is.EqualTo(expectedCelsius).Within(0.01));
+    }
+
+    [Test]
+    public void TryDecode_RawUtf8_QuantityText_NonTemperatureDimension_IsHandledGenerically()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/speed/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var value = CreateValue<Speed>();
+        value.Unit = new ValueUnitInfo("Speed", "MeterPerSecond", "m/s");
+
+        var success = _converter.TryDecode("36 km/h", value, mapping, out var decoded);
+
+        Assert.That(success, Is.True);
+        Assert.That(decoded, Is.TypeOf<Speed>());
+        var quantity = (Speed)decoded!;
+        Assert.That(quantity.Unit, Is.EqualTo(SpeedUnit.MeterPerSecond));
+        Assert.That(quantity.MetersPerSecond, Is.EqualTo(10d).Within(0.01));
+    }
+
+    [Test]
+    public void TryDecode_RawUtf8_QuantityText_WithIncompatibleDimension_Fails()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/temp/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.RawUtf8 },
+        };
+
+        var value = CreateValue<Temperature>();
+        value.Unit = new ValueUnitInfo("Temperature", "DegreeCelsius", "\u00B0C");
+
+        var success = _converter.TryDecode("22 m/s", value, mapping, out var decoded);
+
+        Assert.That(success, Is.False);
+        Assert.That(decoded, Is.Null);
     }
 
     [Test]
