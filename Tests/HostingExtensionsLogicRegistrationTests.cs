@@ -1,7 +1,9 @@
 using HomeCompanion.Core;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Logics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace HomeCompanion.Tests;
 
@@ -84,6 +86,43 @@ public class HostingExtensionsLogicRegistrationTests
 
         public Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
             => Task.FromResult<IDiagnosticResultNode>(DiagnosticResultNode.Create(Name));
+    }
+
+    private sealed class ConfigurationOptions
+    {
+        public string? Value { get; set; }
+    }
+
+    [LogicOptions(typeof(ConfigurationOptions), "Logic:Configuration")]
+    private sealed class ConfiguredOptionsLogic : TestLogicBase
+    {
+        public ConfigurationOptions Options { get; }
+
+        public ConfiguredOptionsLogic(IOptions<ConfigurationOptions> options)
+        {
+            Options = options.Value;
+        }
+    }
+
+    [Test]
+    public void RegisterLogicType_BindsConfiguredSectionToIOptions()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Logic:Configuration:Value"] = "bound-from-config",
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+
+        HostingExtensions.RegisterLogicType(services, typeof(ConfiguredOptionsLogic));
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<ConfigurationOptions>>();
+
+        Assert.That(options.Value.Value, Is.EqualTo("bound-from-config"));
     }
 
     [Test]

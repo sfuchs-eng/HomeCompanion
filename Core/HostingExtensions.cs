@@ -22,6 +22,7 @@ using HomeCompanion.Calendar;
 using HomeCompanion.Core.Calendar;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Reflection;
 
 namespace HomeCompanion.Core;
 
@@ -660,6 +661,78 @@ public static class HostingExtensions
         if (typeof(IDiagnosable).IsAssignableFrom(type))
         {
             services.AddSingleton(typeof(IDiagnosable), sp => (IDiagnosable)sp.GetRequiredService(type));
+        }
+
+        var configuration = services.BuildServiceProvider().GetRequiredService<IConfiguration>();
+        RegisterLogicOptions(services, type, configuration);
+    }
+
+    /// <summary>
+    /// Checks for <see cref="LogicOptionsAttribute"/> on the logic type and registers the corresponding options type if present and not registered yet.
+    /// The options type must be a class with a public parameterless constructor.
+    /// The type gets bound to the configuration section named according the <see cref="LogicOptionsAttribute.ConfigSection"/> property.
+    /// </summary>
+    private static void RegisterLogicOptions(IServiceCollection services, Type logicType, IConfiguration configuration)
+    {
+        var optionsAttributes = logicType.GetCustomAttributes(typeof(LogicOptionsAttribute), inherit: false)
+            .Cast<LogicOptionsAttribute>()
+            .ToArray();
+
+        foreach (var attribute in optionsAttributes)
+        {
+            var optionsType = attribute.OptionsType;
+            var configSection = attribute.ConfigSection;
+
+            // figure out the full interface type injected from constructor injection, e.g. IOptions<MyOptions>, IOptionsMonitor<>, IOptionsSnapshot<>, etc.
+            // scan the logicType's constructors for parameters that are of type IOptions<T> where T is the optionsType
+            var optionsInterfaceTypes = logicType.GetConstructors()
+                .SelectMany(ctor => ctor.GetParameters())
+                .Select(param => param.ParameterType)
+                .Where(paramType => paramType.IsGenericType && (
+                    paramType.GetGenericTypeDefinition() == typeof(IOptions<>)
+                    || paramType.GetGenericTypeDefinition() == typeof(IOptionsMonitor<>)
+                    || paramType.GetGenericTypeDefinition() == typeof(IOptionsSnapshot<>)))
+                .Where(paramType => paramType.GetGenericArguments()[0] == optionsType)
+                .ToArray();
+
+            if (!optionsType.IsClass)
+            {
+                throw new InvalidOperationException($"The options type '{optionsType.FullName}' specified in LogicOptionsAttribute on '{logicType.FullName}' is not a class.");
+            }
+
+            if (optionsInterfaceTypes.Length == 0)
+            {
+                throw new InvalidOperationException($"The logic type '{logicType.FullName}' does not have a constructor parameter of type IOptions<{optionsType.Name}>, IOptionsMonitor<{optionsType.Name}>, or IOptionsSnapshot<{optionsType.Name}> for the options type specified in LogicOptionsAttribute.");
+            }
+
+            // Register the generic options once and bind it directly to the configured section.
+            var addOptionsMethod = typeof(OptionsServiceCollectionExtensions)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Single(m => m.Name == nameof(OptionsServiceCollectionExtensions.AddOptions)
+                    && m.IsGenericMethodDefinition
+                    && m.GetParameters().Length == 1
+                    && m.GetParameters()[0].ParameterType == typeof(IServiceCollection));
+
+            var optionsBuilder = addOptionsMethod.MakeGenericMethod(optionsType)
+                .Invoke(null, [services]);
+
+            if (!string.IsNullOrEmpty(configSection))
+            {
+                var configurationSection = configuration
+                    .GetSection(configSection);
+
+                var bindConfigurationMethod = typeof(OptionsBuilderConfigurationExtensions)
+                    .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                    .Single(m => m.Name == nameof(OptionsBuilderConfigurationExtensions.Bind)
+                        && m.IsGenericMethodDefinition
+                        && m.GetParameters().Length == 2
+                        && m.GetParameters()[0].ParameterType.IsGenericType
+                        && m.GetParameters()[0].ParameterType.GetGenericTypeDefinition() == typeof(OptionsBuilder<>)
+                        && m.GetParameters()[1].ParameterType == typeof(IConfiguration));
+
+                bindConfigurationMethod.MakeGenericMethod(optionsType)
+                    .Invoke(null, [optionsBuilder, configurationSection]);
+            }
         }
     }
 

@@ -5,6 +5,45 @@
 This file describes the standard logics provided by HomeCompanion, which are implemented in the `HomeCompanion.Logics` namespace.
 For documentation about writing your own logics, see [HomeCompanion.Logics](../README.md).
 
+## Logic-specific options and configuration
+
+Logic modules can declare a strongly typed options class and bind it directly to a configuration section via the `LogicOptionsAttribute`.
+This is the preferred pattern for logic-specific settings that should live under the application's JSON configuration.
+
+```csharp
+public class PutzmodusOptions
+{
+    public TimeSpan AutoOffDuration { get; set; } = new(4, 30, 0);
+    public TimeSpan LightDuration { get; set; } = new(0, 30, 0);
+}
+
+[LogicOptions(typeof(PutzmodusOptions), "Logics:Putzmodus")]
+public class PutzmodusLogic(
+    KnxValues knxValues,
+    IOptions<PutzmodusOptions> options,
+    ILogger<PutzmodusLogic> logger) : LogicBase(logger)
+{
+    private readonly PutzmodusOptions _options = options.Value;
+}
+```
+
+The runtime registers `TOptions` and binds it to the section named by the attribute. The same pattern works with `IOptions<T>`, `IOptionsMonitor<T>`, and `IOptionsSnapshot<T>`, as long as the constructor requests one of these interfaces for the matching `TOptions`.
+
+Example JSON:
+
+```json
+{
+  "Logics": {
+    "Putzmodus": {
+      "AutoOffDuration": "04:30:00",
+      "LightDuration": "00:30:00"
+    }
+  }
+}
+```
+
+This keeps logic defaults and runtime settings close to the module without hardcoding configuration keys in the logic itself.
+
 ## Shutter automation logic
 
 In `HomeCompanion.Logics.Shutters`
