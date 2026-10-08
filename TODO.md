@@ -54,14 +54,14 @@ Leaves this here as my personal TODO list for the time being in order to keep th
 - [ ] Estrich zu Treppen Licht (into OpenHAB?) automation
 - [ ] Halloween specific door bell response automation
 - [ ] LightingMisc/WelcomeLight: Garage & house entrance light automation
-- [ ] LightingMisc/NachtLichtElternbadToggle
+- [x] LightingMisc/NachtLichtElternbadToggle, LichtElternzimmerToggle --> ToggleBtnElternBett
 - [ ] LightingMisc/LichtGarageKeepOn
 - [ ] more in LightingMisc namespace
 - [ ] Lueftung
 - [ ] MZH Rolladen & Lighting automation
 - [ ] Pump monitor / alerting logic
-- [ ] Cleaning mode
-- [x] PIR reset job
+- [x] Cleaning mode
+- [x] Surveillance PIR reset job
 - [ ]
 
 #### New (ideas...)
