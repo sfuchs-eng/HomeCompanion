@@ -53,9 +53,9 @@ Leaves this here as my personal TODO list for the time being in order to keep th
 - [ ] Xmas lighting automation
 - [ ] Estrich zu Treppen Licht (into OpenHAB?) automation
 - [ ] Halloween specific door bell response automation
-- [ ] LightingMisc/WelcomeLight: Garage & house entrance light automation
+- [x] LightingMisc/WelcomeLight: Garage & house entrance light automation
 - [x] LightingMisc/NachtLichtElternbadToggle, LichtElternzimmerToggle --> ToggleBtnElternBett
-- [ ] LightingMisc/LichtGarageKeepOn
+- [x] LightingMisc/LichtGarageKeepOn
 - [ ] more in LightingMisc namespace
 - [ ] Lueftung
 - [ ] MZH Rolladen & Lighting automation
