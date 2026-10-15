@@ -2,10 +2,11 @@
 @rendermode InteractiveServer
 
 @using HomeCompanion
-@using HomeCompanion.Values
+@using HomeCompanion.Core
 @using HomeCompanion.Diagnostics;
 @using HomeCompanion.Extensions
 @using HomeCompanion.Logics
+@using HomeCompanion.Values
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.Extensions.DependencyInjection
 
@@ -196,6 +197,12 @@
         }
     </div>
 }
+
+<footer class="footer mt-auto py-3 bg-light border-top">
+    <div class="container text-center text-muted">
+        <small><span class="font-monospace">@BuildVersionInfo.GetBuildVersion()</span></small>
+    </div>
+</footer>
 
 @code {
     private MarkupString RenderValueStatus(ValueStatus status)
