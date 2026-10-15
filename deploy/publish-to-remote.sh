@@ -130,6 +130,9 @@ fi
 if [[ "$remote_service_exists" == "1" ]]; then
     echo "Starting $service_name.service on remote host..."
     ssh "${ssh_args[@]}" "$ssh_target" "systemctl start $service_name"
+    echo "Tailing log for 5 seconds:"
+    ssh "${ssh_args[@]}" "$ssh_target" "timeout 5s journalctl -u $service_name --no-pager -f"
+    echo
     echo "Service status for $service_name.service:"
     ssh "${ssh_args[@]}" "$ssh_target" "systemctl status --no-pager $service_name"
 fi
