@@ -663,6 +663,12 @@ public static class HostingExtensions
             services.AddSingleton(typeof(IDiagnosable), sp => (IDiagnosable)sp.GetRequiredService(type));
         }
 
+        var hasLogicOptionsAttribute = type.IsDefined(typeof(LogicOptionsAttribute), inherit: false);
+        if (!hasLogicOptionsAttribute)
+        {
+            return;
+        }
+
         var configuration = services.BuildServiceProvider().GetRequiredService<IConfiguration>();
         RegisterLogicOptions(services, type, configuration);
     }

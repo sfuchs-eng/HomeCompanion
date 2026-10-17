@@ -12,14 +12,27 @@ public sealed class ResourceConsumption(
 {
     public enum MemoryMetric
     {
-        WorkingSet,
-        PeakWorkingSet,
-        PrivateMemorySize,
-        VirtualMemorySize,
-        PagedMemorySize,
-        PagedSystemMemorySize,
-        NonpagedSystemMemorySize
+        WorkingSet, // The amount of physical memory currently used by the process.
+        PeakWorkingSet, // The maximum amount of physical memory used by the process since it started.
+        PrivateMemorySize, // The amount of memory allocated for the process that cannot be shared with other processes.
+        VirtualMemorySize, // The amount of virtual memory used by the process.
+        PagedMemorySize, // The amount of memory allocated for the process that can be paged to disk.
+        PagedSystemMemorySize, // The amount of pageable system memory used by the process.
+        NonpagedSystemMemorySize, // The amount of non-pageable system memory used by the process.
+        GarbageCollectorMemory // The amount of memory used by the garbage collector.
     }
+
+    public static readonly Dictionary<MemoryMetric, string> MemoryMetricDescriptions = new()
+    {
+        { MemoryMetric.WorkingSet, "The amount of physical memory currently used by the process." },
+        { MemoryMetric.PeakWorkingSet, "The maximum amount of physical memory used by the process since it started." },
+        { MemoryMetric.PrivateMemorySize, "The amount of memory allocated for the process that cannot be shared with other processes." },
+        { MemoryMetric.VirtualMemorySize, "The amount of virtual memory used by the process." },
+        { MemoryMetric.PagedMemorySize, "The amount of memory allocated for the process that can be paged to disk." },
+        { MemoryMetric.PagedSystemMemorySize, "The amount of pageable system memory used by the process." },
+        { MemoryMetric.NonpagedSystemMemorySize, "The amount of non-pageable system memory used by the process." },
+        { MemoryMetric.GarbageCollectorMemory, "The amount of memory used by the garbage collector." }
+    };
 
     public record MemoryConsumptionEntry(MemoryMetric Metric, double ValueMB);
 
@@ -51,7 +64,8 @@ public sealed class ResourceConsumption(
                     new MemoryConsumptionEntry(MemoryMetric.VirtualMemorySize, process.VirtualMemorySize64 / (1024.0 * 1024.0 * 1024.0)),
                     new MemoryConsumptionEntry(MemoryMetric.PagedMemorySize, process.PagedMemorySize64 / (1024.0 * 1024.0)),
                     new MemoryConsumptionEntry(MemoryMetric.PagedSystemMemorySize, process.PagedSystemMemorySize64 / (1024.0 * 1024.0)),
-                    new MemoryConsumptionEntry(MemoryMetric.NonpagedSystemMemorySize, process.NonpagedSystemMemorySize64 / (1024.0 * 1024.0))
+                    new MemoryConsumptionEntry(MemoryMetric.NonpagedSystemMemorySize, process.NonpagedSystemMemorySize64 / (1024.0 * 1024.0)),
+                    new MemoryConsumptionEntry(MemoryMetric.GarbageCollectorMemory, GC.GetTotalMemory(false) / (1024.0 * 1024.0))
                 };
             })
             .Scan(new Queue<MemoryConsumptionEntry[]>(), (queue, entry) =>
@@ -148,9 +162,9 @@ public sealed class ResourceConsumption(
         var n = await base.PopulateDiagnosticResultsAsync(parentNode, cancellationToken);
         foreach (var entry in _lastMemoryConsumptionEntries ?? Array.Empty<MemoryConsumptionEntry>())
         {
-            n.AddRecord(entry.Metric.ToString(), $"{entry.ValueMB:F2} MB");
+            n.AddRecord(entry.Metric.ToString(), $"{entry.ValueMB:F2} MB", MemoryMetricDescriptions[entry.Metric]);
         }
-        n.AddRecord("CPU Usage", $"{_lastCpuUsage * 100:F1} %");
+        n.AddRecord("CPU Usage", $"{_lastCpuUsage * 100:F1} %", "The average CPU usage of the process over the last 24 hours, including all CPUs.");
         return n;
     }
 }

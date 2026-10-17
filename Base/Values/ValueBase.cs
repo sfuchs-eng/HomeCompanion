@@ -1006,6 +1006,23 @@ public class ValueBase<T> : ValueBase, IValue<T> where T : notnull
             quantityParseType = configuredQuantityInfo.ValueType;
         }
 
+        if (double.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, formatProvider, out var scalarMagnitude)
+            && (Unit is null || string.IsNullOrWhiteSpace(Unit.UnitName)))
+        {
+            var defaultQuantityInfo = Quantity.Infos.FirstOrDefault(info =>
+                info.ValueType == typeof(T)
+                || typeof(T).IsAssignableFrom(info.ValueType)
+                || info.ValueType.IsAssignableFrom(typeof(T)));
+
+            if (defaultQuantityInfo is not null
+                && defaultQuantityInfo.BaseUnitInfo.Value is Enum baseUnitEnum
+                && Quantity.TryFrom(scalarMagnitude, baseUnitEnum, out var defaultUnitQuantity)
+                && TryAssignParsedQuantity(defaultUnitQuantity, out parsedValue))
+            {
+                return true;
+            }
+        }
+
         if (Quantity.TryParse(formatProvider, quantityParseType, rawValue, out var parsedQuantity)
             && TryAssignParsedQuantity(parsedQuantity, out parsedValue))
         {

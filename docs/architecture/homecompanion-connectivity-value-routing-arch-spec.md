@@ -36,8 +36,23 @@ Out of scope:
 : Shared helper for value mapping discovery, startup gate waiting, and write-request subscription.
 - `ValuesManager`
 : Central initialization owner and central target-based inbound router.
+- `IValueBusEndpointMapping` / concrete endpoint mapping (`KnxBusEndpointMapping`, `OpenHabBusEndpointMapping`, etc.)
+: Bus-specific metadata and conversion configuration attached to an `IValue` instance.
 - `IValue` / `IValue<T>` (`ValueBase<T>` in most implementations)
 : Bus-agnostic state holder that applies routed payloads and raises value events.
+
+### 3.1 Conversion Ownership Rule
+
+Protocol-specific conversion must be owned by the bus integration, not by the generic value abstraction.
+
+The preferred architecture is:
+
+1. the `IValue` carries bus endpoint metadata via `IValue.BusMappings`
+2. the concrete bus mapping object stores the bus-specific conversion context (for example DPT/unit metadata)
+3. the corresponding connectivity provider or bus end point mapping converts the raw or decoded external payload to the target `IValue<T>` type `T`
+4. `ValueBase<T>` performs typed assignment only, with generic parsing as a defensive fallback when no bus-specific metadata is available
+
+`ValueBase` conversion helpers are therefore a compatibility safety net, not the default or authoritative conversion path.
 
 ## 4. Regular Runtime Flow (Primary Path)
 

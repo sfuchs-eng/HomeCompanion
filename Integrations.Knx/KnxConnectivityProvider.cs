@@ -137,6 +137,7 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         }
 
         // spawn a background task to initialize all values by sending GroupValueRead for each registered group address and waiting for responses, while allowing the provider to be marked as "initialization finished" after a timeout even if some responses are missing
+        ValueInitializationCts?.Dispose();
         ValueInitializationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         ValueInitializationTask = Task.Run(() => SendInitialReadRequestsAndMonitorAsync(ValueInitializationCts.Token), cancellationToken);
     }
@@ -145,12 +146,18 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         // in case the initialization is still running, cancel it to avoid waiting for missing read responses during shutdown
-        ValueInitializationCts?.Cancel();
+        var initializationCts = ValueInitializationCts;
+        ValueInitializationCts = null;
+        initializationCts?.Cancel();
         try { await ValueInitializationTask; }
         catch (OperationCanceledException) { /* expected on cancellation, ignore */ }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "KNX value initialization task failed during shutdown.");
+        }
+        finally
+        {
+            initializationCts?.Dispose();
         }
 
         foreach (var connection in _connections)
@@ -383,28 +390,8 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                     break;
                 if (!(target?.Mapping.Communication.HasFlag(BusCommunication.AnswerReadRequests) ?? false))
                     break; // if the mapping doesn't allow answering read requests, ignore the read
-                // Send answers in a background tastk in fire-and-forget manner with a timeout to avoid blocking the KNX message processing thread in case of issues with the bus or the value initialization, as we don't want to risk missing further incoming telegrams which could also be relevant for initialization (e.g. if the initial read request triggered a response with an unexpected DPT that causes decoding to fail and thus value initialization to be skipped, but the value is still registered and can be updated by subsequent telegrams)
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                foreach (var connection in _connections)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            var responseValue = target?.Value?.OValue ?? throw new Exception($"Target value for {args.DestinationAddress} is null, cannot answer read request.");
-                            var dpt = _dptResolver.GetDpt(args.DestinationAddress);
-                            responseValue = ConvertOutboundValue(responseValue, dpt);
-                            var encodedValue = dpt.ToGroupValue(responseValue);
-
-                            var responseMessage = new GroupMessageRequest(args.DestinationAddress, encodedValue, GroupEventType.ValueResponse);
-                            await connection.SendMessageAsync(responseMessage, cts.Token);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogDebug(ex, "Failed to send KNX read response for {GA} from IValue {ValueName}.", args.DestinationAddress, target?.Value?.Name ?? "<null>");
-                        }
-                    }, cts.Token);
-                }
+                // Send responses in a background task with a timeout to avoid blocking the KNX receive callback.
+                _ = SendReadResponseAsync(args.DestinationAddress, target?.Value);
 
                 // raise to event bus.
                 _ = _publisher.PublishAsync(new KnxGroupReadReceived
@@ -433,6 +420,29 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
                 });
                 //_pendingInitialReads.TryRemove(args.DestinationAddress, out _); // no need to do this here, as it's already handled in the dedicated initial read response handler that is only registered during initialization phase
                 break;
+        }
+    }
+
+    private async Task SendReadResponseAsync(GroupAddress destinationAddress, IValue? value)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        foreach (var connection in _connections)
+        {
+            try
+            {
+                var responseValue = value?.OValue ?? throw new Exception($"Target value for {destinationAddress} is null, cannot answer read request.");
+                var dpt = _dptResolver.GetDpt(destinationAddress);
+                responseValue = ConvertOutboundValue(responseValue, dpt);
+                var encodedValue = dpt.ToGroupValue(responseValue);
+
+                var responseMessage = new GroupMessageRequest(destinationAddress, encodedValue, GroupEventType.ValueResponse);
+                await connection.SendMessageAsync(responseMessage, timeoutCts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to send KNX read response for {GA} from IValue {ValueName}.", destinationAddress, value?.Name ?? "<null>");
+            }
         }
     }
 
@@ -568,8 +578,13 @@ public sealed class KnxConnectivityProvider : ConnectivityProviderBase<GroupAddr
         if (targetValue.ValueType.IsInstanceOfType(decodedValue) || targetValue.ValueType.IsAssignableFrom(decodedValue.GetType()))
             return decodedValue;
 
-        // Log a warning that the decoded value type does not match the target IValue type, but continue with normalization attempts
-        _logger.LogDebug("Decoded value type {DecodedType} does not match target IValue type {TargetType} for IValue {ValueName}. Attempting normalization.", decodedValue.GetType().FullName, targetValue.ValueType.FullName, targetValue.Name);
+
+        if (targetValue.TryGetBusEndpoint<KnxBusEndpointMapping>(KnxBusEndpointMapping.BusId, out var knxMapping)
+            && knxMapping is not null
+            && knxMapping.TryNormalizeInboundValue(targetValue, decodedValue, dpt, out var knxNormalizedValue))
+        {
+            return knxNormalizedValue;
+        }
 
         // Fast path: scalar decoded value for quantity-typed target (for example non-unit-aware DPT mapped to quantity target with Unit metadata).
         if (IsQuantityType(targetValue.ValueType) && IsNumericScalar(decodedValue))

@@ -4,6 +4,7 @@ using SRF.Knx.Core.DPT;
 using System.Collections;
 using System.Globalization;
 using System.Text.Json;
+using UnitsNet;
 
 namespace HomeCompanion.Integrations.Knx;
 
@@ -71,6 +72,34 @@ public sealed class KnxBusEndpointMapping : ValueBusMapping<string, GroupAddress
         }
     }
 
+    public bool TryNormalizeInboundValue(IValue targetValue, object? decodedValue, DptBase? dpt, out object? normalizedValue)
+    {
+        normalizedValue = decodedValue;
+
+        if (targetValue is null || decodedValue is null || dpt is null)
+            return false;
+
+        if (targetValue.ValueType.IsInstanceOfType(decodedValue) || targetValue.ValueType.IsAssignableFrom(decodedValue.GetType()))
+            return false;
+
+        if (IsNumericScalar(decodedValue) && typeof(UnitsNet.IQuantity).IsAssignableFrom(targetValue.ValueType))
+        {
+            if (double.TryParse(decodedValue is IFormattable formattable
+                    ? formattable.ToString(null, CultureInfo.InvariantCulture)
+                    : decodedValue.ToString(),
+                NumberStyles.Float | NumberStyles.AllowThousands,
+                CultureInfo.InvariantCulture,
+                out var magnitude)
+                && TryCreateDptQuantityInstance(magnitude, dpt, targetValue.ValueType, out var quantity))
+            {
+                normalizedValue = quantity;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryConvertScalarToDptQuantity(object value, DptBase dpt, out object converted)
     {
         converted = value;
@@ -90,6 +119,31 @@ public sealed class KnxBusEndpointMapping : ValueBusMapping<string, GroupAddress
                 return false;
 
             converted = quantity;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryCreateDptQuantityInstance(double magnitude, DptBase dpt, Type expectedType, out object quantity)
+    {
+        quantity = magnitude;
+
+        if (!typeof(UnitsNet.IQuantity).IsAssignableFrom(dpt.ApplicationType))
+            return false;
+
+        if (dpt.GetType().GetProperty("KnxUnit")?.GetValue(dpt) is not Enum unitEnum)
+            return false;
+
+        try
+        {
+            var created = UnitsNet.Quantity.From(magnitude, unitEnum);
+            if (!expectedType.IsInstanceOfType(created) && created.GetType() != expectedType)
+                return false;
+
+            quantity = created;
             return true;
         }
         catch

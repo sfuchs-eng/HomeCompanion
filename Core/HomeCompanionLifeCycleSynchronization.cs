@@ -90,7 +90,7 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
 
         logger.LogDebug("Waiting for {Count} enabled connectivity provider(s) to connect. Timeout={Timeout}.", connectivityProviders.Length, timeout);
 
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         cts.CancelAfter(timeout);
 
         while (!cts.Token.IsCancellationRequested)
@@ -448,6 +448,12 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             logger.LogWarning("Timeout while waiting for background service execution loop to complete during stopping. Timeout={Timeout}.", timeout);
+        }
+        finally
+        {
+            _executeAsyncCts?.Cancel();
+            _executeAsyncCts?.Dispose();
+            _executeAsyncCts = null;
         }
     }
 

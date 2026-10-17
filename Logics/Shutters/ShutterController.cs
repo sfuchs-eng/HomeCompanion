@@ -71,6 +71,10 @@ public partial class ShutterController : LogicBase, IDiagnosable
         shutterAutomationTriggerCollector = new BackgroundRunner<ShutterAutomationComputationTriggerContext>(CollectShutterAutomationTriggersAsync);
         shutterAutomationStateComputationLoop = new BackgroundRunner<ShutterAutomationComputationTriggerContext>(ProcessShutterAutomationComputationAsync);
         shutterTargetProcessingLoop = new BackgroundRunner<ShutterTarget>(ProcessShutterTargetsAsync);
+
+        Disposables.Add(shutterAutomationTriggerCollector);
+        Disposables.Add(shutterAutomationStateComputationLoop);
+        Disposables.Add(shutterTargetProcessingLoop);
     }
 
     protected override async Task InitializeLatchedAsync(CancellationToken cancellationToken = default)
@@ -131,7 +135,8 @@ public partial class ShutterController : LogicBase, IDiagnosable
                     // read next one, then reassess the remaining time until processing for all triggers in the queue, including the new one, to decide whether to continue waiting for more triggers or to proceed with processing the collected triggers
                     try
                     {
-                        var readTimeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, new CancellationTokenSource(maxRemainingTime).Token);
+                        using var timeoutCts = new CancellationTokenSource(maxRemainingTime);
+                        using var readTimeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);
                         await channel.Reader.ReadAsync(readTimeoutTokenSource.Token);
                     }
                     catch (OperationCanceledException)
@@ -257,17 +262,21 @@ public partial class ShutterController : LogicBase, IDiagnosable
             {
                 shutterTargets.Add(await channel.Reader.ReadAsync(token));
                 // wait a short time to allow for more targets to arrive, then take the latest target for each shutter, so that we don't execute multiple times for the same shutter if multiple targets arrive in a short time, e.g. due to rapidly changing input conditions or because the state computation loop is producing multiple intermediate targets while converging towards the final target state.
-                var timeOutToken = CancellationTokenSource.CreateLinkedTokenSource(token, new CancellationTokenSource(TimeSpan.FromMilliseconds(500)).Token).Token;
-                while (timeOutToken.IsCancellationRequested)
+                using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500)))
+                using (var readTimeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token))
                 {
-                    try
+                    var timeOutToken = readTimeoutTokenSource.Token;
+                    while (timeOutToken.IsCancellationRequested)
                     {
-                        shutterTargets.Add(await channel.Reader.ReadAsync(timeOutToken));
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // expected when the read timeout is reached, just break to proceed with processing the collected targets; if the main token is cancelled, this will also throw an OperationCanceledException, but in that case we also want to break and proceed with processing any targets collected so far, and then exit the loop on the next iteration when we check token.IsCancellationRequested
-                        break;
+                        try
+                        {
+                            shutterTargets.Add(await channel.Reader.ReadAsync(timeOutToken));
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // expected when the read timeout is reached, just break to proceed with processing the collected targets; if the main token is cancelled, this will also throw an OperationCanceledException, but in that case we also want to break and proceed with processing any targets collected so far, and then exit the loop on the next iteration when we check token.IsCancellationRequested
+                            break;
+                        }
                     }
                 }
 

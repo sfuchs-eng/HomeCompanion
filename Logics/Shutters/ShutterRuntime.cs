@@ -55,8 +55,20 @@ public class ShutterRuntime(
             // we're not handling this as it's coming from ourselves.
             return;
         }
-        var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
-        Task.Run(async () => await StartExternalOverrideAsync(sender, e, cancel), cancel);
+        _ = StartExternalOverrideWithTimeoutAsync(sender, e);
+    }
+
+    private async Task StartExternalOverrideWithTimeoutAsync(object? sender, ValueWrittenEventArgs e)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await StartExternalOverrideAsync(sender, e, timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogDebug("Timed out while starting external override for shutter {ShutterKey}.", ShutterKey);
+        }
     }
 
     private TimeSpan GetPermittedManualOverrideDuration()

@@ -129,7 +129,7 @@ public class MeteoSchweizLogic(
         {
             node.AddRecord("LatestForecast", "No forecast available yet. Retrieving forecast...");
 
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
             await GetForecastAsync(cts.Token)
             .ContinueWith(t =>

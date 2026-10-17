@@ -2,19 +2,24 @@ using System.Threading.Channels;
 
 namespace HomeCompanion.Base.Utilities;
 
-public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc) : IQueueFeeder<TChannelItem>
+public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc) : IQueueFeeder<TChannelItem>, IDisposable
 {
     private readonly Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc = backgroundTaskFunc;
     private CancellationTokenSource? cts;
     private Task? backgroundTask;
+    private bool disposed;
 
     private Channel<TChannelItem> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<TChannelItem>();
 
     public void Start(CancellationToken cancellationToken = default)
     {
+        if (disposed)
+            throw new ObjectDisposedException(nameof(BackgroundRunner<TChannelItem>));
+
         if (backgroundTask != null && !backgroundTask.IsCompleted)
             throw new InvalidOperationException("Background task is already running");
 
+        cts?.Dispose();
         cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         backgroundTask = Task.Run(() => backgroundTaskFunc(Channel, cts.Token), cancellationToken);
     }
@@ -22,7 +27,11 @@ public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Chann
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         if (backgroundTask == null || backgroundTask.IsCompleted)
+        {
+            cts?.Dispose();
+            cts = null;
             return;
+        }
 
         cts!.Cancel();
         try
@@ -36,6 +45,11 @@ public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Chann
         {
             // expected when the task is cancelled, just ignore
         }
+        finally
+        {
+            cts?.Dispose();
+            cts = null;
+        }
     }
 
     public async Task EnqueueAsync(TChannelItem trigger, CancellationToken token)
@@ -47,5 +61,26 @@ public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Chann
     {
         if ( !Channel.Writer.TryWrite(trigger) )
             throw new InvalidOperationException("Failed to enqueue item, channel may be closed");
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+
+        disposed = true;
+
+        try
+        {
+            cts?.Cancel();
+        }
+        catch
+        {
+            // Best effort during shutdown.
+        }
+
+        cts?.Dispose();
+        cts = null;
+        Channel.Writer.TryComplete();
     }
 }

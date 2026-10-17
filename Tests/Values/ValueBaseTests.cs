@@ -654,6 +654,22 @@ public class ValueBaseTests
     }
 
     [Test]
+    public void TryParseValue_ForQuantityType_WithScalarValue_UsesDefaultQuantityUnit()
+    {
+        var value = CreateValue<Illuminance>();
+
+        var success = value.TryParseValue("420", out var parsedValue, out var errorMessage, CultureInfo.InvariantCulture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(success, Is.True, errorMessage);
+            Assert.That(parsedValue, Is.TypeOf<Illuminance>());
+            var parsedIlluminance = (Illuminance)parsedValue!;
+            Assert.That(parsedIlluminance.Lux, Is.EqualTo(420d).Within(0.0001));
+        });
+    }
+
+    [Test]
     public void TryParseValue_ForQuantityType_InvalidInput_ReturnsFalse()
     {
         var value = CreateValue<Temperature>();

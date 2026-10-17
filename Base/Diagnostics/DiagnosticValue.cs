@@ -9,11 +9,13 @@ namespace HomeCompanion.Base.Diagnostics;
 public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 {
     private readonly T value;
+    private readonly object _changedHandlerLock = new();
+    private EventHandler<DiagnosticRecordChangedEventArgs>? _changed;
+    private bool _valueChangedSubscribed;
 
     protected DiagnosticIValue(T value)
     {
         this.value = value;
-        this.value.Changed += HandleValueChanged;
     }
 
     public static DiagnosticIValue<T> Create(T value, IDiagnosable owner)
@@ -36,11 +38,37 @@ public class DiagnosticIValue<T> : IDynamicDiagnosticRecord where T : IValue
 
     IDiagnosticValue? IDiagnosticRecord.Value => new DiagnosticValue(() => FormattedValue);
 
-    public event EventHandler<DiagnosticRecordChangedEventArgs>? Changed;
+    public event EventHandler<DiagnosticRecordChangedEventArgs>? Changed
+    {
+        add
+        {
+            lock (_changedHandlerLock)
+            {
+                _changed += value;
+                if (_valueChangedSubscribed)
+                    return;
+
+                this.value.Changed += HandleValueChanged;
+                _valueChangedSubscribed = true;
+            }
+        }
+        remove
+        {
+            lock (_changedHandlerLock)
+            {
+                _changed -= value;
+                if (_changed is not null || !_valueChangedSubscribed)
+                    return;
+
+                this.value.Changed -= HandleValueChanged;
+                _valueChangedSubscribed = false;
+            }
+        }
+    }
 
     private void HandleValueChanged(object? sender, ValueChangedEventArgs e)
     {
-        Changed?.Invoke(this, new DiagnosticRecordChangedEventArgs
+        _changed?.Invoke(this, new DiagnosticRecordChangedEventArgs
         {
             Owner = Owner,
             Record = this,

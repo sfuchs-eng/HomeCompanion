@@ -757,6 +757,42 @@ public class KnxConnectivityProviderTests
     }
 
     [Test]
+    public async Task InboundWrite_ScalarDecodedValue_NormalizesToQuantityTargetWithoutUnitMetadata_WhenDptKnowsUnit()
+    {
+        var bus = CreateBus();
+        var knxBus = new StubKnxBus();
+        var resolver = new IlluminanceQuantityDptResolver();
+        var connection = CreateConnection(knxBus, resolver);
+        var container = new IlluminanceTargetContainer();
+        var provider = CreateProvider(connection, bus, container, resolver);
+        var dpt = resolver.GetDpt(new GroupAddress("1/0/7"));
+        var inboundRaw = dpt.ToGroupValue(Illuminance.FromLux(420.0)).Value;
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            knxBus.RaiseMessageReceived(new GroupEventArgs
+            {
+                DestinationAddress = new GroupAddress("1/0/7"),
+                SourceAddress = new IndividualAddress("1.1.22"),
+                EventType = GroupEventType.ValueWrite,
+                Value = new GroupValue(inboundRaw),
+            });
+
+            await Task.Delay(200);
+            await provider.StopAsync(CancellationToken.None);
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(container.Illuminance.Status.HasFlag(ValueStatus.Initialized), Is.True);
+            Assert.That(container.Illuminance.Status.HasFlag(ValueStatus.Live), Is.True);
+            Assert.That(container.Illuminance.Value.Lux, Is.EqualTo(420d).Within(0.2));
+        });
+    }
+
+    [Test]
     public async Task InboundResponse_GroupAddressCreatedFromUShort_ResolvesMappedTarget()
     {
         var bus = CreateBus();
@@ -880,6 +916,22 @@ public class KnxConnectivityProviderTests
         public IEnumerable<IValue> GetValues() => [TemperatureC];
     }
 
+    private sealed class IlluminanceTargetContainer : IValuesContainer
+    {
+        public ValueBase<Illuminance> Illuminance { get; } = new(NullLoggerFactory.Instance.CreateLogger<ValueBase<Illuminance>>())
+        {
+            BusMappings = new()
+            {
+                [KnxBusEndpointMapping.BusId] = new KnxBusEndpointMapping("1/0/7", "DPST-9-4")
+                {
+                    Communication = BusCommunication.RegularCommunication,
+                },
+            },
+        };
+
+        public IEnumerable<IValue> GetValues() => [Illuminance];
+    }
+
     private sealed class ScalarDoubleDptResolver : IDptResolver
     {
         private readonly DptBase _dpt = new ScalarDoubleDpt
@@ -899,6 +951,19 @@ public class KnxConnectivityProviderTests
         {
             Id = new DataPointTypeId(9, 1),
             Metadata = CreateMetadata("DPST-9-1", "Temperature Quantity DPT", "PDT_2BYTE_FLOAT"),
+        };
+
+        public DptBase GetDpt(GroupAddress groupAddress) => _dpt;
+
+        public void ClearCache() { }
+    }
+
+    private sealed class IlluminanceQuantityDptResolver : IDptResolver
+    {
+        private readonly DptBase _dpt = new IlluminanceQuantityDpt
+        {
+            Id = new DataPointTypeId(9, 4),
+            Metadata = CreateMetadata("DPST-9-4", "Illuminance Quantity DPT", "PDT_2BYTE_FLOAT"),
         };
 
         public DptBase GetDpt(GroupAddress groupAddress) => _dpt;
@@ -945,6 +1010,33 @@ public class KnxConnectivityProviderTests
                 throw new InvalidOperationException($"Expected {typeof(Temperature).Name}, got {value.GetType().Name}");
 
             return new([Convert.ToByte(Math.Round(temperature.DegreesCelsius), CultureInfo.InvariantCulture)]);
+        }
+    }
+
+    private sealed class IlluminanceQuantityDpt : DptBase
+    {
+        public IlluminanceQuantityDpt()
+            : base(new DataPointTypeId(9, 4), CreateMetadata("DPST-9-4", "Illuminance Quantity DPT", "PDT_2BYTE_FLOAT"))
+        {
+        }
+
+        public override Type BaseType => typeof(float);
+
+        public override Type ApplicationType => typeof(Illuminance);
+
+        public override object ToValue(GroupValue groupValue)
+        {
+            var scalar = groupValue.Value.Length == 0 ? 0f : BitConverter.ToSingle(groupValue.Value.ToArray(), 0);
+            return Illuminance.FromLux(scalar);
+        }
+
+        public override GroupValue ToGroupValue(object value)
+        {
+            if (value is not Illuminance illuminance)
+                throw new InvalidOperationException($"Expected {typeof(Illuminance).Name}, got {value.GetType().Name}");
+
+            var raw = BitConverter.GetBytes((float)illuminance.Lux);
+            return new GroupValue(raw);
         }
     }
 
