@@ -175,22 +175,23 @@
                     <tr>
                         <th>Service Name</th>
                         <th>Status</th>
-                        <th>Last Life Signal Time</th>
-                        <th>Life-signal period</th>
-                        <th>Error messages, first</th>
+                        <th>Status time stamp</th>
+                        <th>Last up time</th>
+                        <th>Exceptions, first</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var service in serviceMonitor.Services)
+                    @foreach (var serviceStatus in serviceMonitor
+                        .Services
+                        .Select(s => s.GetServiceStatusInfoAsync().GetAwaiter().GetResult())
+                        .OrderBy(s => s.ServiceName))
                     {
-                        var status = service.LastCheckedStatus;
-                        var lastLifeSignalTime = service.LastLifeSignalTime;
                         <tr>
-                            <td>@service.ServiceName</td>
-                            <td>@RenderServiceStatus(status)</td>
-                            <td>@(lastLifeSignalTime?.ToString("o") ?? "N/A")</td>
-                            <td>@(service.MinLifeSignalInterval?.ToString("c") ?? "-")</td>
-                            <td>@(service.LastCheckedErrorMessages?.Length > 0 ? ($"{service.LastCheckedErrorMessages?.Length}, {service.LastCheckedErrorMessages?.FirstOrDefault()}") : "-")</td>
+                            <td>@serviceStatus.ServiceName</td>
+                            <td>@RenderServiceStatus(serviceStatus.Status)</td>
+                            <td>@serviceStatus.TimeStamp.ToString("o")</td>
+                            <td>@(serviceStatus.LastUpTime?.ToString("o") ?? "N/A")</td>
+                            <td>@(serviceStatus.Exceptions?.Length > 0 ? ($"{serviceStatus.Exceptions?.Length}, {serviceStatus.Exceptions?.FirstOrDefault()?.Message}") : "-")</td>
                         </tr>
                     }
                 </tbody>
@@ -234,7 +235,9 @@
         {
             ServiceStatus.Up => new MarkupString("<span class=\"badge text-bg-success\">Running</span>"),
             ServiceStatus.Down => new MarkupString("<span class=\"badge text-bg-danger\">Error</span>"),
-            ServiceStatus.Undefined => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>"),
+            ServiceStatus.Undefined => new MarkupString("<span class=\"badge text-bg-secondary\">Undefined</span>"),
+            ServiceStatus.Deviation => new MarkupString("<span class=\"badge text-bg-warning text-dark\">Deviation</span>"),
+            ServiceStatus.Disabled => new MarkupString("<span class=\"badge text-bg-secondary\">Disabled</span>"),
             _ => new MarkupString("<span class=\"badge text-bg-secondary\">Unknown</span>")
         };
     }

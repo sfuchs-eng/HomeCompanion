@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using HomeCompanion.Abstractions;
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,6 +23,10 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     private volatile bool _acceptWrites;
 
     public bool IsEnabled => _acceptWrites;
+
+    public string ServiceName => nameof(InfluxSignalStore);
+
+    public object? Service => this;
 
     public InfluxSignalStore(
         IInfluxBatchWriter batchWriter,
@@ -103,6 +108,39 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         }
     }
 
+    private ServiceStatusInfo _lastServiceStatusInfo = new(
+        ServiceName: nameof(InfluxSignalStore),
+        Status: ServiceStatus.Undefined,
+        TimeStamp: DateTimeOffset.MinValue,
+        LastUpTime: null,
+        Exceptions: null
+    );
+
+    private void RecordServiceStatus(ServiceStatus? status = null, string? message = null, Exception? exception = null)
+    {
+        var newStatus = status ?? ServiceStatus.Down;
+        if ( message is not null )
+            _logger.LogWarning(exception, "Influx signal store service status {Status}: {Message}", newStatus, message ?? "-");
+        _lastServiceStatusInfo = new ServiceStatusInfo(
+            ServiceName: nameof(InfluxSignalStore),
+            Status: newStatus,
+            TimeStamp: _timeProvider.GetLocalNow(),
+            LastUpTime: newStatus == ServiceStatus.Up ? _timeProvider.GetLocalNow() : _lastServiceStatusInfo.LastUpTime,
+            Exceptions: exception is not null ? [exception] : null
+        );
+    }
+
+    private void RecordServiceUp()
+    {
+        _lastServiceStatusInfo = new ServiceStatusInfo(
+            ServiceName: nameof(InfluxSignalStore),
+            Status: ServiceStatus.Up,
+            TimeStamp: _timeProvider.GetLocalNow(),
+            LastUpTime: _timeProvider.GetLocalNow(),
+            Exceptions: null
+        );
+    }
+
     public ValueTask EnqueueAsync(InternalSignalMeasurement measurement, CancellationToken cancellationToken = default)
     {
         if (measurement is null)
@@ -135,6 +173,8 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     {
         var flushInterval = TimeSpan.FromSeconds(_options.FlushIntervalSeconds);
         var buffer = new List<InternalSignalMeasurement>(_options.MaxQueueSize);
+
+        RecordServiceUp();
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -181,6 +221,8 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
             await FlushAsync(buffer, CancellationToken.None);
             buffer.Clear();
         }
+
+        RecordServiceStatus(ServiceStatus.Undefined, "Influx internal signal store worker has stopped.");
     }
 
     private async Task FlushAsync(List<InternalSignalMeasurement> buffer, CancellationToken cancellationToken)
@@ -194,13 +236,21 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
             var bucket = bucketGroup.Key;
             var measurements = bucketGroup.ToList();
 
-            var success = await TryFlushWithRetryAsync(bucket, measurements, cancellationToken);
-            if (!success)
+            try
             {
-                _logger.LogError(
-                    "Dropping {DroppedCount} measurements for bucket '{Bucket}' after retries were exhausted.",
-                    measurements.Count,
-                    bucket);
+                var success = await TryFlushWithRetryAsync(bucket, measurements, cancellationToken);
+                if (!success)
+                {
+                    RecordServiceStatus(ServiceStatus.Deviation, $"Failed to flush {measurements.Count} measurements for bucket '{bucket}' after retries were exhausted.");
+                }
+                else
+                {
+                    RecordServiceUp();
+                }
+            }
+            catch (Exception ex)
+            {
+                RecordServiceStatus(ServiceStatus.Deviation, $"Exception occurred while flushing {measurements.Count} measurements for bucket '{bucket}'.", ex);
             }
         }
     }
@@ -272,5 +322,10 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         }
 
         return false;
+    }
+
+    public Task<ServiceStatusInfo> GetServiceStatusInfoAsync()
+    {
+        throw new NotImplementedException();
     }
 }

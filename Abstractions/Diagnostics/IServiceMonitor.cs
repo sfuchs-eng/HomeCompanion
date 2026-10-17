@@ -9,5 +9,5 @@ namespace HomeCompanion.Diagnostics;
 /// </remarks>
 public interface IServiceMonitor
 {
-    IEnumerable<IStatefulService> Services { get; }
+    IEnumerable<IServiceStatus> Services { get; }
 }

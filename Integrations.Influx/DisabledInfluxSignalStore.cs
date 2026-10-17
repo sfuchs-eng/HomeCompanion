@@ -1,3 +1,4 @@
+using HomeCompanion.Diagnostics;
 using HomeCompanion.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,10 @@ internal sealed class DisabledInfluxSignalStore(ILogger<DisabledInfluxSignalStor
     private readonly ILogger<DisabledInfluxSignalStore> _logger = logger;
 
     public bool IsEnabled => true; // exercise the Influx integration code path, but drop all measurements because the integration is disabled.
+
+    public string ServiceName => nameof(DisabledInfluxSignalStore);
+
+    public object? Service => this;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -46,5 +51,18 @@ internal sealed class DisabledInfluxSignalStore(ILogger<DisabledInfluxSignalStor
             count);
 
         return ValueTask.CompletedTask;
+    }
+
+    public Task<ServiceStatusInfo> GetServiceStatusInfoAsync()
+    {
+        var statusInfo = new ServiceStatusInfo(
+            ServiceName: nameof(DisabledInfluxSignalStore),
+            Status: ServiceStatus.Undefined,
+            TimeStamp: DateTimeOffset.Now,
+            LastUpTime: null,
+            Exceptions: null
+        );
+
+        return Task.FromResult(statusInfo);
     }
 }

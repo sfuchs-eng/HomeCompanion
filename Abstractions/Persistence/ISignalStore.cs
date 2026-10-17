@@ -1,3 +1,4 @@
+using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HomeCompanion.Persistence;
@@ -10,7 +11,7 @@ namespace HomeCompanion.Persistence;
 /// The contract is transport-neutral so implementations can target different backends.
 /// First implementations targets InfluxDB, implemented by the Influx extension.
 /// </remarks>
-public interface ISignalStore
+public interface ISignalStore : IServiceStatus
 {
     bool IsEnabled { get; }
 

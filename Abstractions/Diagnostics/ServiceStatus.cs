@@ -9,6 +9,11 @@ public enum ServiceStatus
     Undefined,
 
     /// <summary>
+    /// The service is prevented from operating due to configuration or other reasons, and is not expected to be operational.
+    /// </summary>
+    Disabled,
+
+    /// <summary>
     /// The service is operational and responding as expected.
     /// </summary>
     Up,

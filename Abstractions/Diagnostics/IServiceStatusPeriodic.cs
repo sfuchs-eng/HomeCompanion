@@ -1,20 +1,17 @@
 namespace HomeCompanion.Diagnostics;
 
-public interface IStatefulService
+public interface IServiceStatusPeriodic : IServiceStatus
 {
-    /// <summary>
-    /// The name of the service.
-    /// </summary>
-    string ServiceName { get; }
-
     /// <summary>
     /// The resulting service status from the last check. If no check has been performed yet, this will be <see cref="ServiceStatus.Undefined"/>.
     /// </summary>
+    [Obsolete("Use GetServiceStatusInfo() instead.")]
     ServiceStatus LastCheckedStatus { get; }
 
     /// <summary>
     /// The time when the service was last checked. If no check has been performed yet, this will be <see cref="DateTimeOffset.MinValue"/>.
     /// </summary>
+    [Obsolete("Use GetServiceStatusInfo() instead.")]
     DateTimeOffset LastCheckedTime { get; }
 
     /// <summary>
@@ -22,6 +19,7 @@ public interface IStatefulService
     /// This property is optional. It may also be <c>null</c> if the service does not provide error messages.
     /// </summary>
     /// <value>The error message from the last check, or <c>null</c> if none.</value>
+    [Obsolete("Use GetServiceStatusInfo() instead.")]
     string[]? LastCheckedErrorMessages { get; }
 
     /// <summary>
@@ -35,5 +33,6 @@ public interface IStatefulService
     /// Checks the current status of the service.
     /// </summary>
     /// <returns>The current status of the service.</returns>
+    [Obsolete("Use GetServiceStatusInfo() instead.")]
     Task<ServiceStatus> CheckStatusAsync();
 }

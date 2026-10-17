@@ -6,7 +6,7 @@ namespace HomeCompanion.Base.Diagnostics;
 /// Proxy to a service that is checked.
 /// Its status is determined by the last time it was checked and the result of that check.
 /// </summary>
-public class ServiceStatusMonitor : IStatefulService
+public class ServiceStatusMonitor : IServiceStatusPeriodic
 {
     public string ServiceName { get; init; }
     protected Func<Task<ServiceStatus>> checkStatusFunc { get; init; }
@@ -19,6 +19,8 @@ public class ServiceStatusMonitor : IStatefulService
     public virtual TimeSpan? MinLifeSignalInterval => null;
 
     public virtual DateTimeOffset? LastLifeSignalTime => null;
+
+    public object? Service => null;
 
     public ServiceStatusMonitor(string serviceName, Func<Task<ServiceStatus>> checkStatusFunc)
     {
@@ -37,5 +39,17 @@ public class ServiceStatusMonitor : IStatefulService
         LastCheckedStatus = await checkStatusFunc();
         LastCheckedTime = DateTimeOffset.Now;
         return LastCheckedStatus;
+    }
+
+    public async Task<ServiceStatusInfo> GetServiceStatusInfoAsync()
+    {
+        await CheckStatusAsync();
+        return new ServiceStatusInfo(
+            ServiceName,
+            LastCheckedStatus,
+            LastCheckedTime,
+            LastLifeSignalTime,
+            LastCheckedErrorMessages?.Select(msg => new Exception(msg)).ToArray()
+        );
     }
 }

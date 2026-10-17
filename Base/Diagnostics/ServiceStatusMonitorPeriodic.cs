@@ -4,7 +4,7 @@ using HomeCompanion.Diagnostics;
 namespace HomeCompanion.Base.Diagnostics;
 
 /// <summary>
-/// Expects a periodic update/trigger/life-beat which if absent for a certain time interval will cause the service to be considered "down".
+/// Expects a periodic update/trigger/life-beat which, if absent for a certain time interval, will cause the service to be considered "down".
 /// </summary>
 public class ServiceStatusMonitorPeriodic : ServiceStatusMonitor
 {
