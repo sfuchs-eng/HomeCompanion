@@ -326,6 +326,6 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
 
     public Task<ServiceStatusInfo> GetServiceStatusInfoAsync()
     {
-        throw new NotImplementedException();
+        return Task.FromResult(_lastServiceStatusInfo);
     }
 }
