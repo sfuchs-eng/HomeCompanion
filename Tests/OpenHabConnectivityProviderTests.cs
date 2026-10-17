@@ -500,6 +500,38 @@ public class OpenHabConnectivityProviderTests
         Assert.That(container.Light.Exceptions[^1].Message, Does.Contain("not-a-bool"));
     }
 
+    [Test]
+    public async Task InboundUndefinedState_InvalidatesTargetValue()
+    {
+        var bus = CreateBus();
+        var eventBusClient = new StubEventBusClient();
+        var restApi = new StubRestApiClient();
+        var container = new TestContainer();
+        var provider = CreateProvider(bus, bus, eventBusClient, restApi, container);
+
+        await RunWithBusAsync(bus, async () =>
+        {
+            await provider.StartAsync(CancellationToken.None);
+
+            var evt = new ItemEventTypeValue();
+            evt.Configure(EventType.ItemStateEvent);
+            evt.ItemName = "MyLight";
+            evt.State = new TypeValuePayload { Type = "Switch", Value = "UNDEF" };
+
+            eventBusClient.Raise(evt);
+            await Task.Delay(100);
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(container.Light.Status.HasFlag(ValueStatus.Error), Is.True);
+            Assert.That(container.Light.IsValid, Is.False);
+            Assert.That(container.Light.Exceptions, Is.Not.Empty);
+            Assert.That(container.Light.Exceptions[^1].Message, Does.Contain("UNDEF"));
+            Assert.That(container.Light.Exceptions[^1].Message, Does.Not.Contain("Failed to parse value 'UNDEF' as type Boolean"));
+        });
+    }
+
     private sealed class QuantityContainer : IValuesContainer
     {
         public ValueBase<Temperature> Temperature { get; } = new(NullLogger<ValueBase<Temperature>>.Instance)

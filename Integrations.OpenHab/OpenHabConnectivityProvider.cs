@@ -316,6 +316,13 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
             return null;
         }
 
+        if (IsUndefinedState(rawState))
+        {
+            AddUndefinedStateFailure(itemName, rawState, target);
+            _logger.LogTrace("OpenHab item '{ItemName}' reported undefined state '{State}', invalidating the target value.", itemName, rawState);
+            return null;
+        }
+
         _itemMetadataCache.TryGetItem(itemName, out var itemMetadata);
         var localConfig = target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping)
             ? mapping?.Config
@@ -329,8 +336,39 @@ public sealed class OpenHabConnectivityProvider : ConnectivityProviderBase<strin
         return null;
     }
 
+    private static bool IsUndefinedState(string rawState)
+    {
+        return string.Equals(rawState, "UNDEF", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(rawState, "NULL", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddUndefinedStateFailure(string itemName, string rawState, IValue target)
+    {
+        if (target is IValueEventReceiver receiver)
+            receiver.ReceiveUpdate(null);
+
+        if (target is not ValueBase valueBase)
+            return;
+
+        var message = $"OpenHAB item '{itemName}' reported undefined state '{rawState}', so the value was invalidated.";
+
+        if (target.TryGetBusEndpoint<OpenHabBusEndpointMapping>(OpenHabBusEndpointMapping.BusId, out var mapping) && mapping is not null)
+        {
+            valueBase.AddException(new ValueReceptionException(itemName, mapping, message, new FormatException(message)));
+            return;
+        }
+
+        valueBase.AddException(new ValueException(message, new FormatException(message)));
+    }
+
     private static void AddConversionFailure(string itemName, string rawState, string? stateType, IValue target, string? errorMessage)
     {
+        if (IsUndefinedState(rawState))
+        {
+            AddUndefinedStateFailure(itemName, rawState, target);
+            return;
+        }
+
         if (target is not ValueBase valueBase)
             return;
 
