@@ -18,6 +18,11 @@ public class ShutterTargetEvaluationResult
     }
 }
 
+/// <summary>
+/// Evaluates the target position for a shutter based on various conditions and constraints.
+/// Normally called from <see cref="ShutterController.ComputeShutterTargetStateAsync"/> to compute the target state for a shutter based on the current conditions and constraints.
+/// </summary>
+/// <typeparam name="ShutterTargetEvaluator">The type of the shutter target evaluator.</typeparam>
 public abstract class ShutterTargetEvaluator(
     ShutterConditionsEvaluationResult cond,
     TimeProvider timeProvider,

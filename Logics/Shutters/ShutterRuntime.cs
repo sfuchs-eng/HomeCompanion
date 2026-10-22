@@ -1,5 +1,4 @@
 using HomeCompanion.Base.Quartz;
-using HomeCompanion.Base.Utilities;
 using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Quartz;
@@ -266,6 +265,15 @@ public class ShutterRuntime(
     private DateTimeOffset? lastAntiBurglarClosureTime = null;
     private bool isAntiBurglarClosureActive = false;
 
+    /// <summary>
+    /// Evaluates the anti-burglar state for the shutter.
+    /// It does not consider the current shutter position and neither whether the force open or force close constraints are active.
+    /// </summary>
+    /// <param name="runtimeContext">The runtime context of the shutter.</param>
+    /// <param name="now">The current time.</param>
+    /// <param name="lastAntiBurglarState">Outputs the last anti-burglar state.</param>
+    /// <param name="indicatesOpening">Outputs whether the anti-burglar state indicates opening.</param>
+    /// <returns>True if the anti-burglar closure is active, false otherwise.</returns>
     public bool EvaluateAntiBurglarState(ShutterRuntimeContext runtimeContext, DateTimeOffset now, out bool lastAntiBurglarState, out bool indicatesOpening)
     {
         lastAntiBurglarState = isAntiBurglarClosureActive;

@@ -8,6 +8,13 @@ namespace HomeCompanion.Logics.Shutters;
 public partial class ShutterController
 {
     #region Shutter Automation Computation Loop
+    /// <summary>
+    /// Computes the target state for a shutter based on various conditions and triggers.
+    /// </summary>
+    /// <param name="runtimeContext">The runtime context of the shutter.</param>
+    /// <param name="triggerContext">The context that triggered the computation.</param>
+    /// <param name="token">A cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ComputeShutterTargetStateAsync(ShutterRuntimeContext runtimeContext, ShutterAutomationComputationTriggerContext triggerContext, CancellationToken token)
     {
         //==== Preps ====

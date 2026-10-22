@@ -9,6 +9,12 @@ using Microsoft.Extensions.Logging;
 /// Objective is to determine the shutter target position such that constraints are respected, daylight is maximized, but excessive heating is prevented.
 /// The thermal scenario incl. potential forecast is obtained from <see cref="ShutterConditionsEvaluationResult.ShadowingPolicy"/>.
 /// </summary>
+/// <remarks>
+/// The entry method is <see cref="EvaluateShutterTargetInternal"/> which calls the individual assessment steps in order, and returns the first non-null result.<br/>
+/// It's called typically by <see cref="ShutterTargetEvaluator.EvaluateShutterTarget"/> which in turn is called by <see cref="ShutterRuntime.EvaluateShutterTarget"/>.<br/>
+/// The individual assessment steps are implemented as protected virtual methods, so that they can be overridden in derived classes for testing or for alternative evaluation strategies.<br/>
+/// The target evaluator class is chosen in method <see cref="ShutterController.ComputeShutterTargetStateAsync"/> based on the <see cref="ShutterConditionsEvaluationResult.ShadowingPolicy"/> and <see cref="ShutterConditionsEvaluationResult.RoomShutterScene"/>.<br/>
+/// </remarks>
 public class ShutterTargetEvaluatorAuto : ShutterTargetEvaluator
 {
     private readonly IEnvironmentalsProvider environmentalsProvider;
