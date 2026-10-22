@@ -316,7 +316,13 @@ public class MqttConnectivityProviderTests
         public Subscription Subscribe(string topicPattern, EventHandler<MessageReceivedEventArgs> handleMessageReceived, EventHandler<SubscribedEventArgs>? handleSubscribed = null)
         {
             _subscriptions.Add(new SubscriptionRegistration(topicPattern, handleMessageReceived));
-            return new Subscription(topicPattern, handleMessageReceived, handleSubscribed);
+            return new Subscription(topicPattern, handleMessageReceived, handleSubscribed, subscription => _ = Unsubscribe(subscription));
+        }
+
+        public bool Unsubscribe(Subscription subscription)
+        {
+            var removed = _subscriptions.RemoveAll(s => string.Equals(s.TopicPattern, subscription.TopicPattern, StringComparison.Ordinal)) > 0;
+            return removed;
         }
 
         public void RaiseInbound(string topic, string payload)

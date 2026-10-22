@@ -32,7 +32,7 @@ public class EnvironmentalsEvaluatorLogicTests
 
         public List<IEvent> PublishedEvents { get; } = [];
 
-        public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
+        public IDisposable Subscribe<T>(IEventHandler<T> handler) where T : IEvent
         {
             if (!handlersByType.TryGetValue(typeof(T), out var handlers))
             {
@@ -40,10 +40,12 @@ public class EnvironmentalsEvaluatorLogicTests
                 handlersByType[typeof(T)] = handlers;
             }
 
-            handlers.Add((evt, ct) => handler.HandleAsync((T)evt, ct));
+            Func<IEvent, CancellationToken, ValueTask> registration = (evt, ct) => handler.HandleAsync((T)evt, ct);
+            handlers.Add(registration);
+            return new Subscription(() => handlers.Remove(registration));
         }
 
-        public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+        public IDisposable Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
         {
             if (!handlersByType.TryGetValue(typeof(T), out var handlers))
             {
@@ -51,7 +53,9 @@ public class EnvironmentalsEvaluatorLogicTests
                 handlersByType[typeof(T)] = handlers;
             }
 
-            handlers.Add((evt, ct) => handler((T)evt, ct));
+            Func<IEvent, CancellationToken, ValueTask> registration = (evt, ct) => handler((T)evt, ct);
+            handlers.Add(registration);
+            return new Subscription(() => handlers.Remove(registration));
         }
 
         public ValueTask PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
@@ -84,6 +88,20 @@ public class EnvironmentalsEvaluatorLogicTests
                     }
                 }
                 eventType = eventType.BaseType;
+            }
+        }
+
+        private sealed class Subscription(Action unsubscribe) : IDisposable
+        {
+            private readonly Action _unsubscribe = unsubscribe;
+            private int _disposed;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                    return;
+
+                _unsubscribe();
             }
         }
     }

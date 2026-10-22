@@ -9,12 +9,23 @@ public sealed class OpenHabItemMetadataCache
 
     public void Update(IEnumerable<Item> items)
     {
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var item in items)
         {
             if (string.IsNullOrWhiteSpace(item.Name))
                 continue;
 
+            seenNames.Add(item.Name);
             _itemsByName[item.Name] = item;
+        }
+
+        foreach (var existingName in _itemsByName.Keys)
+        {
+            if (seenNames.Contains(existingName))
+                continue;
+
+            _itemsByName.TryRemove(existingName, out _);
         }
     }
 

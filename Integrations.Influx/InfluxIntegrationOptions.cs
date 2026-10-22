@@ -51,6 +51,13 @@ public sealed class InfluxIntegrationOptions
     public int MaxQueueSize { get; init; } = 500;
 
     /// <summary>
+    /// Maximum number of queued measurements retained in memory waiting for flush.
+    /// New measurements are dropped when this buffer is full.
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int MaxBufferedMeasurements { get; init; } = 20_000;
+
+    /// <summary>
     /// Number of retry attempts for failed flushes.
     /// </summary>
     [Range(0, 100)]

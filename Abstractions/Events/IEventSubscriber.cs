@@ -12,8 +12,8 @@ public interface IEventSubscriber
     /// <summary>
     /// Registers <paramref name="handler"/> to be invoked for every event of type <typeparamref name="T"/> (including derived types).
     /// </summary>
-    void Subscribe<T>(IEventHandler<T> handler) where T : IEvent;
-    void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent;
+    IDisposable Subscribe<T>(IEventHandler<T> handler) where T : IEvent;
+    IDisposable Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent;
 }
 
 public delegate ValueTask EventHandlerDelegate<T>(T @event, CancellationToken cancellationToken = default) where T : IEvent;

@@ -9,7 +9,7 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
     private readonly Dictionary<Type, List<Func<IEvent, CancellationToken, ValueTask>>> _handlersByType = [];
     private readonly ILogger<PassThroughEventBus> logger = logger ?? NullLoggerFactory.Instance.CreateLogger<PassThroughEventBus>();
 
-    public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
+    public IDisposable Subscribe<T>(IEventHandler<T> handler) where T : IEvent
     {
         if (!_handlersByType.TryGetValue(typeof(T), out var handlers))
         {
@@ -17,7 +17,9 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
             _handlersByType[typeof(T)] = handlers;
         }
 
-        handlers.Add((evt, ct) => handler.HandleAsync((T)evt, ct));
+        Func<IEvent, CancellationToken, ValueTask> registration = (evt, ct) => handler.HandleAsync((T)evt, ct);
+        handlers.Add(registration);
+        return new Subscription(() => handlers.Remove(registration));
         //logger.LogTrace("Subscribed handler {HandlerType} for event type {EventType}.", handler.GetType().Name, typeof(T).Name);
     }
 
@@ -50,7 +52,7 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
         PublishAsync(@event, CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+    public IDisposable Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
     {
         if (!_handlersByType.TryGetValue(typeof(T), out var handlers))
         {
@@ -58,7 +60,23 @@ internal sealed class PassThroughEventBus(ILogger<PassThroughEventBus>? logger =
             _handlersByType[typeof(T)] = handlers;
         }
 
-        handlers.Add((evt, ct) => handler((T)evt, ct));
+        Func<IEvent, CancellationToken, ValueTask> registration = (evt, ct) => handler((T)evt, ct);
+        handlers.Add(registration);
+        return new Subscription(() => handlers.Remove(registration));
         //logger.LogTrace("Subscribed delegate handler for event type {EventType}.", typeof(T).Name);
+    }
+
+    private sealed class Subscription(Action unsubscribe) : IDisposable
+    {
+        private readonly Action _unsubscribe = unsubscribe;
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
+            _unsubscribe();
+        }
     }
 }

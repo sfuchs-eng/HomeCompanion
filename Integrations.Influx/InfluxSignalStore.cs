@@ -21,6 +21,7 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
     private Task? _workerTask;
     private CancellationTokenSource? _workerCancellation;
     private volatile bool _acceptWrites;
+    private long _droppedMeasurements;
 
     public bool IsEnabled => _acceptWrites;
 
@@ -41,11 +42,12 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         _timeProvider = timeProvider;
         _logger = logger;
 
-        _queue = Channel.CreateUnbounded<InternalSignalMeasurement>(new UnboundedChannelOptions
+        _queue = Channel.CreateBounded<InternalSignalMeasurement>(new BoundedChannelOptions(Math.Max(1, _options.MaxBufferedMeasurements))
         {
             SingleReader = true,
             SingleWriter = false,
             AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.Wait,
         });
     }
 
@@ -62,9 +64,10 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         }
 
         _logger.LogInformation(
-            "Influx internal signal store started with flush interval {FlushIntervalSeconds}s and max queue size {MaxQueueSize}.",
+            "Influx internal signal store started with flush interval {FlushIntervalSeconds}s, max batch size {MaxQueueSize}, and max buffered measurements {MaxBufferedMeasurements}.",
             _options.FlushIntervalSeconds,
-            _options.MaxQueueSize);
+            _options.MaxQueueSize,
+            _options.MaxBufferedMeasurements);
 
         return Task.CompletedTask;
     }
@@ -155,7 +158,20 @@ internal sealed class InfluxSignalStore : ISignalStore, IHostedService
         if (measurement.Fields.Count == 0)
             throw new ArgumentException("At least one field must be provided.", nameof(measurement));
 
-        return _queue.Writer.WriteAsync(measurement, cancellationToken);
+        if (_queue.Writer.TryWrite(measurement))
+            return ValueTask.CompletedTask;
+
+        var dropped = Interlocked.Increment(ref _droppedMeasurements);
+        if (dropped == 1 || dropped % 200 == 0)
+        {
+            _logger.LogWarning(
+                "Dropping Influx measurement '{Measurement}' because the in-memory buffer is full ({Capacity}). Total dropped measurements: {DroppedCount}.",
+                measurement.Measurement,
+                _options.MaxBufferedMeasurements,
+                dropped);
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask EnqueueRangeAsync(IEnumerable<InternalSignalMeasurement> measurements, CancellationToken cancellationToken = default)

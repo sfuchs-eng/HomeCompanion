@@ -2,14 +2,32 @@ using System.Threading.Channels;
 
 namespace HomeCompanion.Base.Utilities;
 
-public class BackgroundRunner<TChannelItem>(Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc) : IQueueFeeder<TChannelItem>, IDisposable
+public class BackgroundRunner<TChannelItem> : IQueueFeeder<TChannelItem>, IDisposable
 {
-    private readonly Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc = backgroundTaskFunc;
+    private readonly Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc;
     private CancellationTokenSource? cts;
     private Task? backgroundTask;
     private bool disposed;
 
-    private Channel<TChannelItem> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<TChannelItem>();
+    private Channel<TChannelItem> Channel { get; }
+
+    public BackgroundRunner(
+        Func<System.Threading.Channels.Channel<TChannelItem>, CancellationToken, Task> backgroundTaskFunc,
+        int queueCapacity = 10_000,
+        BoundedChannelFullMode fullMode = BoundedChannelFullMode.DropOldest)
+    {
+        this.backgroundTaskFunc = backgroundTaskFunc;
+
+        var boundedOptions = new BoundedChannelOptions(Math.Max(1, queueCapacity))
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
+            FullMode = fullMode,
+        };
+
+        Channel = System.Threading.Channels.Channel.CreateBounded<TChannelItem>(boundedOptions);
+    }
 
     public void Start(CancellationToken cancellationToken = default)
     {

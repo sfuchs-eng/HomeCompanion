@@ -29,6 +29,8 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
 
     private readonly ConcurrentDictionary<IValue, MqttBusEndpointMapping> _mappingByValue = new(ReferenceEqualityComparer.Instance);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _ownPublishes = new(StringComparer.Ordinal);
+    private readonly List<Subscription> _subscriptions = [];
+    private readonly Lock _subscriptionsLock = new();
 
     private MqttTopicRouter _topicRouter = new([]);
 
@@ -104,6 +106,8 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        DisposeSubscriptions();
+
         try
         {
             await _brokerConnection.StopAsync(cancellationToken);
@@ -154,6 +158,8 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
 
     private void RegisterSubscriptions()
     {
+        DisposeSubscriptions();
+
         if (!_integrationOptions.Brokers.TryGetValue(_brokerName, out var brokerOptions))
             return;
 
@@ -172,7 +178,7 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
 
         foreach (var pattern in patterns)
         {
-            _brokerConnection.Subscribe(pattern, OnMessageReceived, (_, args) =>
+            var subscription = _brokerConnection.Subscribe(pattern, OnMessageReceived, (_, args) =>
             {
                 _logger.LogInformation(
                     "MQTT broker '{BrokerName}' subscribed to '{TopicPattern}' with result '{Result}'.",
@@ -180,6 +186,34 @@ internal sealed class MqttConnectivityProvider : ConnectivityProviderBase<string
                     args.Subscription.TopicPattern,
                     args.SubscriptionResultItem.ResultCode);
             });
+
+            lock (_subscriptionsLock)
+                _subscriptions.Add(subscription);
+        }
+    }
+
+    private void DisposeSubscriptions()
+    {
+        Subscription[] subscriptions;
+        lock (_subscriptionsLock)
+        {
+            if (_subscriptions.Count == 0)
+                return;
+
+            subscriptions = [.. _subscriptions];
+            _subscriptions.Clear();
+        }
+
+        foreach (var subscription in subscriptions)
+        {
+            try
+            {
+                subscription.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to dispose MQTT subscription for topic '{TopicPattern}'.", subscription.TopicPattern);
+            }
         }
     }
 

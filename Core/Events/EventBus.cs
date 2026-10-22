@@ -16,10 +16,18 @@ namespace HomeCompanion.Core.Events;
 /// </remarks>
 internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubscriber
 {
-    private readonly Channel<IEvent> _channel = Channel.CreateUnbounded<IEvent>(
-        new UnboundedChannelOptions { SingleReader = true });
+    private const int MaxQueuedEvents = 20_000;
 
-    private readonly Dictionary<Type, List<Func<IEvent, CancellationToken, ValueTask>>> _handlers = [];
+    private readonly Channel<IEvent> _channel = Channel.CreateBounded<IEvent>(
+        new BoundedChannelOptions(MaxQueuedEvents)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
+        });
+
+    private readonly Dictionary<Type, List<SubscriptionRegistration>> _handlers = [];
     private readonly Lock _handlersLock = new();
     private readonly ILogger<EventBus> _logger;
 
@@ -38,10 +46,15 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
     }
 
     /// <inheritdoc/>
-    public void Subscribe<T>(IEventHandler<T> handler) where T : IEvent
+    public IDisposable Subscribe<T>(IEventHandler<T> handler) where T : IEvent
+        => SubscribeInternal(typeof(T), (e, ct) => handler.HandleAsync((T)e, ct));
+
+    public IDisposable Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
+        => SubscribeInternal(typeof(T), (e, ct) => handler((T)e, ct));
+
+    private IDisposable SubscribeInternal(Type type, Func<IEvent, CancellationToken, ValueTask> handler)
     {
-        var type = typeof(T);
-        int handlerCount;
+        var registration = new SubscriptionRegistration(Guid.NewGuid(), handler);
         lock (_handlersLock)
         {
             if (!_handlers.TryGetValue(type, out var list))
@@ -50,8 +63,26 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
                 _handlers[type] = list;
             }
 
-            list.Add((e, ct) => handler.HandleAsync((T)e, ct));
-            handlerCount = list.Count;
+            list.Add(registration);
+        }
+
+        return new Subscription(() => Unsubscribe(type, registration.Id));
+    }
+
+    private void Unsubscribe(Type type, Guid id)
+    {
+        lock (_handlersLock)
+        {
+            if (!_handlers.TryGetValue(type, out var list))
+                return;
+
+            var index = list.FindIndex(r => r.Id == id);
+            if (index < 0)
+                return;
+
+            list.RemoveAt(index);
+            if (list.Count == 0)
+                _handlers.Remove(type);
         }
     }
 
@@ -111,7 +142,7 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
         Type? type = @event.GetType();
         while (type is not null && type != typeof(object))
         {
-            Func<IEvent, CancellationToken, ValueTask>[] handlers;
+            SubscriptionRegistration[] handlers;
             lock (_handlersLock)
             {
                 if (!_handlers.TryGetValue(type, out var list))
@@ -130,7 +161,7 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
                 {
                     try
                     {
-                        await handler(@event, cancellationToken);
+                        await handler.Handler(@event, cancellationToken);
                     }
                     catch (Exception ex)
                     {
@@ -143,28 +174,27 @@ internal sealed class EventBus : BackgroundService, IEventPublisher, IEventSubsc
         }
     }
 
-    public void Subscribe<T>(EventHandlerDelegate<T> handler) where T : IEvent
-    {
-        var type = typeof(T);
-        int handlerCount;
-        lock (_handlersLock)
-        {
-            if (!_handlers.TryGetValue(type, out var list))
-            {
-                list = [];
-                _handlers[type] = list;
-            }
-
-            list.Add((e, ct) => handler((T)e, ct));
-            handlerCount = list.Count;
-        }
-    }
-
     public void Publish(IEvent @event)
     {
         if (!_channel.Writer.TryWrite(@event))
         {
             throw new InvalidOperationException($"Event bus is closed; cannot publish event of type {@event.GetType().Name}.");
+        }
+    }
+
+    private sealed record SubscriptionRegistration(Guid Id, Func<IEvent, CancellationToken, ValueTask> Handler);
+
+    private sealed class Subscription(Action unsubscribe) : IDisposable
+    {
+        private readonly Action _unsubscribe = unsubscribe;
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
+            _unsubscribe();
         }
     }
 }
