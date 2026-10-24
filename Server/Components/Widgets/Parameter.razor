@@ -8,9 +8,14 @@ else
 {
     <div class="d-flex align-items-center gap-2">
         <span class="text-muted">@Value.Label</span>
-        <span class="fw-semibold">@Value.FormatValue()</span>
+        <span class="fw-semibold">@GetFormattedValue()</span>
         <button type="button" class="btn btn-sm btn-outline-primary" @onclick="OpenDialog">Edit</button>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(_renderErrorMessage))
+    {
+        <div class="text-danger small mt-1">@_renderErrorMessage</div>
+    }
 
     @if (_isDialogOpen)
     {
@@ -53,19 +58,29 @@ else
     private bool _isDialogOpen;
     private string _newValueText = string.Empty;
     private string? _errorMessage;
+    private string? _renderErrorMessage;
     private readonly string _inputId = $"parameter-modal-input-{Guid.NewGuid():N}";
     private IDisposable? _changedSubscription;
+    private IParameter? _subscribedParameter;
 
     protected override void OnParametersSet()
     {
         if (Value is null)
         {
             _isDialogOpen = false;
+            _renderErrorMessage = null;
+            DisposeSubscription();
             return;
         }
 
-        _newValueText = Value.FormatValue();
-        _changedSubscription ??= Value.RegisterChangedCallback(_ => InvokeAsync(StateHasChanged));
+        _newValueText = GetFormattedValue();
+
+        if (!ReferenceEquals(_subscribedParameter, Value))
+        {
+            DisposeSubscription();
+            _changedSubscription = Value.RegisterChangedCallback(_ => InvokeAsync(StateHasChanged));
+            _subscribedParameter = Value;
+        }
     }
 
     private void OpenDialog()
@@ -73,7 +88,7 @@ else
         if (Value is null)
             return;
 
-        _newValueText = Value.FormatValue();
+        _newValueText = GetFormattedValue();
         _errorMessage = null;
         _isDialogOpen = true;
     }
@@ -110,6 +125,33 @@ else
 
     public void Dispose()
     {
+        DisposeSubscription();
+    }
+
+    private string GetFormattedValue()
+    {
+        if (Value is null)
+        {
+            _renderErrorMessage = null;
+            return string.Empty;
+        }
+
+        try
+        {
+            _renderErrorMessage = null;
+            return Value.FormatValue();
+        }
+        catch (Exception ex)
+        {
+            _renderErrorMessage = $"Failed to format parameter '{Value.Name}': {ex.Message}";
+            return "<error>";
+        }
+    }
+
+    private void DisposeSubscription()
+    {
         _changedSubscription?.Dispose();
+        _changedSubscription = null;
+        _subscribedParameter = null;
     }
 }

@@ -59,3 +59,16 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* Ensure native select menus keep readable text regardless of active theme overrides. */
+.hc-page-select {
+    color: #212529 !important;
+    background-color: #ffffff !important;
+    color-scheme: light;
+}
+
+.hc-page-select option,
+.hc-page-select optgroup {
+    color: #212529 !important;
+    background-color: #ffffff !important;
+}

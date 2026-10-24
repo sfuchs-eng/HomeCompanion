@@ -9,11 +9,16 @@
 else
 {
     <div class="d-flex flex-column gap-2">
-        @foreach (var parameter in ParametersContainer.Parameters)
+        @foreach (var parameter in _parameters)
         {
             <Parameter Value="@parameter" />
         }
     </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="text-danger small mt-2">@_errorMessage</div>
 }
 
 @code
@@ -21,15 +26,35 @@ else
     [Microsoft.AspNetCore.Components.Parameter]
     public IParametersContainer? ParametersContainer { get; set; }
 
-    List<IParameterCallbackRegistration> _changedSubscriptions = [];
+    private List<IParameterCallbackRegistration> _changedSubscriptions = [];
+    private List<IParameter> _parameters = [];
+    private string? _errorMessage;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        base.OnInitialized();
-        foreach (var parameter in ParametersContainer?.Parameters ?? Enumerable.Empty<IParameter>())
+        base.OnParametersSet();
+        ResetSubscriptions();
+        _errorMessage = null;
+
+        if (ParametersContainer is null)
         {
-            var subscription = parameter.RegisterChangedCallback(OnParameterChanged);
-            _changedSubscriptions.Add(subscription);
+            _parameters = [];
+            return;
+        }
+
+        try
+        {
+            _parameters = ParametersContainer.Parameters.ToList();
+            foreach (var parameter in _parameters)
+            {
+                var subscription = parameter.RegisterChangedCallback(OnParameterChanged);
+                _changedSubscriptions.Add(subscription);
+            }
+        }
+        catch (Exception ex)
+        {
+            _parameters = [];
+            _errorMessage = $"Failed to load parameters for '{ParametersContainer.Name}': {ex.Message}";
         }
     }
 
@@ -40,9 +65,16 @@ else
 
     public void Dispose()
     {
+        ResetSubscriptions();
+    }
+
+    private void ResetSubscriptions()
+    {
         foreach (var subscription in _changedSubscriptions)
         {
             subscription.Dispose();
         }
+
+        _changedSubscriptions.Clear();
     }
 }

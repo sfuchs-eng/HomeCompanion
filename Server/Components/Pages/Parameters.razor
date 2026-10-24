@@ -3,21 +3,29 @@
 
 @using HomeCompanion.Values;
 @using HomeCompanion.Server.Components.Widgets;
+@using Microsoft.Extensions.Logging
+@using Radzen
 
 @inject IParametersProvider ParametersProvider
+@inject ILogger<Parameters> Logger
 
 <PageTitle>Parameters</PageTitle>
 
 <h1>Parameters</h1>
 
+@if (!string.IsNullOrWhiteSpace(_containerLoadMessage))
+{
+    <div class="alert alert-warning" role="alert">@_containerLoadMessage</div>
+}
+
 <!-- provide a selector for the parameters container -->
-<select class="form-select mb-3" @bind="SelectedContainerId">
-    <option value="">Select a parameters container</option>
-    @foreach (var container in ParametersProvider.ParameterContainers)
-    {
-        <option value="@container.Name">@container.Name</option>
-    }
-</select>
+<RadzenDropDown Data="@ParameterContainerNames"
+                TValue="string"
+                Value="@SelectedContainerId"
+                Change="OnContainerSelected"
+                Placeholder="Select a parameters container"
+                AllowClear="true"
+                Style="width: 100%; margin-bottom: 1rem;" />
 
 @if (SelectedContainer is null)
 {
@@ -29,6 +37,69 @@ else
 }
 
 @code {
+    private sealed record ParameterContainerOption(string Name, IParametersContainer Container);
+
     private string? SelectedContainerId { get; set; }
-    private IParametersContainer? SelectedContainer => ParametersProvider.ParameterContainers.FirstOrDefault(c => c.Name == SelectedContainerId);
+    private string? _containerLoadMessage;
+    private readonly List<ParameterContainerOption> _containerOptions = [];
+
+    private IEnumerable<string> ParameterContainerNames => _containerOptions.Select(c => c.Name);
+    private IParametersContainer? SelectedContainer => _containerOptions
+        .FirstOrDefault(c => c.Name == SelectedContainerId)
+        ?.Container;
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        LoadContainerOptions();
+
+        if (!_containerOptions.Any(c => c.Name == SelectedContainerId))
+        {
+            SelectedContainerId = null;
+        }
+    }
+
+    private void LoadContainerOptions()
+    {
+        _containerOptions.Clear();
+        _containerLoadMessage = null;
+
+        var skipped = 0;
+
+        foreach (var container in ParametersProvider.ParameterContainers)
+        {
+            try
+            {
+                var name = container.Name;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                if (_containerOptions.Any(c => c.Name == name))
+                {
+                    continue;
+                }
+
+                _containerOptions.Add(new ParameterContainerOption(name, container));
+            }
+            catch (Exception ex)
+            {
+                skipped++;
+                Logger.LogError(ex, "Failed to load parameter container entry.");
+            }
+        }
+
+        if (skipped > 0)
+        {
+            _containerLoadMessage = $"Skipped {skipped} invalid parameter container entr{(skipped == 1 ? "y" : "ies")}. Check server logs for details.";
+        }
+    }
+
+    private Task OnContainerSelected(object? value)
+    {
+        SelectedContainerId = value?.ToString();
+        return Task.CompletedTask;
+    }
 }

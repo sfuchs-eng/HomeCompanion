@@ -3,6 +3,7 @@
 
 @using HomeCompanion.Diagnostics
 @using HomeCompanion.Server.Components.Widgets
+@using Radzen
 
 @inject IDiagnosticBrowser Browser
 
@@ -10,13 +11,12 @@
     <h1>System Diagnostics</h1>
 
     <!-- Select a diagnosable component -->
-    <select class="form-control" @onchange="OnDiagnosableSelected">
-        <option value="">-- Select a diagnostic source --</option>
-        @foreach (var item in Browser.GetDiagnosables())
-        {
-            <option value="@item.Name">@item.Name</option>
-        }
-    </select>
+    <RadzenDropDown Data="@DiagnosableNames"
+                    @bind-Value="SelectedDiagnosableName"
+                    Placeholder="Select a diagnostic source"
+                    AllowClear="true"
+                    Change="OnDiagnosableSelected"
+                    Style="width: 100%; margin-bottom: 1rem;" />
 
     @if (isLoading)
     {
@@ -37,10 +37,12 @@
 @code {
     private IDiagnosticResultNode? rootNode;
     private bool isLoading;
+    private string? SelectedDiagnosableName { get; set; }
+    private IEnumerable<string> DiagnosableNames => Browser.GetDiagnosables().Select(d => d.Name);
 
-    private async Task OnDiagnosableSelected(ChangeEventArgs e)
+    private async Task OnDiagnosableSelected(object? value)
     {
-        var selectedName = e.Value?.ToString();
+        var selectedName = value?.ToString();
         if (string.IsNullOrWhiteSpace(selectedName)) return;
 
         isLoading = true;
