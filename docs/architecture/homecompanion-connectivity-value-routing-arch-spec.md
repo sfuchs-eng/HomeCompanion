@@ -175,7 +175,22 @@ The stage semantics are used to prevent "initialization downgrades" where a valu
 - Values
 : Thread-safe state updates, typed payload application, local validation/parsing helpers, value event publication.
 
-## 7. Related Documents
+## 7. Model-Bound Sensor Pattern for Future Features
+
+Sensor-like features that bridge externally sourced values into a HomeCompanion runtime model must follow the same pattern used for the rain sensor.
+
+The required architecture is:
+
+1. a public config model in `HomeCompanion.Base.Model` (for example `CfgRainSensor`)
+2. a public runtime special model in the same namespace (for example `RainSensor : Special<CfgRainSensor>`)
+3. runtime `IValue` properties on that special model, typed as quantity-aware values such as `IValue<Length>`
+4. config string references resolved via `IValueProvider` using `ModelValueBinding`
+5. local-only backing IValue instances living in a transport-specific value container such as `MqttValues`
+6. no direct use of local concrete value instances inside the public logic or domain service
+
+This ensures future features remain bus-agnostic in the public layer while still allowing local integrations to bind to MQTT, KNX, or OpenHAB endpoints without coupling the public model to those transport implementations.
+
+## 8. Related Documents
 
 - [README value event architecture](../../README.md#value-event-architecture)
 - [ADR-0001: Bus values framework](../adr/0001-bus-values-framework.md)

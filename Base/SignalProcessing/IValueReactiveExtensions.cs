@@ -82,11 +82,10 @@ public static class IValueReactiveExtensions
     {
         return source
             .Buffer(window)
+            .Where(values => values.Count > 0)
             .Select(values =>
             {
-                if (values.Count == 0) return default(T);
-
-                // Calculate the time-weighted average
+                // Calculate the time-weighted average from the valid samples collected during the window.
                 double totalWeight = values.Count;
                 double weightedSum = values.Sum(v => Convert.ToDouble(v));
                 return (T)Convert.ChangeType(weightedSum / totalWeight, typeof(T));
@@ -97,15 +96,18 @@ public static class IValueReactiveExtensions
     {
         return source
             .DistinctUntilChanged()
-            .Scan((previous: default(T), current: default(T)), (acc, current) =>
+            .Scan((hasValue: false, lastEmitted: default(T)), (state, current) =>
             {
-                if (acc.previous.Equals(default(T)) || Math.Abs(Convert.ToDouble(current) - Convert.ToDouble(acc.previous)) > threshold)
+                if (!state.hasValue)
                 {
-                    return (previous: acc.current, current: current);
+                    return (true, current);
                 }
-                return acc;
+
+                var delta = Math.Abs(Convert.ToDouble(current) - Convert.ToDouble(state.lastEmitted));
+                return (true, delta > threshold ? current : state.lastEmitted);
             })
-            .Select(acc => acc.current);
+            .DistinctUntilChanged()
+            .Select(state => state.lastEmitted);
     }
 
     /// <summary>

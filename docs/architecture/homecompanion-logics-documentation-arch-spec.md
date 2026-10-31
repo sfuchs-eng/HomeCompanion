@@ -38,7 +38,38 @@ Out of scope:
 
 ## 4. Documentation Topology
 
-## 4.1 Canonical Sources
+## 4.1 Logic Architecture Templates
+
+The HomeCompanion codebase intentionally supports two implementation templates for logic modules.
+
+### Public/shared logic template (default)
+
+Use this template for common logic that should be reusable and not tied to a specific local installation.
+
+- The logic lives in a public project, typically `HomeCompanion.Logics` or another public logic library.
+- The configuration and runtime model live in the public model layer (`HomeCompanion.Base.Model` and related public model classes).
+- The logic resolves runtime model instances via `IModelProvider` and binds `IValue` references through the model value binder.
+- The local project retains all transport-specific `IValueContainer` implementations and bus mappings.
+- This keeps the generic logic independent from MQTT, OpenHAB, KNX, and local site wiring details.
+
+This is the preferred pattern for logic that is conceptually generic and not location-specific.
+
+### Local/special logic template (exception)
+
+Use this template for very special, building-specific, or site-specific logic that is not intended for reuse.
+
+- The logic lives in the local project and injects its relevant `IValueContainer`(s) directly.
+- It may reference concrete local `IValue` instances and hard-code local assumptions.
+- This is the correct exception for site-specific automation or bespoke local behavior.
+
+### Decision guidance
+
+- Prefer the public/shared template for generic logic.
+- Prefer the local/special template for building-specific logic.
+- Mixed solutions are acceptable only when a small local adapter intentionally bridges a public core to the local transport layer.
+- Avoid accidental local coupling in public logic; public logic must not hard-code local MQTT/KNX/OpenHAB/other values or local `IValueContainer` implementations.
+
+## 4.2 Canonical Sources
 
 - Architecture-level intent and constraints:
 

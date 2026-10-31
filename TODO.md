@@ -28,11 +28,13 @@ ramp-up life use with what's in now, substitute legacy solution piece by piece.
 - [x] Sun position calculation (simple)
 - [x] Swiss Meteo weather forecast
 - [ ] Redo: SunShade
-- [ ] Rain sensor integration (ESP32 based tick counter, connected via MQTT topic on which cumulative rain quantities in mm = l/m2 are published)
+- [x] Rain sensor integration (ESP32 based tick counter, connected via MQTT topic on which cumulative rain quantities in mm = l/m2 are published)
 - [ ] Soil humidity model
 - [ ] Water distribution valves control logic (for irrigation of garden and lawn areas)
   - [ ] including "GardenWaterEvents" namespace, essentially being a dedicated event bus for irrigation and water distribution events, to decouple the logic from the bus-specific implementation (KNX, MQTT, OpenHAB, ...).
 - [ ] Irrigation scheduling logic (for garden and lawn areas; bases on soil humidity model, rain sensor, weather forecast, and irrigation valve control logic)
+- [ ] Thermal mode control automation based on building temperatures, outdoor temps and weather forecast, to optimize energy consumption and comfort.
+- [ ] Floor heating valves control logic
 
 Low prio:
 
@@ -48,8 +50,6 @@ Leaves this here as my personal TODO list for the time being in order to keep th
 - [x] Wesco cooker hood (2016 type with extremely basic KNX interface) control logic
 - [x] Automatic ventilation control logic for roof/other motorized windows
 - [x] Basic heat pump control (heat/cool/off type) logic
-- [ ] Floor heating valves control logic
-- [ ] Thermal mode control automation based on building temperatures, outdoor temps and weather forecast, to optimize energy consumption and comfort.
 - [ ] Xmas lighting automation
 - [ ] Estrich zu Treppen Licht (into OpenHAB?) automation
 - [ ] Halloween specific door bell response automation
@@ -66,7 +66,7 @@ Leaves this here as my personal TODO list for the time being in order to keep th
 
 #### New (ideas...)
 
-- [ ] Hail alert (from )
+- [ ] Hail alert (from MeteoSwiss radar data)
 
 ### Varia
 

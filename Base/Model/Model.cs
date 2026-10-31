@@ -31,6 +31,16 @@ public class Model : ModelEntityWithConfig<CfgModel>
         return Buildings.Values.SelectMany(b => b.Specials.Values.OfType<T>()).Concat(Specials.Values.OfType<T>());
     }
 
+    public T GetUniqueSpecial<T>() where T : ISpecial
+    {
+        var specials = GetAllSpecials<T>().ToList();
+        if (specials.Count == 0)
+            throw new InvalidOperationException($"No special of type '{typeof(T).Name}' is configured in the model, one is expected.");
+        if (specials.Count > 1)
+            throw new InvalidOperationException($"Multiple specials of type '{typeof(T).Name}' are configured in the model, but only one is expected.");
+        return specials[0];
+    }
+
     public IReadOnlyDictionary<string, T> GetAllSpecialsByName<T>() where T : ISpecial
     {
         var specials = new Dictionary<string, T>();
@@ -38,7 +48,7 @@ public class Model : ModelEntityWithConfig<CfgModel>
         {
             foreach (var special in building.Specials.Values.OfType<T>())
             {
-                if ( specials.ContainsKey(special.Name) )
+                if (specials.ContainsKey(special.Name))
                 {
                     throw new InvalidOperationException($"Duplicate special name '{special.Name}' found in building '{building.Name}'. Special names must be unique across the entire model.");
                 }
@@ -47,7 +57,7 @@ public class Model : ModelEntityWithConfig<CfgModel>
         }
         foreach (var special in Specials.Values.OfType<T>())
         {
-            if ( specials.ContainsKey(special.Name) )
+            if (specials.ContainsKey(special.Name))
             {
                 throw new InvalidOperationException($"Duplicate special name '{special.Name}' found in model root. Special names must be unique across the entire model.");
             }

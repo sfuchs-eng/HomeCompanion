@@ -1,6 +1,7 @@
 using System.Reactive.Subjects;
 using System.Reactive.Linq;
 using HomeCompanion.Base.Model;
+using HomeCompanion.Base.SignalProcessing;
 using HomeCompanion.Events;
 using HomeCompanion.Logics.Shutters;
 using HomeCompanion.Logics.Shutters.AutoShadow;
@@ -8,6 +9,7 @@ using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using UnitsNet;
+using UnitsNet.Units;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 

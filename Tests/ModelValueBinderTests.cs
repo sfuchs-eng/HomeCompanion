@@ -1,7 +1,12 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
+using HomeCompanion.Logics;
+using HomeCompanion.Logics.Garden;
+using HomeCompanion.Tests.Logics.Shutters;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Quartz;
 using UnitsNet;
 
 namespace HomeCompanion.Tests;
@@ -67,6 +72,124 @@ public class ModelValueBinderTests
         sut.Bind(model);
 
         Assert.That(special.OverriddenProbeValue, Is.SameAs(overrideValue));
+    }
+
+    [Test]
+    public void Bind_BindsRainSensorValues_UsingConfiguredReferences()
+    {
+        var rainInput = CreateValue<Length>("RainInput");
+        var rain24h = CreateValue<Length>("Rain24h");
+        var rain48h = CreateValue<Length>("Rain48h");
+        var rain72h = CreateValue<Length>("Rain72h");
+        var rain1w = CreateValue<Length>("Rain1w");
+        var rain2w = CreateValue<Length>("Rain2w");
+
+        var resolver = new StubValueReferenceProvider(new Dictionary<string, IValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ref-rain-input"] = rainInput,
+            ["ref-rain-24h"] = rain24h,
+            ["ref-rain-48h"] = rain48h,
+            ["ref-rain-72h"] = rain72h,
+            ["ref-rain-1w"] = rain1w,
+            ["ref-rain-2w"] = rain2w,
+        });
+
+        var sut = new ModelValueBinder(resolver, NullLogger<ModelValueBinder>.Instance);
+        var cfg = new CfgRainSensor
+        {
+            RainInputReference = "ref-rain-input",
+            RainActual24hReference = "ref-rain-24h",
+            RainActual48hReference = "ref-rain-48h",
+            RainActual72hReference = "ref-rain-72h",
+            RainActual1wReference = "ref-rain-1w",
+            RainActual2wReference = "ref-rain-2w",
+        };
+        var sensor = new RainSensor("Rain", cfg);
+        var cfgBuilding = new CfgBuilding
+        {
+            Specials = new Dictionary<string, CfgBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Rain"] = cfg,
+            },
+        };
+        var building = new Building("Main", cfgBuilding)
+        {
+            Specials = new Dictionary<string, IBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Rain"] = sensor,
+            },
+        };
+        var model = new Model(new CfgModel())
+        {
+            Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main"] = building,
+            },
+        };
+
+        sut.Bind(model);
+
+        Assert.That(sensor.RainInput, Is.SameAs(rainInput));
+        Assert.That(sensor.RainActual24h, Is.SameAs(rain24h));
+        Assert.That(sensor.RainActual48h, Is.SameAs(rain48h));
+        Assert.That(sensor.RainActual72h, Is.SameAs(rain72h));
+        Assert.That(sensor.RainActual1w, Is.SameAs(rain1w));
+        Assert.That(sensor.RainActual2w, Is.SameAs(rain2w));
+    }
+
+    [Test]
+    public async Task RainSensorLogic_UsesModelProviderToResolveBoundRainSensor()
+    {
+        var rainInput = new ValueBase<Length>(NullLogger<ValueBase<Length>>.Instance);
+        var rain24h = new ValueBase<Length>(NullLogger<ValueBase<Length>>.Instance);
+        var cfg = new CfgRainSensor();
+        var sensor = new RainSensor("Rain", cfg)
+        {
+            RainInput = rainInput,
+            RainActual24h = rain24h,
+        };
+
+        var model = new Model(new CfgModel())
+        {
+            Buildings = new Dictionary<string, Building>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Main"] = new Building("Main", new CfgBuilding
+                {
+                    Specials = new Dictionary<string, CfgBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Rain"] = cfg,
+                    },
+                })
+                {
+                    Specials = new Dictionary<string, IBuildingSpecial>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Rain"] = sensor,
+                    },
+                },
+            },
+        };
+
+        var rainService = new RainService(TimeProvider.System);
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(s => s.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+
+        var schedulerFactory = new Mock<ISchedulerFactory>();
+        schedulerFactory.Setup(f => f.GetScheduler(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(scheduler.Object);
+
+        var logic = new RainSensorLogic(
+            schedulerFactory.Object,
+            new StubModelProvider(model),
+            rainService,
+            TimeProvider.System,
+            NullLogger<RainSensorLogic>.Instance);
+
+        await logic.InitializeAsync();
+        rainInput.Write(Length.FromMillimeters(3.5));
+
+        Assert.That(rainService.AcceptedTickCount, Is.EqualTo(1));
+        Assert.That(rain24h.Value.Millimeters, Is.EqualTo(3.5).Within(0.0001));
     }
 
     [Test]

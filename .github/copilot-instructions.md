@@ -69,6 +69,41 @@ New logic modules go in `HomeCompanion.Logics` (or any project referencing `Home
 2. Register in DI; enable/disable per instance via configuration
 3. Multiple instances can run simultaneously (e.g. production + testing side-by-side)
 
+### Logic architecture templates
+
+There are two valid templates for logic implementation. New logics must pick one deliberately and keep the boundary explicit.
+
+#### 1) Public/shared logic template (preferred for reusable logic)
+
+Use this for common, generic functionality intended to be shared or reused across sites.
+
+- The logic lives in a public project such as `HomeCompanion.Logics` or a dedicated public logic library.
+- The configuration and runtime model live in the public model layer (`HomeCompanion.Base.Model` / `HomeCompanion.Base.*` as appropriate).
+- The logic resolves runtime objects through the model and `IModelProvider` / `ModelValueBinder`, not through a local `IValueContainer`.
+- The logic depends on abstract services and `IValue` interfaces, not on local transport-specific containers or static MQTT values.
+- The local project owns the actual `IValueContainer` definitions and transport wiring (`MqttValues`, OpenHAB values, etc.).
+- This is the default pattern for common logic and should be used whenever the logic is conceptually generic rather than site-specific.
+
+Example: the public rain sensor flow (`RainSensorLogic` + `RainService`) uses the model, binds runtime `IValue` references, and leaves the MQTT value container in the local project.
+
+#### 2) Local/special logic template (preferred for building-specific logic)
+
+Use this for very special, building-specific, or site-specific logic that is not intended for reuse.
+
+- The logic lives in the local application project, not in the public HomeCompanion library.
+- It injects the relevant local `IValueContainer`(s) directly and references the concrete `IValue` instances it needs.
+- It may hard-code the relevant value names or local assumptions that are not part of the generic public model.
+- This is appropriate for highly specific local automation, local site wiring, and custom building assumptions.
+- The logic should remain isolated and not depend on public model internals unless there is a deliberate need for a local adaptation layer.
+
+#### Decision rule
+
+- Common functionality should follow template 1.
+- Very special or site-specific automation should follow template 2.
+- Mixed solutions are allowed only when a small local adaptation layer intentionally bridges a public core logic to local transport-specific values; the boundary must still be explicit and not accidental.
+- Do not put a public logic in the shared project that hard-codes local `IValueContainer` classes or local MQTT values. Do not put local special logic into the public model layer unless it is intentionally designed as a site-specific extension.
+- Prompt the user for an explicit decision if a new logic is not clearly generic or local.
+
 ## IValue principles
 
 ### KNX Group Addresses

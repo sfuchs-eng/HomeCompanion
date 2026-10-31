@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
     <ProjectReference Include="..\Integrations.Knx\HomeCompanion.Integrations.Knx.csproj" />
     <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
+    <ProjectReference Include="..\Logics.Garden\HomeCompanion.Logics.Garden.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
