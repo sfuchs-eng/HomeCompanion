@@ -67,6 +67,19 @@ internal class MotorizedWindow
         await ShutterControl.StartAsync(cancellationToken);
     }
 
+    internal async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (WindowControl != null)
+        {
+            await WindowControl.StopAsync(cancellationToken);
+        }
+
+        if (ShutterControl != null)
+        {
+            await ShutterControl.StopAsync(cancellationToken);
+        }
+    }
+
     internal async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
     {
         var node = DiagnosticResultNode.Create($"MotorizedWindow {Name}");

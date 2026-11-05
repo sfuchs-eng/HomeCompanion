@@ -3,6 +3,7 @@ using HomeCompanion.Server.Calendar;
 using HomeCompanion.Server.Mcp;
 using HomeCompanion.Server.Quartz;
 using HomeCompanion.Server.Services;
+using HomeCompanion.Server.SystemInfo;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +97,7 @@ public static class HomeCompanionServerHostingExtensions
 
         app.MapHomeCompanionMcp();
         app.MapHomeCompanionCalendar();
+        app.MapHomeCompanionSystemInfo();
 
         return app;
     }

@@ -52,6 +52,17 @@ public class MotorizedWindowsLogic(
         await Task.CompletedTask;
     }
 
+    protected override async Task TerminateLatchedAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var window in windows.Values)
+        {
+            await window.StopAsync(cancellationToken);
+        }
+
+        windows.Clear();
+        await Task.CompletedTask;
+    }
+
     public override async Task<IDiagnosticResultNode> GetDiagnosisAsync(CancellationToken cancellationToken)
     {
         var rootNode = DiagnosticResultNode.Create("MotorizedWindowsLogic");

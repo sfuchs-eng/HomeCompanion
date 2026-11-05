@@ -71,6 +71,30 @@ public class InspectableAsyncQueue<T>
     }
 
     /// <summary>
+    /// Awaits the next command until one is available or cancellation is requested.
+    /// </summary>
+    public async Task<DequeueResult<T>> DequeueAsync(CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            await _semaphore.WaitAsync(cancellationToken);
+
+            lock (_lockObj)
+            {
+                if (_queue.Count > 0)
+                {
+                    var item = _queue.First!.Value;
+                    _queue.RemoveFirst();
+                    return new DequeueResult<T>(item);
+                }
+
+                // The semaphore was signaled but the queue entry was removed concurrently.
+                // Continue waiting until a real item is available.
+            }
+        }
+    }
+
+    /// <summary>
     /// Awaits the next command. Returns default(T) if the timeout is reached.
     /// </summary>
     public async Task<DequeueResult<T>> DequeueAsync(TimeSpan timeout, CancellationToken cancellationToken = default)

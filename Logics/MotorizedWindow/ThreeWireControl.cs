@@ -22,6 +22,8 @@ internal class ThreeWireControl(
     Task _transitionRunner = Task.CompletedTask;
     CancellationTokenSource? _transitionRunnerTokenSource;
     InspectableAsyncQueue<ThreeWireControlRequest> _commandQueue = new();
+    private readonly object _lifecycleLock = new();
+    private bool _isStarted = false;
 
     SemaphoreSlim _commandAcknowledgmentSemaphore = new(0);
     bool _commandAcknowledgmentReceived = false;
@@ -34,13 +36,20 @@ internal class ThreeWireControl(
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        _transitionRunnerTokenSource = new CancellationTokenSource();
-        _transitionRunner = Task.Run(() => TransitionRunnerAsync(_transitionRunnerTokenSource.Token), CancellationToken.None);
+        lock (_lifecycleLock)
+        {
+            if (_isStarted)
+                return;
 
-        context.PositionRequest?.Changed += HandlePositionRequestChanged;
-        context.CommandAcknowledgment?.Written += HandleCommandAcknowledgment;
-        context.OpenCommand?.Written += HandleExternalCommands;
-        context.CloseCommand?.Written += HandleExternalCommands;
+            _transitionRunnerTokenSource = new CancellationTokenSource();
+            _transitionRunner = Task.Run(() => TransitionRunnerAsync(_transitionRunnerTokenSource.Token), CancellationToken.None);
+
+            context.PositionRequest?.Changed += HandlePositionRequestChanged;
+            context.CommandAcknowledgment?.Written += HandleCommandAcknowledgment;
+            context.OpenCommand?.Written += HandleExternalCommands;
+            context.CloseCommand?.Written += HandleExternalCommands;
+            _isStarted = true;
+        }
 
         await Task.CompletedTask;
     }
@@ -95,23 +104,43 @@ internal class ThreeWireControl(
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        if (_transitionRunnerTokenSource != null)
+        Task transitionRunner;
+        CancellationTokenSource? transitionRunnerTokenSource;
+
+        lock (_lifecycleLock)
         {
-            _transitionRunnerTokenSource.Cancel();
-            try
-            {
-                await _transitionRunner;
-            }
-            catch (OperationCanceledException)
-            {
-                // expected when the token is cancelled, ignore
-            }
+            if (!_isStarted)
+                return;
+
+            transitionRunner = _transitionRunner;
+            transitionRunnerTokenSource = _transitionRunnerTokenSource;
+
+            context.PositionRequest?.Changed -= HandlePositionRequestChanged;
+            context.CommandAcknowledgment?.Written -= HandleCommandAcknowledgment;
+            context.OpenCommand?.Written -= HandleExternalCommands;
+            context.CloseCommand?.Written -= HandleExternalCommands;
+
+            _isStarted = false;
+            _transitionRunnerTokenSource = null;
+            _transitionRunner = Task.CompletedTask;
         }
 
-        context.PositionRequest?.Changed -= HandlePositionRequestChanged;
-        context.CommandAcknowledgment?.Written -= HandleCommandAcknowledgment;
-        context.OpenCommand?.Written -= HandleExternalCommands;
-        context.CloseCommand?.Written -= HandleExternalCommands;
+        if (transitionRunnerTokenSource is null)
+            return;
+
+        transitionRunnerTokenSource.Cancel();
+        try
+        {
+            await transitionRunner;
+        }
+        catch (OperationCanceledException)
+        {
+            // expected when the token is cancelled, ignore
+        }
+        finally
+        {
+            transitionRunnerTokenSource.Dispose();
+        }
     }
 
     #region Interface to background runner
@@ -252,11 +281,7 @@ internal class ThreeWireControl(
     {
         while (!token.IsCancellationRequested)
         {
-            var result = await _commandQueue.DequeueAsync(TimeSpan.FromSeconds(10), token);
-            if (!result.Success)
-            {
-                continue; // timeout, loop back to check for cancellation
-            }
+            var result = await _commandQueue.DequeueAsync(token);
 
             var request = result.Item;
             switch (request)
