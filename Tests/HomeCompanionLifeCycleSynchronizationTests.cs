@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Reflection;
 
 namespace HomeCompanion.Tests;
 
@@ -112,6 +113,22 @@ public class HomeCompanionLifeCycleSynchronizationTests
         await sync.StopAsync(CancellationToken.None);
 
         Assert.That(sync.IsLifeCycleStageCompleted(AppLifeCycleStage.TerminateLogics), Is.True);
+    }
+
+    [Test]
+    public async Task WaitForExecutionLoopTriggerAsync_TimeoutDoesNotLeaveSemaphoreWaiters()
+    {
+        var trigger = new SemaphoreSlim(0, 1);
+        var method = typeof(HomeCompanionLifeCycleSynchronization)
+            .GetMethod("WaitForExecutionLoopTriggerAsync", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.That(method, Is.Not.Null);
+
+        await (Task)method.Invoke(null, [trigger, TimeSpan.FromMilliseconds(50), CancellationToken.None])!;
+
+        var waitCountField = typeof(SemaphoreSlim).GetField("m_waitCount", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(waitCountField, Is.Not.Null);
+        Assert.That(waitCountField.GetValue(trigger), Is.EqualTo(0));
     }
 
     [Test]

@@ -295,6 +295,26 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
             _executionLoopTrigger.Release();
     }
 
+    private static async Task WaitForExecutionLoopTriggerAsync(
+        SemaphoreSlim executionLoopTrigger,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        waitCts.CancelAfter(timeout);
+
+        try
+        {
+            await executionLoopTrigger.WaitAsync(waitCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && waitCts.IsCancellationRequested)
+        {
+            // A timeout without an external cancellation is not a failure: it simply means the trigger was not signaled
+            // within the polling window. Keeping the wait under a linked cancellation token prevents stale waiting tasks
+            // from queueing up on the semaphore and accumulating over time.
+        }
+    }
+
     protected void StartTerminationSequence()
     {
         _executionLoopRunTerminationSequence = true;
@@ -344,10 +364,11 @@ public class HomeCompanionLifeCycleSynchronization : IHostedLifecycleService, IH
 
         while (!stoppingToken.IsCancellationRequested && !LastCompletedStage.IsLastStage())
         {
-            // wait for a verification trigger to check for signallers and executions to complete stages. This is a simple loop that checks for stages that can be completed.
-            var triggerTask = _executionLoopTrigger.WaitAsync(stoppingToken);
-            var pendingSignallerTimeoutTask = Task.Delay(PendingSignallerGracePeriod, stoppingToken);
-            await Task.WhenAny(triggerTask, pendingSignallerTimeoutTask).ConfigureAwait(false);
+            // Wait for a verification trigger to check for signallers and executions to complete stages.
+            // We use a timed linked cancellation here instead of adding a separate WaitAsync + Task.Delay pair,
+            // because leaving the wait task in a timed-out state can queue a stale SemaphoreSlim waiter and retain
+            // thousands of TaskNode objects over time.
+            await WaitForExecutionLoopTriggerAsync(_executionLoopTrigger, PendingSignallerGracePeriod, stoppingToken).ConfigureAwait(false);
 
             foreach (var stage in Enum.GetValues<AppLifeCycleStage>())
             {
