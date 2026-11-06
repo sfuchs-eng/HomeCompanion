@@ -109,11 +109,16 @@ public class InspectableAsyncQueue<T>
                 return new DequeueResult<T>(); // Timeout reached
             }
 
-            // Asynchronously wait for an item or a timeout
-            bool signaled = await _semaphore.WaitAsync(remainingTimeout, cancellationToken);
-            if (!signaled)
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(remainingTimeout);
+
+            try
             {
-                return new DequeueResult<T>(); // Timeout reached
+                await _semaphore.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+            {
+                return new DequeueResult<T>(); // Timeout reached; do not leave an orphaned SemaphoreSlim waiter behind.
             }
 
             lock (_lockObj)
@@ -125,7 +130,7 @@ public class InspectableAsyncQueue<T>
                     return new DequeueResult<T>(item);
                 }
 
-                // Crucial Edge Case: If we are here, the semaphore was signaled, 
+                // Crucial Edge Case: If we are here, the semaphore was signaled,
                 // but an external event modified/removed the item before we grabbed the lock.
                 // Loop back to safely resume waiting with the remaining time.
             }

@@ -1,4 +1,5 @@
 using HomeCompanion.Abstractions;
+using HomeCompanion.Base.Utilities;
 using HomeCompanion.Core;
 using HomeCompanion.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,6 +130,23 @@ public class HomeCompanionLifeCycleSynchronizationTests
         var waitCountField = typeof(SemaphoreSlim).GetField("m_waitCount", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.That(waitCountField, Is.Not.Null);
         Assert.That(waitCountField.GetValue(trigger), Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task InspectableAsyncQueue_DequeueAsyncTimeout_DoesNotLeaveSemaphoreWaiters()
+    {
+        var queue = new InspectableAsyncQueue<int>();
+        var result = await queue.DequeueAsync(TimeSpan.FromMilliseconds(50), CancellationToken.None);
+
+        Assert.That(result.Success, Is.False);
+
+        var semaphoreField = typeof(InspectableAsyncQueue<int>).GetField("_semaphore", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(semaphoreField, Is.Not.Null);
+
+        var semaphore = (SemaphoreSlim)semaphoreField!.GetValue(queue)!;
+        var waitCountField = typeof(SemaphoreSlim).GetField("m_waitCount", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(waitCountField, Is.Not.Null);
+        Assert.That(waitCountField.GetValue(semaphore), Is.EqualTo(0));
     }
 
     [Test]
