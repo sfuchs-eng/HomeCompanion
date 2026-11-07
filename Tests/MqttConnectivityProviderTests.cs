@@ -1,8 +1,9 @@
 using HomeCompanion.Abstractions;
 using HomeCompanion.Core.Events;
 using HomeCompanion.Events;
-using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Integrations.Mqtt;
+using HomeCompanion.Local.Values;
+using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -43,6 +44,24 @@ public class MqttConnectivityProviderTests
         });
 
         Assert.That(broker.Subscriptions.Select(s => s.TopicPattern), Is.EquivalentTo(["home/+/+/state", "home/+/+/cmd", "home/events/#"]));
+    }
+
+    [Test]
+    public void MqttStringValueMappings_UseRawUtf8Payloads()
+    {
+        var values = new MqttValues(NullLogger<MqttValues>.Instance, NullLoggerFactory.Instance);
+        var success = values.BewaesserungLinks_Status.TryGetBusEndpoint<MqttBusEndpointMapping>(MqttBusEndpointMapping.GetBusId("main"), out var mapping);
+
+        Assert.That(success, Is.True);
+        Assert.That(mapping, Is.Not.Null);
+        Assert.That(mapping!.Config, Is.Not.Null);
+        Assert.That(mapping.Config!.PayloadFormat, Is.EqualTo(MqttPayloadFormat.RawUtf8));
+
+        var converter = new MqttPayloadConverter(NullLogger<MqttPayloadConverter>.Instance);
+        var decodeSuccess = converter.TryDecode("watering ok", values.BewaesserungLinks_Status, mapping, out var decodedValue);
+
+        Assert.That(decodeSuccess, Is.True);
+        Assert.That(decodedValue, Is.EqualTo("watering ok"));
     }
 
     [Test]

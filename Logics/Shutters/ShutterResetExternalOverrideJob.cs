@@ -43,14 +43,30 @@ public class ShutterResetExternalOverrideJob(
 
     public async Task Execute(IJobExecutionContext context)
     {
-        var shutterKeyString = context.MergedJobDataMap.GetString("ShutterKey");
-        if (shutterKeyString == null)
+        if (!context.MergedJobDataMap.TryGetValue("ShutterKey", out var shutterKeyValue) || shutterKeyValue is null)
         {
-            logger.LogError("ShutterKey not found in job data map.");
+            logger.LogError("ShutterKey not found in job data map for job {JobKey} and trigger {TriggerKey}.", context.JobDetail.Key, context.Trigger.Key);
             return;
         }
 
-        var shutterKey = ShutterKey.Parse(shutterKeyString);
+        var shutterKeyString = shutterKeyValue.ToString();
+        if (string.IsNullOrWhiteSpace(shutterKeyString))
+        {
+            logger.LogError("ShutterKey is empty in job data map for job {JobKey} and trigger {TriggerKey}.", context.JobDetail.Key, context.Trigger.Key);
+            return;
+        }
+
+        ShutterKey shutterKey;
+        try
+        {
+            shutterKey = ShutterKey.Parse(shutterKeyString);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not parse ShutterKey '{ShutterKey}' from job data map for job {JobKey} and trigger {TriggerKey}.", shutterKeyString, context.JobDetail.Key, context.Trigger.Key);
+            return;
+        }
+
         var shutterRuntime = runtimesProvider.GetShutterRuntime(shutterKey);
 
         await shutterRuntime.ResetExternalOverrideAsync();

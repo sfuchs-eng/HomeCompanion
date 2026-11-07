@@ -125,6 +125,7 @@ public class ShutterRuntime(
             var trigger = TriggerBuilder.Create()
                 .WithIdentity(triggerKey)
                 .ForJob(jobKey)
+                .UsingJobData("ShutterKey", ShutterKey.Key)
                 .StartAt(DateTimeOffset.UtcNow.Add(GetPermittedManualOverrideDuration())) // reset after the permitted manual override duration
                 .Build();
             await scheduler.ScheduleJob(trigger, cancellationToken);

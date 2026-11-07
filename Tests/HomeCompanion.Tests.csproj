@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Support.OpenHab\HomeCompanion.Support.OpenHab.csproj" />
     <ProjectReference Include="..\Logics\HomeCompanion.Logics.csproj" />
     <ProjectReference Include="..\Logics.Garden\HomeCompanion.Logics.Garden.csproj" />
+    <ProjectReference Include="..\..\Values\HomeCompanion.Local.Values.csproj" />
   </ItemGroup>
 
   <ItemGroup>

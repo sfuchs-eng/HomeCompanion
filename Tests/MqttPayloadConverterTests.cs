@@ -2,6 +2,7 @@ using HomeCompanion.Integrations.Mqtt;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 using UnitsNet;
 using UnitsNet.Units;
 
@@ -47,6 +48,27 @@ public class MqttPayloadConverterTests
 
         Assert.That(success, Is.True);
         Assert.That(value, Is.EqualTo(HvacMode.Heat));
+    }
+
+    [Test]
+    public void TryDecode_Json_Object_ToJsonElement_Succeeds()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/events")
+        {
+            Config = new MqttBusMappingConfiguration
+            {
+                PayloadFormat = MqttPayloadFormat.Json,
+            },
+        };
+
+        const string payload = "{\"status\":\"ok\",\"count\":2}";
+        var success = _converter.TryDecode(payload, CreateValue<JsonElement>(), mapping, out var value);
+
+        Assert.That(success, Is.True);
+        Assert.That(value, Is.Not.Null);
+        var element = (JsonElement)value!;
+        Assert.That(element.GetProperty("status").GetString(), Is.EqualTo("ok"));
+        Assert.That(element.GetProperty("count").GetInt32(), Is.EqualTo(2));
     }
 
     [Test]
