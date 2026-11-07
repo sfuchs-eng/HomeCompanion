@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Base\HomeCompanion.Base.csproj" />
+    <ProjectReference Include="..\Integrations.OpenHab\HomeCompanion.Integrations.OpenHab.csproj" />
     <ProjectReference Include="..\SRF.Network\Mqtt\SRF.Network.Mqtt.csproj" />
   </ItemGroup>
 

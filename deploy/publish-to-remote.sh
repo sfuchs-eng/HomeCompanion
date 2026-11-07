@@ -115,13 +115,16 @@ if (( ${#config_files[@]} > 0 )); then
     ssh "${ssh_args[@]}" "$ssh_target" "
         shopt -s nullglob
         for source_file in $remote_config_staging_dir_quoted/*.json; do
-            target_file=$remote_config_path_quoted/\$(basename \"\$source_file\")
-            if [[ -e \"\$target_file\" ]]; then
+            file_name=\$(basename \"\$source_file\")
+            target_file=$remote_config_path_quoted/\$file_name
+
+            if [[ \"\$file_name\" == \"HomeCompanion.json\" && -e \"\$target_file\" ]]; then
                 echo \"Preserving existing local config: \$target_file\"
-            else
-                install -m 0644 \"\$source_file\" \"\$target_file\"
-                echo \"Installed missing local config: \$target_file\"
+                continue
             fi
+
+            install -m 0644 \"\$source_file\" \"\$target_file\"
+            echo \"Updated local config: \$target_file\"
         done
         rm -rf -- $remote_config_staging_dir_quoted
     "

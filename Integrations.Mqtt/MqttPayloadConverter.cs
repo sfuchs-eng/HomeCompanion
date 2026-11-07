@@ -1,5 +1,8 @@
+using HomeCompanion.Integrations.OpenHab;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -11,6 +14,9 @@ internal sealed class MqttPayloadConverter
 {
     private static readonly string[] DefaultTrueLiterals = ["true", "on", "open", "enable", "enabled", "1"];
     private static readonly string[] DefaultFalseLiterals = ["false", "off", "closed", "disable", "disabled", "0"];
+    private static readonly OpenHabTypeConversionRegistry OpenHabRegistry = new(
+        Options.Create(new OpenHabIntegrationOptions()),
+        NullLogger<OpenHabTypeConversionRegistry>.Instance);
 
     private readonly ILogger<MqttPayloadConverter> _logger;
 
@@ -64,6 +70,9 @@ internal sealed class MqttPayloadConverter
                     return true;
                 }
 
+                case MqttPayloadFormat.OpenHabTypeValue:
+                    return TryDecodeOpenHabTypeValue(payloadUtf8, targetValue, config, out value);
+
                 default:
                     return false;
             }
@@ -84,8 +93,54 @@ internal sealed class MqttPayloadConverter
         {
             MqttPayloadFormat.Json => JsonSerializer.Serialize(value, value?.GetType() ?? declaredType, BuildJsonOptions(config, declaredType)),
             MqttPayloadFormat.JsonScalar => JsonSerializer.Serialize(value, value?.GetType() ?? declaredType, BuildJsonOptions(config, declaredType)),
+            MqttPayloadFormat.OpenHabTypeValue => EncodeOpenHabTypeValue(value, declaredType, config, source),
             _ => ConvertToRawUtf8(value, config, source?.Unit),
         };
+    }
+
+    private static bool TryDecodeOpenHabTypeValue(string payloadUtf8, IValue targetValue, MqttBusMappingConfiguration config, out object? value)
+    {
+        value = null;
+
+        var openHabConfig = new OpenHabBusMappingConfiguration
+        {
+            ItemType = config.OpenHabItemType,
+            StateType = config.OpenHabStateType,
+            TrueLiterals = config.TrueLiterals.Count > 0 ? [.. config.TrueLiterals] : [],
+            FalseLiterals = config.FalseLiterals.Count > 0 ? [.. config.FalseLiterals] : [],
+        };
+
+        return OpenHabRegistry.TryConvertValue(payloadUtf8, targetValue, stateType: null, itemMetadata: null, openHabConfig, out value);
+    }
+
+    private static string EncodeOpenHabTypeValue(object? value, Type declaredType, MqttBusMappingConfiguration config, IValue? source)
+    {
+        if (value is null)
+            return string.Empty;
+
+        var openHabConfig = new OpenHabBusMappingConfiguration
+        {
+            ItemType = config.OpenHabItemType,
+            StateType = config.OpenHabStateType,
+            TrueLiterals = config.TrueLiterals.Count > 0 ? [.. config.TrueLiterals] : [],
+            FalseLiterals = config.FalseLiterals.Count > 0 ? [.. config.FalseLiterals] : [],
+        };
+
+        if (source is not null)
+            return OpenHabRegistry.FormatOutboundValue(source, value, itemMetadata: null, openHabConfig);
+
+        var proxyValue = new ValueBase<bool>(NullLogger<ValueBase<bool>>.Instance)
+        {
+            Name = "OpenHabMqttRelay",
+        };
+
+        if (value is bool boolValue)
+            return OpenHabRegistry.FormatOutboundValue(proxyValue, boolValue, itemMetadata: null, openHabConfig);
+
+        if (value is Enum enumValue)
+            return enumValue.ToString() ?? string.Empty;
+
+        return ConvertToRawUtf8(value, config, source?.Unit);
     }
 
     private static bool TrySelectJsonElement(JsonDocument document, string? jsonPath, out JsonElement element)

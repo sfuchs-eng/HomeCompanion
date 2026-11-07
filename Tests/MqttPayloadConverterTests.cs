@@ -51,6 +51,77 @@ public class MqttPayloadConverterTests
     }
 
     [Test]
+    public void TryDecode_OpenHabTypeValue_BooleanOnOff_Succeeds()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/switch/state")
+        {
+            Config = new MqttBusMappingConfiguration { PayloadFormat = MqttPayloadFormat.OpenHabTypeValue },
+        };
+
+        var success = _converter.TryDecode("OFF", CreateValue<bool>(), mapping, out var value);
+
+        Assert.That(success, Is.True);
+        Assert.That(value, Is.EqualTo(false));
+    }
+
+    [Test]
+    public void Encode_OpenHabTypeValue_BooleanOnOff_Succeeds()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/switch/cmd")
+        {
+            Config = new MqttBusMappingConfiguration
+            {
+                PayloadFormat = MqttPayloadFormat.OpenHabTypeValue,
+                OpenHabItemType = "Switch",
+            },
+        };
+
+        var payload = _converter.Encode(true, typeof(bool), mapping);
+
+        Assert.That(payload, Is.EqualTo("ON"));
+    }
+
+    [Test]
+    public void Encode_OpenHabTypeValue_ContactUsesOpenClosedEncoding()
+    {
+        var mapping = new MqttBusEndpointMapping("main", "home/contact/cmd")
+        {
+            Config = new MqttBusMappingConfiguration
+            {
+                PayloadFormat = MqttPayloadFormat.OpenHabTypeValue,
+                OpenHabItemType = "Contact",
+            },
+        };
+
+        var payload = _converter.Encode(false, typeof(bool), mapping);
+
+        Assert.That(payload, Is.EqualTo("OPEN"));
+    }
+
+    [Test]
+    public void TryDecode_OpenHabTypeValue_ContactUsesOpenClosedEncoding()
+    {
+        var value = new ValueBase<bool>(NullLogger<ValueBase<bool>>.Instance)
+        {
+            Name = "Contact",
+        };
+
+        var mapping = new MqttBusEndpointMapping("main", "home/contact/state")
+        {
+            Config = new MqttBusMappingConfiguration
+            {
+                PayloadFormat = MqttPayloadFormat.OpenHabTypeValue,
+                OpenHabItemType = "Contact",
+            },
+        };
+
+        var result = _converter.TryDecode("OPEN", value, mapping, out var decoded);
+
+        Assert.That(result, Is.True);
+        Assert.That(decoded, Is.EqualTo(false));
+    }
+
+    [Test]
     public void TryDecode_Json_Object_ToJsonElement_Succeeds()
     {
         var mapping = new MqttBusEndpointMapping("main", "home/events")

@@ -14,6 +14,18 @@ public sealed class MqttBusMappingConfiguration : IBusMappingConfiguration
     public MqttPayloadFormat PayloadFormat { get; init; } = MqttPayloadFormat.RawUtf8;
 
     /// <summary>
+    /// Optional OpenHAB item type hint used when <see cref="PayloadFormat"/> is <see cref="MqttPayloadFormat.OpenHabTypeValue"/>.
+    /// Examples: Switch, Contact, Number, String.
+    /// </summary>
+    public string? OpenHabItemType { get; init; }
+
+    /// <summary>
+    /// Optional OpenHAB state type hint used when <see cref="PayloadFormat"/> is <see cref="MqttPayloadFormat.OpenHabTypeValue"/>.
+    /// Examples: OnOff, OpenClosed, Decimal, Quantity.
+    /// </summary>
+    public string? OpenHabStateType { get; init; }
+
+    /// <summary>
     /// Optional dotted JSON path used to select a nested payload property.
     /// </summary>
     public string? JsonPath { get; init; }
@@ -128,6 +140,12 @@ public enum MqttPayloadFormat
     /// Treat payload as JSON scalar (or scalar property selected by <see cref="MqttBusMappingConfiguration.JsonPath"/>).
     /// </summary>
     JsonScalar,
+
+    /// <summary>
+    /// Treat payload as an OpenHAB item-state string using the canonical OpenHAB conversion registry.
+    /// Examples: ON/OFF, OPEN/CLOSED, UP/DOWN.
+    /// </summary>
+    OpenHabTypeValue,
 }
 
 /// <summary>
