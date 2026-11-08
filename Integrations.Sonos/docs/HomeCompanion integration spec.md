@@ -119,6 +119,7 @@ Required behavior:
 - the route must be discoverable and valid under the standard Blazor server routing model
 - the server core must render extension pages without requiring a custom hardcoded route map in the main project
 - the NavMenu shall be able to include extension links dynamically based on the registry data
+- when the host application needs a local route boundary for app assembly routing, the host project must provide a thin local page stub with the route (for example `@page "/sonos"`) that delegates to the shared extension component while keeping the reusable Sonos UI in the extension assembly
 
 The desired design is an extension capability analogous to:
 
@@ -243,7 +244,10 @@ The Sonos extension shall contribute:
 
 - one page entry in the HomeCompanion.Server navigation menu
 - one route-backed Blazor page for the Sonos functionality
+- one thin local host-page stub with the final route when the hosting app needs to expose the page through its own AppAssembly boundary
 - optional supporting components for grouped topology and playback controls
+
+The reusable Sonos UI itself should remain in the extension assembly, while the host app may expose a minimal route wrapper to satisfy the app-level route resolution and keep the public extension contract decoupled from the local project.
 
 ### 7.3 Required injection model
 

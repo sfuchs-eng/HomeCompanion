@@ -1,10 +1,12 @@
-@page "/sonos"
+@rendermode InteractiveServer
 @namespace HomeCompanion.Integrations.Sonos
 
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
 @using HomeCompanion.Integrations.Sonos
 
 @inject ISonosSystemService SystemService
 @inject ISonosPlaybackService PlaybackService
+@inject ISonosTransportService TransportService
 
 <h1>Sonos</h1>
 
@@ -31,9 +33,10 @@ else
                                 <small class="text-muted">@player.RoomLabel</small>
                             </div>
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-primary" @onclick="() => PlayAsync(player.Id)">Play</button>
-                                <button class="btn btn-sm btn-secondary" @onclick="() => PauseAsync(player.Id)">Pause</button>
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => StopAsync(player.Id)">Stop</button>
+                                <button type="button" class="btn btn-sm btn-primary" @onclick="() => PlayAsync(player.Id)">Play</button>
+                                <button type="button" class="btn btn-sm btn-secondary" @onclick="() => PauseAsync(player.Id)">Pause</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => StopAsync(player.Id)">Stop</button>
+                                <button type="button" class="btn btn-sm btn-outline-info" @onclick="() => OpenPlayerDetails(player)">Details</button>
                             </div>
                         </div>
                     }
@@ -70,9 +73,89 @@ else
     </div>
 }
 
+@if (_selectedPlayer is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="position: fixed; inset: 0; z-index: 1050; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" style="margin: 1.75rem auto; max-width: 900px; width: min(90vw, 900px);">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Player details: @_selectedPlayer.Name</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="ClosePlayerDetails"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(_playerModalMessage))
+                    {
+                        <div class="alert alert-info mb-3">@_playerModalMessage</div>
+                    }
+
+                    <div class="mb-4">
+                        <h6>Original Sonos metadata</h6>
+                        <dl class="row mb-0">
+                            @foreach (var entry in GetPlayerMetadata(_selectedPlayer))
+                            {
+                                <dt class="col-sm-4 text-truncate">@entry.Key</dt>
+                                <dd class="col-sm-8 text-break">@FormatMetadataValue(entry.Value)</dd>
+                            }
+                        </dl>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6>Group ownership</h6>
+                        @if (GetPlayerGroups(_selectedPlayer).Count == 0)
+                        {
+                            <div class="text-muted">Not a member of any group.</div>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var group in GetPlayerGroups(_selectedPlayer))
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@group.Name</span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemovePlayerFromGroupAsync(group.Id)">Remove from group</button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="player-group-select">Add to group</label>
+                        <div class="input-group">
+                            <select id="player-group-select" class="form-select" @bind="_groupTargetId">
+                                <option value="">Select a player to group with</option>
+                                @foreach (var candidate in GetGroupCandidates(_selectedPlayer))
+                                {
+                                    <option value="@candidate.Id">@candidate.Name</option>
+                                }
+                            </select>
+                            <button type="button" class="btn btn-primary" @onclick="AddPlayerToGroupAsync" disabled="@string.IsNullOrWhiteSpace(_groupTargetId)">Add to group</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="uri-input">Play URI</label>
+                        <div class="input-group">
+                            <input id="uri-input" class="form-control" @bind="_playerUriInput" placeholder="https://example.com/track.mp3" />
+                            <button type="button" class="btn btn-success" @onclick="PlayUriAsync" disabled="@string.IsNullOrWhiteSpace(_playerUriInput)">Play URI</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="ClosePlayerDetails">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private SonosSystem? _system;
     private bool _loading;
+    private SonosPlayer? _selectedPlayer;
+    private string _groupTargetId = string.Empty;
+    private string _playerUriInput = string.Empty;
+    private string _playerModalMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -145,6 +228,117 @@ else
         }
 
         return player.GroupMembership.Count > 0 ? "Member" : "Speaker";
+    }
+
+    private void OpenPlayerDetails(SonosPlayer player)
+    {
+        _selectedPlayer = player;
+        _groupTargetId = string.Empty;
+        _playerUriInput = string.Empty;
+        _playerModalMessage = string.Empty;
+    }
+
+    private void ClosePlayerDetails()
+    {
+        _selectedPlayer = null;
+        _groupTargetId = string.Empty;
+        _playerUriInput = string.Empty;
+        _playerModalMessage = string.Empty;
+    }
+
+    private IReadOnlyList<KeyValuePair<string, object?>> GetPlayerMetadata(SonosPlayer player)
+    {
+        return typeof(SonosPlayer)
+            .GetProperties()
+            .Where(property => property.GetIndexParameters().Length == 0)
+            .Where(property => property.Name is not nameof(SonosPlayer.RoomLabel) and not nameof(SonosPlayer.IsCoordinator))
+            .Select(property => new KeyValuePair<string, object?>(property.Name, property.GetValue(player)))
+            .ToList();
+    }
+
+    private static string FormatMetadataValue(object? value)
+    {
+        return value switch
+        {
+            null => "",
+            string s => s,
+            IEnumerable<string> strings => string.Join(", ", strings),
+            IEnumerable<object> items => string.Join(", ", items),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
+    private IReadOnlyList<SonosGroup> GetPlayerGroups(SonosPlayer player)
+    {
+        if (_system is null)
+        {
+            return [];
+        }
+
+        return _system.Groups
+            .Where(group => group.Members.Any(member => string.Equals(member.Id, player.Id, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
+
+    private IReadOnlyList<SonosPlayer> GetGroupCandidates(SonosPlayer player)
+    {
+        if (_system is null)
+        {
+            return [];
+        }
+
+        return _system.Players
+            .Where(candidate => !string.Equals(candidate.Id, player.Id, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task AddPlayerToGroupAsync()
+    {
+        if (_selectedPlayer is null || string.IsNullOrWhiteSpace(_groupTargetId))
+        {
+            return;
+        }
+
+        var result = await TransportService.GroupAsync([_selectedPlayer.Id, _groupTargetId]);
+        _playerModalMessage = result.Message;
+        if (result.Success)
+        {
+            await RefreshAsync();
+            _selectedPlayer = _system?.Players.FirstOrDefault(player => string.Equals(player.Id, _selectedPlayer.Id, StringComparison.OrdinalIgnoreCase));
+            _groupTargetId = string.Empty;
+        }
+    }
+
+    private async Task RemovePlayerFromGroupAsync(string groupId)
+    {
+        if (_selectedPlayer is null)
+        {
+            return;
+        }
+
+        var result = await TransportService.UngroupAsync(_selectedPlayer.Id);
+        _playerModalMessage = result.Message;
+        if (result.Success)
+        {
+            await RefreshAsync();
+            _selectedPlayer = _system?.Players.FirstOrDefault(player => string.Equals(player.Id, _selectedPlayer.Id, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private async Task PlayUriAsync()
+    {
+        if (_selectedPlayer is null || string.IsNullOrWhiteSpace(_playerUriInput))
+        {
+            return;
+        }
+
+        var result = await PlaybackService.PlayUrlAsync(_selectedPlayer.Id, _playerUriInput);
+        _playerModalMessage = result.Message;
+        if (result.Success)
+        {
+            await RefreshAsync();
+        }
     }
 
     private async Task RefreshAsync()
