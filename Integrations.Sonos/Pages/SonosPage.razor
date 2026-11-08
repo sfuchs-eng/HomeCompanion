@@ -1,0 +1,181 @@
+@page "/sonos"
+@namespace HomeCompanion.Integrations.Sonos
+
+@using HomeCompanion.Integrations.Sonos
+
+@inject ISonosSystemService SystemService
+@inject ISonosPlaybackService PlaybackService
+
+<h1>Sonos</h1>
+
+@if (_loading)
+{
+    <p>Loading Sonos system…</p>
+}
+else if (_system is null || !_system.Players.Any())
+{
+    <p>No Sonos players discovered.</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">Players</h4>
+                    @foreach (var player in _system.Players)
+                    {
+                        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                            <div>
+                                <strong>@player.Name</strong><br />
+                                <small class="text-muted">@player.RoomLabel</small>
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary" @onclick="() => PlayAsync(player.Id)">Play</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => PauseAsync(player.Id)">Pause</button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => StopAsync(player.Id)">Stop</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">Rooms &amp; pairs</h4>
+                    @if (GetRoomGroups().Count == 0)
+                    {
+                        <p class="text-muted">No room or stereo pair semantics found.</p>
+                    }
+                    else
+                    {
+                        @foreach (var roomGroup in GetRoomGroups())
+                        {
+                            <div class="border-bottom py-2">
+                                <strong>@roomGroup.RoomName</strong>
+                                <div class="small text-muted">
+                                    @roomGroup.Description
+                                </div>
+                                <div class="small text-muted">
+                                    @string.Join(" • ", roomGroup.Members.Select(member => $"{member.Name} ({GetMemberRole(member)})"))
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private SonosSystem? _system;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private List<RoomDisplayGroup> GetRoomGroups()
+    {
+        if (_system is null)
+        {
+            return [];
+        }
+
+        var groupedPlayerIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var groups = _system.Groups
+            .Where(group => group.Members.Count > 0)
+            .Select(group =>
+            {
+                var members = group.Members
+                    .OrderBy(member => member.RoomLabel ?? member.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var member in members)
+                {
+                    groupedPlayerIds.Add(member.Id);
+                }
+
+                return new RoomDisplayGroup
+                {
+                    RoomName = ResolveGroupRoomName(group),
+                    Description = members.Count > 1 ? "Grouped room" : "Room speaker",
+                    Members = members
+                };
+            })
+            .ToList();
+
+        foreach (var player in _system.Players.Where(player => !groupedPlayerIds.Contains(player.Id)))
+        {
+            groups.Add(new RoomDisplayGroup
+            {
+                RoomName = player.RoomLabel ?? player.Name,
+                Description = "Single room speaker",
+                Members = [player]
+            });
+        }
+
+        return groups
+            .OrderBy(group => group.RoomName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string ResolveGroupRoomName(SonosGroup group)
+    {
+        if (group.Members.Count == 0)
+        {
+            return "Unknown room";
+        }
+
+        var coordinator = group.Members.FirstOrDefault(member => member.IsCoordinator || string.Equals(member.Id, group.CoordinatorId, StringComparison.OrdinalIgnoreCase))
+            ?? group.Members.First();
+
+        return coordinator.RoomLabel ?? coordinator.Name ?? group.Name ?? "Unknown room";
+    }
+
+    private static string GetMemberRole(SonosPlayer player)
+    {
+        if (player.IsCoordinator)
+        {
+            return "Coordinator";
+        }
+
+        return player.GroupMembership.Count > 0 ? "Member" : "Speaker";
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _system = await SystemService.GetSystemAsync();
+        _loading = false;
+    }
+
+    private async Task PlayAsync(string playerId)
+    {
+        await PlaybackService.PlayAsync(playerId);
+        await RefreshAsync();
+    }
+
+    private async Task PauseAsync(string playerId)
+    {
+        await PlaybackService.PauseAsync(playerId);
+        await RefreshAsync();
+    }
+
+    private async Task StopAsync(string playerId)
+    {
+        await PlaybackService.StopAsync(playerId);
+        await RefreshAsync();
+    }
+
+    private sealed class RoomDisplayGroup
+    {
+        public string RoomName { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public IReadOnlyList<SonosPlayer> Members { get; set; } = [];
+    }
+}

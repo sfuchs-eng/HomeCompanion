@@ -1,3 +1,4 @@
+using System.Reflection;
 using HomeCompanion.Integrations.Sonos;
 
 namespace HomeCompanion.Integrations.Sonos.Tests;
@@ -10,6 +11,21 @@ public class SonosServicesTests
         var normalized = SonosDiscoveryService.NormalizePlayerId("UUID:Kitchen-Player", "fallback");
 
         Assert.That(normalized, Is.EqualTo("kitchen-player"));
+    }
+
+    [Test]
+    public void PlayerRoomLabel_UsesActualRoomMetadataAndCoordinatorState()
+    {
+        var player = new SonosPlayer
+        {
+            Id = "player-1",
+            Name = "Kitchen Left",
+            ZoneName = "Kitchen",
+            CoordinatorId = "player-1"
+        };
+
+        Assert.That(player.RoomLabel, Is.EqualTo("Kitchen"));
+        Assert.That(player.IsCoordinator, Is.True);
     }
 
     [Test]
@@ -413,6 +429,30 @@ public class SonosServicesTests
         Assert.That(restoreResult.Success, Is.False);
         Assert.That(restoreResult.ErrorCode, Is.EqualTo(SonosErrorCode.InvalidUri));
         Assert.That(restoreResult.Message, Does.Contain("no longer available").IgnoreCase);
+    }
+
+    [Test]
+    public void DiscoveryService_AcceptsIpBasedSonosResponses()
+    {
+        const string response = "HTTP/1.1 200 OK\r\n" +
+            "CACHE-CONTROL: max-age=1800\r\n" +
+            "LOCATION: http://192.168.1.50:1400/xml/device_description.xml\r\n" +
+            "SERVER: Linux UPnP/1.0 Sonos/39.0-75280 (ZPS3)\r\n" +
+            "ST: upnp:rootdevice\r\n" +
+            "USN: uuid:RINCON_1234567890\r\n";
+
+        var method = typeof(SonosDiscoveryService).GetMethod(
+            "IsSonosLocation",
+            BindingFlags.NonPublic | BindingFlags.Static,
+            binder: null,
+            new[] { typeof(string), typeof(string) },
+            modifiers: null);
+
+        Assert.That(method, Is.Not.Null);
+
+        var result = (bool)method.Invoke(null, ["http://192.168.1.50:1400/xml/device_description.xml", response])!;
+
+        Assert.That(result, Is.True);
     }
 
     [Test]

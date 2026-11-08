@@ -42,7 +42,8 @@ public sealed class SonosPlayer
     public SonosAvailability Availability { get; set; } = SonosAvailability.Unknown;
     public int Volume { get; set; }
     public bool IsMuted { get; set; }
-    public string? RoomLabel => Name;
+    public bool IsCoordinator => !string.IsNullOrWhiteSpace(CoordinatorId) && string.Equals(CoordinatorId, Id, StringComparison.OrdinalIgnoreCase);
+    public string? RoomLabel => !string.IsNullOrWhiteSpace(ZoneName) ? ZoneName : !string.IsNullOrWhiteSpace(Name) ? Name : null;
 }
 
 public sealed class SonosGroup

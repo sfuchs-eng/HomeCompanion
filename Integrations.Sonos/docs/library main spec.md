@@ -61,6 +61,8 @@ This entry point shall be responsible for:
 The following service types are required:
 
 > Note: the public Sonos model centers on players, groups, and households. A distinct, first-class "room" object is not the primary API concept; room names are user-facing labels for players and should be treated as metadata, not a separate domain entity.
+>
+> The source of truth for grouping is the Sonos coordinator/group topology, not heuristics inferred from room names, speaker suffixes, or left/right text labels. Any "left/right" or other naming conventions are presentation metadata and must not override the actual coordinator/member relationship.
 
 #### `ISonosDiscoveryService`
 Responsible for:

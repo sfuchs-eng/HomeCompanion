@@ -116,6 +116,20 @@ public sealed class SonosTransportService : ISonosTransportService
                Guid.TryParse(value, out _);
     }
 
+    private static string ResolveGroupName(IReadOnlyList<SonosPlayer> members)
+    {
+        var labels = members
+            .Select(member => !string.IsNullOrWhiteSpace(member.ZoneName) ? member.ZoneName : member.Name)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return labels.Count > 0
+            ? string.Join(" + ", labels)
+            : string.Join(" + ", members.Select(member => member.Id));
+    }
+
     private static SonosErrorCode GetNotFoundCodeForIdentifier(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -919,21 +933,23 @@ public sealed class SonosTransportService : ISonosTransportService
 
         _groups.RemoveAll(group => group.Members.Any(member => ids.Contains(member.Id, StringComparer.OrdinalIgnoreCase)));
 
+        var groupMembers = ids.Select(id => new SonosPlayer
+        {
+            Id = id,
+            Name = id,
+            CoordinatorId = coordinatorId,
+            GroupMembership = [groupId],
+            Availability = SonosAvailability.Available,
+            Volume = 25,
+            IsMuted = false
+        }).ToList();
+
         var group = new SonosGroup
         {
             Id = groupId,
-            Name = string.Join(" + ", ids),
+            Name = ResolveGroupName(groupMembers),
             CoordinatorId = coordinatorId,
-            Members = ids.Select(id => new SonosPlayer
-            {
-                Id = id,
-                Name = id,
-                CoordinatorId = coordinatorId,
-                GroupMembership = [groupId],
-                Availability = SonosAvailability.Available,
-                Volume = 25,
-                IsMuted = false
-            }).ToList()
+            Members = groupMembers
         };
 
         _groups.Add(group);
@@ -1119,21 +1135,23 @@ public sealed class SonosTransportService : ISonosTransportService
             }
 
             var coordinatorId = ids.First();
+            var restoredMembers = ids.Select(id => new SonosPlayer
+            {
+                Id = id,
+                Name = id,
+                CoordinatorId = coordinatorId,
+                GroupMembership = [entry.Key],
+                Availability = SonosAvailability.Available,
+                Volume = 25,
+                IsMuted = false
+            }).ToList();
+
             _groups.Add(new SonosGroup
             {
                 Id = entry.Key,
-                Name = string.Join(" + ", ids),
+                Name = ResolveGroupName(restoredMembers),
                 CoordinatorId = coordinatorId,
-                Members = ids.Select(id => new SonosPlayer
-                {
-                    Id = id,
-                    Name = id,
-                    CoordinatorId = coordinatorId,
-                    GroupMembership = [entry.Key],
-                    Availability = SonosAvailability.Available,
-                    Volume = 25,
-                    IsMuted = false
-                }).ToList()
+                Members = restoredMembers
             });
 
             restored.AddRange(ids);

@@ -1,4 +1,7 @@
-﻿<Router AppAssembly="typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿@using HomeCompanion.Extensions
+@inject IHomeCompanionPageRegistry PageRegistry
+
+<Router AppAssembly="typeof(App).Assembly" AdditionalAssemblies="PageRegistry.AdditionalAssemblies" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />

@@ -1,3 +1,4 @@
+using HomeCompanion.Extensions;
 using HomeCompanion.Server.Components;
 using HomeCompanion.Server.Calendar;
 using HomeCompanion.Server.Mcp;
@@ -19,6 +20,8 @@ public static class HomeCompanionServerHostingExtensions
     public static IServiceCollection AddHomeCompanionServer(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddRadzenComponents();
+        services.AddSingleton<HomeCompanionPageRegistry>();
+        services.AddSingleton<IHomeCompanionPageRegistry>(sp => sp.GetRequiredService<HomeCompanionPageRegistry>());
 
         services.Configure<McpApiOptions>(configuration.GetSection("HomeCompanion:Mcp"));
         services.Configure<QuartzOptions>(configuration.GetSection("Quartz"));

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Xml.Linq;
@@ -94,11 +95,26 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
 
     private async Task<IReadOnlyList<string>> DiscoverLocationsAsync(CancellationToken cancellationToken)
     {
+        const int ssdpPort = 1900;
         var multicastAddress = IPAddress.Parse("239.255.255.250");
         using var udpClient = new UdpClient();
         udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        udpClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
         udpClient.Client.MulticastLoopback = true;
         udpClient.Client.ReceiveTimeout = 2000;
+        udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+        foreach (var interfaceAddress in GetDiscoveryInterfaceAddresses())
+        {
+            try
+            {
+                udpClient.JoinMulticastGroup(multicastAddress, interfaceAddress);
+            }
+            catch (SocketException)
+            {
+                // Some NICs / hosts reject multicast joins; continue with the next interface.
+            }
+        }
 
         var search = Encoding.UTF8.GetBytes(
             "M-SEARCH * HTTP/1.1\r\n" +
@@ -107,7 +123,7 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
             "MX: 2\r\n" +
             "ST: ssdp:all\r\n\r\n");
 
-        await udpClient.SendAsync(search, search.Length, multicastAddress.ToString(), 1900).ConfigureAwait(false);
+        await udpClient.SendAsync(search, search.Length, multicastAddress.ToString(), ssdpPort).ConfigureAwait(false);
 
         var locations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var deadline = DateTime.UtcNow.AddSeconds(2.5);
@@ -130,7 +146,7 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
                 var result = await receiveTask.ConfigureAwait(false);
                 var response = Encoding.UTF8.GetString(result.Buffer);
                 var location = ParseLocationHeader(response);
-                if (!string.IsNullOrWhiteSpace(location) && IsSonosLocation(location))
+                if (!string.IsNullOrWhiteSpace(location) && IsSonosLocation(location, response))
                 {
                     locations.Add(location);
                 }
@@ -146,6 +162,18 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
         }
 
         return locations.ToList();
+    }
+
+    private static IReadOnlyList<IPAddress> GetDiscoveryInterfaceAddresses()
+    {
+        return NetworkInterface.GetAllNetworkInterfaces()
+            .Where(ni => ni.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                        ni.OperationalStatus == OperationalStatus.Up)
+            .SelectMany(ni => ni.GetIPProperties().UnicastAddresses)
+            .Select(address => address.Address)
+            .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+            .Distinct()
+            .ToList();
     }
 
     private static string? ParseLocationHeader(string response)
@@ -165,15 +193,71 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
         return null;
     }
 
-    private static bool IsSonosLocation(string location)
+    private static bool IsSonosLocation(string location) => IsSonosLocation(location, response: null);
+
+    private static bool IsSonosLocation(string location, string? response)
     {
         if (!Uri.TryCreate(location, UriKind.Absolute, out var uri))
         {
             return false;
         }
 
+        if (uri.Scheme is not ("http" or "https"))
+        {
+            return false;
+        }
+
+        var serverHeader = response is null ? null : ParseHeaderValue(response, "SERVER");
+        var stHeader = response is null ? null : ParseHeaderValue(response, "ST");
+        var usnHeader = response is null ? null : ParseHeaderValue(response, "USN");
+
+        if (serverHeader is not null &&
+            (serverHeader.Contains("Sonos", StringComparison.OrdinalIgnoreCase) ||
+             serverHeader.Contains("ZonePlayer", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (stHeader is not null &&
+            (stHeader.Contains("ZonePlayer", StringComparison.OrdinalIgnoreCase) ||
+             stHeader.Contains("MediaRenderer", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (usnHeader is not null && usnHeader.Contains("Sonos", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (uri.Port == 1400 || uri.AbsolutePath.Contains("device_description", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         return uri.Host.Contains("sonos", StringComparison.OrdinalIgnoreCase) ||
                uri.AbsoluteUri.Contains("sonos", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ParseHeaderValue(string response, string headerName)
+    {
+        var lines = response.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            var separatorIndex = line.IndexOf(':');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            if (string.Equals(key, headerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return line[(separatorIndex + 1)..].Trim();
+            }
+        }
+
+        return null;
     }
 
     private async Task<SonosPlayer?> LoadPlayerFromDescriptionAsync(string descriptionUrl, CancellationToken cancellationToken)
@@ -203,7 +287,7 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
                 Name = friendlyName,
                 CoordinatorId = playerId,
                 HouseholdId = serialNumber,
-                ZoneName = modelName,
+                ZoneName = friendlyName,
                 GroupMembership = [],
                 Availability = SonosAvailability.Available,
                 Volume = 0,
