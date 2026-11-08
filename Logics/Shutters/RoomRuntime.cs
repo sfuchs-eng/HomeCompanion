@@ -64,7 +64,9 @@ public class RoomRuntime : RuntimeBase, IDisposable
         if (disposing)
         {
             roomTemperatureAboveAutoShadowThresholdObservableSubscription?.Dispose();
+            roomTemperatureAboveAutoShadowThresholdObservableSubscription = null;
             filteredRoomTemperatureSubscription?.Dispose();
+            filteredRoomTemperatureSubscription = null;
         }
         base.Dispose(disposing);
     }
@@ -326,6 +328,12 @@ public class RoomRuntime : RuntimeBase, IDisposable
     {
         RoomContext.Room.Temperature?.Changed -= HandleRoomTemperatureChanged;
         RoomContext.Room.ShutterScene?.Changed -= HandleRoomShutterSceneChanged;
+
+        roomTemperatureAboveAutoShadowThresholdObservableSubscription?.Dispose();
+        roomTemperatureAboveAutoShadowThresholdObservableSubscription = null;
+        filteredRoomTemperatureSubscription?.Dispose();
+        filteredRoomTemperatureSubscription = null;
+
         return Task.CompletedTask;
     }
 

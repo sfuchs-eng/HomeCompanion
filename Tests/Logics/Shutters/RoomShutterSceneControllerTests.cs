@@ -5,6 +5,7 @@ using HomeCompanion.Values;
 using HomeCompanion.Events;
 using HomeCompanion.Base.Model;
 using MQTTnet.Internal;
+using System.Reflection;
 
 namespace HomeCompanion.Tests.Logics.Shutters;
 
@@ -80,6 +81,29 @@ public class RoomShutterSceneControllerTests
         Assert.DoesNotThrow(() => fix.ValuesProvider.Resolve(room.Configuration.ShutterSceneReference ?? throw new InvalidOperationException("Room shutter scene reference is null.")), "Room shutter scene value should be resolvable from the value provider.");
         Assert.That(fix.ValuesProvider.Resolve(room.Configuration.ShutterSceneReference ?? throw new InvalidOperationException("Room shutter scene reference is null.")), Is.Not.Null, "Room shutter scene reference should exist in the value provider.");
         Assert.That(room.ShutterScene, Is.Not.Null, "Room shutter scene should not be null after initialization.");
+    }
+
+    [Test(Description = "Stopping a room runtime should dispose the observable subscriptions created during startup.")]
+    public async Task RoomRuntimeStopAsync_DisposesObservableSubscriptions()
+    {
+        var fix = ShutterAutomationTestFixture.Create();
+        await fix.StartAsync();
+
+        var roomKey = fix.RuntimesController.RoomRuntimes.Keys.First();
+        var roomRuntime = fix.RuntimesController.RoomRuntimes[roomKey];
+
+        var filteredField = typeof(RoomRuntime).GetField("filteredRoomTemperatureSubscription", BindingFlags.Instance | BindingFlags.NonPublic);
+        var thresholdField = typeof(RoomRuntime).GetField("roomTemperatureAboveAutoShadowThresholdObservableSubscription", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.That(filteredField, Is.Not.Null);
+        Assert.That(thresholdField, Is.Not.Null);
+        Assert.That(filteredField!.GetValue(roomRuntime), Is.Not.Null, "Filtered temperature subscription should exist before stop.");
+        Assert.That(thresholdField!.GetValue(roomRuntime), Is.Not.Null, "Threshold subscription should exist before stop.");
+
+        await roomRuntime.StopAsync(CancellationToken.None);
+
+        Assert.That(filteredField.GetValue(roomRuntime), Is.Null, "Filtered temperature subscription should be disposed on stop.");
+        Assert.That(thresholdField.GetValue(roomRuntime), Is.Null, "Threshold subscription should be disposed on stop.");
     }
 
     [Test(Description = "Tests that the RoomShutterSceneController correctly handles user requests to transition between different room shutter scenes.")]
