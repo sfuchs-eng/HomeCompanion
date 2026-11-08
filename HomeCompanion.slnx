@@ -27,6 +27,9 @@
   <Folder Name="/Integrations.OpenHab/">
     <Project Path="Integrations.OpenHab/HomeCompanion.Integrations.OpenHab.csproj" />
   </Folder>
+  <Folder Name="/Integrations.Sonos.Abstractions/">
+    <Project Path="Integrations.Sonos.Abstractions/HomeCompanion.Integrations.Sonos.Abstractions.csproj" />
+  </Folder>
   <Folder Name="/Integrations.Sonos.Tests/">
     <Project Path="Integrations.Sonos.Tests/HomeCompanion.Integrations.Sonos.Tests.csproj" />
   </Folder>

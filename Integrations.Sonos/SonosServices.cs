@@ -116,6 +116,108 @@ public sealed class SonosPlaybackService : ISonosPlaybackService
         return _transport.StopAsync(playerId, cancellationToken);
     }
 
+    public Task<PlaybackResult> NextAsync(string playerId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.DeviceNotFound,
+                Message = "Player ID is required.",
+                PlayerId = playerId
+            });
+        }
+
+        return _transport.NextAsync(playerId, cancellationToken);
+    }
+
+    public Task<PlaybackResult> PreviousAsync(string playerId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.DeviceNotFound,
+                Message = "Player ID is required.",
+                PlayerId = playerId
+            });
+        }
+
+        return _transport.PreviousAsync(playerId, cancellationToken);
+    }
+
+    public Task<PlaybackResult> SeekAsync(string playerId, double positionSeconds, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.DeviceNotFound,
+                Message = "Player ID is required.",
+                PlayerId = playerId
+            });
+        }
+
+        if (positionSeconds < 0)
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.MalformedResponse,
+                Message = "Seek position must be greater than or equal to zero.",
+                PlayerId = playerId
+            });
+        }
+
+        return _transport.SeekAsync(playerId, positionSeconds, cancellationToken);
+    }
+
+    public Task<PlaybackResult> SetVolumeAsync(string playerId, int volume, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.DeviceNotFound,
+                Message = "Player ID is required.",
+                PlayerId = playerId
+            });
+        }
+
+        if (volume < 0 || volume > 100)
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.MalformedResponse,
+                Message = "Volume must be between 0 and 100.",
+                PlayerId = playerId
+            });
+        }
+
+        return _transport.SetVolumeAsync(playerId, volume, cancellationToken);
+    }
+
+    public Task<PlaybackResult> SetMuteAsync(string playerId, bool isMuted, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(playerId))
+        {
+            return Task.FromResult(new PlaybackResult
+            {
+                Success = false,
+                ErrorCode = SonosErrorCode.DeviceNotFound,
+                Message = "Player ID is required.",
+                PlayerId = playerId
+            });
+        }
+
+        return _transport.SetMuteAsync(playerId, isMuted, cancellationToken);
+    }
+
     public async Task<PlaybackResult> PlayUrlAsync(string playerId, string mediaUrl, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(playerId))
@@ -170,24 +272,22 @@ public sealed class SonosQueueService : ISonosQueueService
             throw new ArgumentException("Player ID is required.", nameof(playerId));
         }
 
-        return Task.FromResult<IReadOnlyList<QueueEntry>>([
-            new QueueEntry { QueueIndex = 0, Id = "queue-1", Title = "Fallback Track", Uri = "https://example.com/fallback.mp3" }
-        ]);
+        return _transport.GetQueueAsync(playerId, cancellationToken);
     }
 
-    public async Task<PlaybackResult> EnqueueAsync(string playerId, string mediaUrl, CancellationToken cancellationToken = default)
+    public Task<PlaybackResult> EnqueueAsync(string playerId, string mediaUrl, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(playerId))
         {
-            return new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.DeviceNotFound, Message = "Player ID is required." };
+            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.DeviceNotFound, Message = "Player ID is required." });
         }
 
         if (!SonosValidation.IsValidMediaUrl(mediaUrl))
         {
-            return new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.InvalidUri, Message = "Queue item must be a valid HTTP/HTTPS URL." };
+            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.InvalidUri, Message = "Queue item must be a valid HTTP/HTTPS URL." });
         }
 
-        return new PlaybackResult { Success = true, PlayerId = playerId, CurrentSource = mediaUrl, Message = "Enqueued successfully." };
+        return _transport.EnqueueAsync(playerId, mediaUrl, cancellationToken);
     }
 
     public Task<PlaybackResult> ClearQueueAsync(string playerId, CancellationToken cancellationToken = default)
@@ -197,7 +297,7 @@ public sealed class SonosQueueService : ISonosQueueService
             return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.DeviceNotFound, Message = "Player ID is required." });
         }
 
-        return Task.FromResult(new PlaybackResult { Success = true, PlayerId = playerId, Message = "Queue cleared." });
+        return _transport.ClearQueueAsync(playerId, cancellationToken);
     }
 
     public Task<PlaybackResult> PlayQueueItemAsync(string playerId, int queueIndex, CancellationToken cancellationToken = default)
@@ -209,15 +309,22 @@ public sealed class SonosQueueService : ISonosQueueService
 
         if (queueIndex < 0)
         {
-            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.InvalidUri, Message = "Queue index must be non-negative." });
+            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.MalformedResponse, Message = "Queue index must be non-negative." });
         }
 
-        return Task.FromResult(new PlaybackResult { Success = true, PlayerId = playerId, Message = $"Queue item {queueIndex} requested." });
+        return _transport.PlayQueueItemAsync(playerId, queueIndex, cancellationToken);
     }
 }
 
 public sealed class SonosFavoritesService : ISonosFavoritesService
 {
+    private readonly ISonosTransportService _transport;
+
+    public SonosFavoritesService(ISonosTransportService transport)
+    {
+        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+    }
+
     public Task<IReadOnlyList<FavoriteEntry>> GetFavoritesAsync(string playerId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(playerId))
@@ -225,9 +332,7 @@ public sealed class SonosFavoritesService : ISonosFavoritesService
             throw new ArgumentException("Player ID is required.", nameof(playerId));
         }
 
-        return Task.FromResult<IReadOnlyList<FavoriteEntry>>([
-            new FavoriteEntry { Id = "favorite-1", Name = "Classic FM", Type = "radio", Uri = "x-rincon-browse:favorite-1" }
-        ]);
+        return _transport.GetFavoritesAsync(playerId, cancellationToken);
     }
 
     public Task<PlaybackResult> PlayFavoriteAsync(string playerId, string favoriteId, CancellationToken cancellationToken = default)
@@ -239,36 +344,46 @@ public sealed class SonosFavoritesService : ISonosFavoritesService
 
         if (string.IsNullOrWhiteSpace(favoriteId))
         {
-            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.DeviceNotFound, Message = "Favorite ID is required." });
+            return Task.FromResult(new PlaybackResult { Success = false, ErrorCode = SonosErrorCode.DeviceNotFound, Message = "Favorite ID or name is required." });
         }
 
-        return Task.FromResult(new PlaybackResult { Success = true, PlayerId = playerId, Message = $"Playing favorite {favoriteId}." });
+        return _transport.PlayFavoriteAsync(playerId, favoriteId, cancellationToken);
     }
 }
 
 public sealed class SonosAlarmService : ISonosAlarmService
 {
+    private readonly ISonosTransportService _transport;
+
+    public SonosAlarmService(ISonosTransportService transport)
+    {
+        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+    }
+
     public Task<IReadOnlyList<AlarmEntry>> GetAlarmsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<AlarmEntry>>([
-            new AlarmEntry { Id = "alarm-1", Name = "Wake Up", Enabled = true, Time = "07:00", Recurrence = ["Mon", "Tue", "Wed", "Thu", "Fri"], Volume = 20, Source = "radio" }
-        ]);
+        return _transport.GetAlarmsAsync(cancellationToken);
     }
 
     public Task<AlarmEntry> CreateAlarmAsync(AlarmEntry alarm, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(alarm);
-        return Task.FromResult(alarm);
+        return _transport.CreateAlarmAsync(alarm, cancellationToken);
     }
 
     public Task<AlarmEntry> UpdateAlarmAsync(AlarmEntry alarm, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(alarm);
-        return Task.FromResult(alarm);
+        return _transport.UpdateAlarmAsync(alarm, cancellationToken);
     }
 
     public Task<bool> DeleteAlarmAsync(string alarmId, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(!string.IsNullOrWhiteSpace(alarmId));
+        if (string.IsNullOrWhiteSpace(alarmId))
+        {
+            return Task.FromResult(false);
+        }
+
+        return _transport.DeleteAlarmAsync(alarmId, cancellationToken);
     }
 }

@@ -35,55 +35,55 @@ The current implementation satisfies only the type-level skeleton of the spec. T
 
 ### 4. Implement playback control and state polling according to the spec
 - [x] Implement `StopAsync` in the transport layer as a real Sonos command; do not return a synthetic success response without dispatching a control call.
-- [ ] Add support for `next` and `previous` in the transport/service surface if these are part of the required public API (or decide and implement the exact contract explicitly).
-- [ ] Implement `seek`/position restore semantics and expose them as part of the public playback contract if required by the target feature set.
-- [ ] Implement volume and mute adjustments with actual state re-read after mutation.
-- [ ] Make `GetPlaybackStateAsync` return a real `SonosPlaybackState` built from the current Sonos device state and not a fixed stub value.
+- [x] Add support for `next` and `previous` in the transport/service surface if these are part of the required public API (or decide and implement the exact contract explicitly).
+- [x] Implement `seek`/position restore semantics and expose them as part of the public playback contract if required by the target feature set.
+- [x] Implement volume and mute adjustments with actual state re-read after mutation.
+- [x] Make `GetPlaybackStateAsync` return a real `SonosPlaybackState` built from the current Sonos device state and not a fixed stub value.
 - [x] Validate that `PlayUrlAsync` accepts the required HTTP/HTTPS media URLs and rejects unsupported or malformed URIs with `SonosErrorCode.InvalidUri`.
 - [x] Ensure playback operations support cancellation tokens and timeouts via the configured transport pipeline.
 
 ### 5. Implement queue support and remove placeholder data
-- [ ] Replace the hardcoded fallback queue in `SonosQueueService.GetQueueAsync` with a real Sonos queue query.
-- [ ] Implement queue retrieval, item metadata parsing, and indexing from the actual Sonos queue content.
-- [ ] Implement `EnqueueAsync` by sending a real queue addition command and verifying the resulting queue state.
-- [ ] Implement `ClearQueueAsync` and `PlayQueueItemAsync` as actual queue mutation/playback operations.
-- [ ] Ensure queue state is included in state-capture and restore flows, as required by the spec.
-- [ ] Add validation for invalid queue indexes and unsupported media URIs using structured results.
+- [x] Replace the hardcoded fallback queue in `SonosQueueService.GetQueueAsync` with a real Sonos queue query.
+- [x] Implement queue retrieval, item metadata parsing, and indexing from the actual Sonos queue content.
+- [x] Implement `EnqueueAsync` by sending a real queue addition command and verifying the resulting queue state.
+- [x] Implement `ClearQueueAsync` and `PlayQueueItemAsync` as actual queue mutation/playback operations.
+- [x] Ensure queue state is included in state-capture and restore flows, as required by the spec.
+- [x] Add validation for invalid queue indexes and unsupported media URIs using structured results.
 
 ### 6. Implement favorites support as a real service
-- [ ] Replace static favorite entries in `SonosFavoritesService` with a real favorites query against the system/player.
-- [ ] Implement `GetFavoritesAsync` to load favorite metadata, IDs, names, type, and optional URI/metadata.
-- [ ] Implement `PlayFavoriteAsync` to target the right favorite by ID or name and report success/failure with structured result data.
-- [ ] Include favorite context in snapshot restore scenarios when relevant and preserve enough metadata for restoring state.
+- [x] Replace static favorite entries in `SonosFavoritesService` with a real favorites query against the system/player.
+- [x] Implement `GetFavoritesAsync` to load favorite metadata, IDs, names, type, and optional URI/metadata.
+- [x] Implement `PlayFavoriteAsync` to target the right favorite by ID or name and report success/failure with structured result data.
+- [x] Include favorite context in snapshot restore scenarios when relevant and preserve enough metadata for restoring state.
 
 ### 7. Implement alarm operations and validation
-- [ ] Replace the in-memory alarm stubs in `SonosAlarmService` with real Sonos alarm listing, creation, update, and deletion operations.
-- [ ] Implement `GetAlarmsAsync` with proper metadata parsing for `Id`, `Name`, `Enabled`, `Time`, recurrence, volume, and source.
-- [ ] Implement `CreateAlarmAsync` and `UpdateAlarmAsync` with validation for required alarm fields and meaningful failure results.
-- [ ] Implement `DeleteAlarmAsync` as an actual deletion command and return explicit false results for unsupported or failed operations.
-- [ ] Ensure alarm metadata is captured in snapshot data where the specification expects it.
+- [x] Replace the in-memory alarm stubs in `SonosAlarmService` with real Sonos alarm listing, creation, update, and deletion operations.
+- [x] Implement `GetAlarmsAsync` with proper metadata parsing for `Id`, `Name`, `Enabled`, `Time`, recurrence, volume, and source.
+- [x] Implement `CreateAlarmAsync` and `UpdateAlarmAsync` with validation for required alarm fields and meaningful failure results.
+- [x] Implement `DeleteAlarmAsync` as an actual deletion command and return explicit false results for unsupported or failed operations.
+- [x] Ensure alarm metadata is captured in snapshot data where the specification expects it.
 
 ### 8. Implement `SonosStateSnapshot` capture and restore as a real transaction
-- [ ] Expand `CaptureStateAsync` in the transport/system manager so it captures the required state: group topology, player membership, current source/URI, track metadata, playback state, volume/mute, queue/favorites context, and alarm context where available.
-- [ ] Ensure `SonosStateSnapshot` includes enough information to restore the original topology and playback state without guessing.
-- [ ] Implement `RestoreStateAsync` as an actual restore flow that re-applies topology, playback mode, and, when feasible, playback position and source.
-- [ ] Gracefully handle cases where the track or source is no longer available and return `RestoreResult` with a clear error reason instead of pretending the restore succeeded.
-- [ ] Add restore semantics for grouped/ungrouped rooms and ensure the operation is deterministic and idempotent where possible.
-- [ ] Refresh system state after restore and confirm the final topology/playback state before returning success.
+- [x] Expand `CaptureStateAsync` in the transport/system manager so it captures the required state: group topology, player membership, current source/URI, track metadata, playback state, volume/mute, queue/favorites context, and alarm context where available.
+- [x] Ensure `SonosStateSnapshot` includes enough information to restore the original topology and playback state without guessing.
+- [x] Implement `RestoreStateAsync` as an actual restore flow that re-applies topology, playback mode, and, when feasible, playback position and source.
+- [x] Gracefully handle cases where the track or source is no longer available and return `RestoreResult` with a clear error reason instead of pretending the restore succeeded.
+- [x] Add restore semantics for grouped/ungrouped rooms and ensure the operation is deterministic and idempotent where possible.
+- [x] Refresh system state after restore and confirm the final topology/playback state before returning success.
 
 ### 9. Standardize result/error semantics and cancellation
-- [ ] Review all public methods for consistent `Success`, `Message`, and `ErrorCode` behavior.
-- [ ] Ensure `DeviceNotFound`, `RoomNotFound`, `PlayerUnavailable`, `GroupRejected`, `InvalidUri`, `Timeout`, `MalformedResponse`, and `TransportFailure` are emitted consistently by the real transport layer.
-- [ ] Add explicit handling for unsupported or malformed Sonos responses rather than silently continuing.
-- [ ] Enforce cancellation-token propagation through discovery, playback, queue, topology, and restore calls.
-- [ ] Ensure all public methods that fail in expected ways return typed results rather than throwing, while still allowing fatal transport exceptions when necessary.
+- [x] Review all public methods for consistent `Success`, `Message`, and `ErrorCode` behavior.
+- [x] Ensure `DeviceNotFound`, `RoomNotFound`, `PlayerUnavailable`, `GroupRejected`, `InvalidUri`, `Timeout`, `MalformedResponse`, and `TransportFailure` are emitted consistently by the real transport layer.
+- [x] Add explicit handling for unsupported or malformed Sonos responses rather than silently continuing.
+- [x] Enforce cancellation-token propagation through discovery, playback, queue, topology, and restore calls.
+- [x] Ensure all public methods that fail in expected ways return typed results rather than throwing, while still allowing fatal transport exceptions when necessary.
 
 ### 10. Clean up architectural and API mismatches
-- [ ] Confirm the library remains generic and does not hard-code HomeCompanion runtime objects or local-only assumptions.
-- [ ] Keep the transport-specific adaptation outside the public library; the public library should depend on explicit service contracts and models only.
-- [ ] Verify the naming and responsibilities match the spec: `ISonosSystemService`, `ISonosDiscoveryService`, `ISonosTopologyService`, `ISonosPlaybackService`, `ISonosQueueService`, `ISonosFavoritesService`, `ISonosAlarmService`, `ISonosTransportService`, and `ISonosStateRestoreService`.
-- [ ] Decide whether `SonosHousehold` and `SonosSystem` remain optional/required based on the actual API contract and update the library structure and tests accordingly.
-- [ ] Explicitly remove or replace any placeholder service behavior that was added only to make the initial tests pass but does not meet the library specification.
+- [x] Confirm the library remains generic and does not hard-code HomeCompanion runtime objects or local-only assumptions.
+- [x] Keep the transport-specific adaptation outside the public library; the public library should depend on explicit service contracts and models only.
+- [x] Verify the naming and responsibilities match the spec: `ISonosSystemService`, `ISonosDiscoveryService`, `ISonosTopologyService`, `ISonosPlaybackService`, `ISonosQueueService`, `ISonosFavoritesService`, `ISonosAlarmService`, `ISonosTransportService`, and `ISonosStateRestoreService`.
+- [x] Decide whether `SonosHousehold` and `SonosSystem` remain optional/required based on the actual API contract and update the library structure and tests accordingly.
+- [x] Explicitly remove or replace any placeholder service behavior that was added only to make the initial tests pass but does not meet the library specification.
 
 ---
 
@@ -94,12 +94,12 @@ The current implementation satisfies only the type-level skeleton of the spec. T
 - [x] Add a test proving `GroupAsync` fails cleanly when fewer than two valid players are supplied.
 - [x] Add a test proving topology is refreshed after grouping and ungrouping operations.
 - [x] Add a test proving invalid media URLs are rejected with `SonosErrorCode.InvalidUri` and a clear message.
-- [ ] Add a test proving playback state capture includes group topology and the player’s current source/position.
-- [ ] Add a test proving restore re-applies the previous topology and playback state.
-- [ ] Add a test proving queue operations return actual queue entries and can play/remove/clear items.
-- [ ] Add a test proving favorites and alarm endpoints return real metadata and can be created, updated, or deleted safely.
-- [ ] Add a test proving timeout and malformed-response cases map to the correct result/error code.
-- [ ] Add a test proving `SonosDiscoveryService` treats unavailable or offline devices as offline and does not claim they are active.
+- [x] Add a test proving playback state capture includes group topology and the player’s current source/position.
+- [x] Add a test proving restore re-applies the previous topology and playback state.
+- [x] Add a test proving queue operations return actual queue entries and can play/remove/clear items.
+- [x] Add a test proving favorites and alarm endpoints return real metadata and can be created, updated, or deleted safely.
+- [x] Add a test proving timeout and malformed-response cases map to the correct result/error code.
+- [x] Add a test proving `SonosDiscoveryService` treats unavailable or offline devices as offline and does not claim they are active.
 - [x] Keep all unit tests in `Integrations.Sonos.Tests` and avoid mixing production-library tests into the library project itself.
 
 ### 12. Review the existing tests and fix them to reflect actual spec behavior
@@ -114,10 +114,10 @@ The current implementation satisfies only the type-level skeleton of the spec. T
 1. [x] Real transport + request error model
 2. [x] Discovery + player metadata normalization
 3. [x] Topology/group operations
-4. [ ] Playback + state capture
-5. [ ] Queue + favorites + alarms
-6. [ ] Restore transaction semantics
-7. [ ] Regression tests and public API validation
+4. [x] Playback + state capture
+5. [x] Queue + favorites + alarms
+6. [x] Restore transaction semantics
+7. [x] Regression tests and public API validation
 
 ## Definition of done
 

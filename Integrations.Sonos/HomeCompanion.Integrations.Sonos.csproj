@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Integrations.Sonos.Abstractions\HomeCompanion.Integrations.Sonos.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -63,23 +63,27 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
         {
             var players = await GetPlayersAsync(cancellationToken).ConfigureAwait(false);
             var groups = await _transport.GetGroupsAsync(cancellationToken).ConfigureAwait(false);
+            var household = BuildHousehold(players);
 
             return new SonosSystem
             {
                 Id = "sonos-system",
                 Name = players.Count > 0 ? "Sonos system" : "Sonos (not discovered)",
                 Players = players,
-                Groups = groups
+                Groups = groups,
+                Household = household
             };
         }
 
         var discoveredPlayers = await GetPlayersAsync(cancellationToken).ConfigureAwait(false);
+        var discoveredHousehold = BuildHousehold(discoveredPlayers);
         return new SonosSystem
         {
             Id = "sonos-system",
             Name = discoveredPlayers.Count > 0 ? "Sonos system" : "Sonos (not discovered)",
             Players = discoveredPlayers,
-            Groups = []
+            Groups = [],
+            Household = discoveredHousehold
         };
     }
 
@@ -210,5 +214,35 @@ public sealed class SonosDiscoveryService : ISonosDiscoveryService
         {
             return null;
         }
+    }
+
+    private static SonosHousehold? BuildHousehold(IReadOnlyList<SonosPlayer> players)
+    {
+        var normalizedPlayerIds = players
+            .Select(player => SonosValidation.NormalizePlayerId(player.Id, string.Empty))
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var householdIds = players
+            .Select(player => player.HouseholdId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (householdIds.Count != 1)
+        {
+            return null;
+        }
+
+        var householdId = householdIds[0];
+        return new SonosHousehold
+        {
+            Id = householdId,
+            Name = $"Sonos Household {householdId}",
+            PlayerIds = normalizedPlayerIds
+        };
     }
 }

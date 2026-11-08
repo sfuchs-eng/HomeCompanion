@@ -418,12 +418,22 @@ The library is considered compliant with this specification if it can:
 - Store enough metadata in snapshots to meaningfully restore state.
 - Represent Sonos topology as first-class domain objects instead of unstructured dictionaries.
 
-## 15. Test project placement
+## 15. Projects structure
+
+The library splits in 3 projects:
+
+- `Integrations.Sonos` - the main library project containing production code and public contracts.
+- `Integrations.Sonos.Tests` - the unit test project containing automated tests for the library.
+- `Integrations.Sonos.Abstractions` - the project containing shared abstractions for the Sonos integration.
+
+The HomeCompanion specific integration and extension is placed in the `HomeCompanion.Integrations.Sonos` project, which references the main library and provides HomeCompanion-specific adapters and services in the folder `HomeCompanion.Integrations.Sonos/Extension`.
+
+## 16. Test project placement
 
 All unit tests for this library shall be placed in the `Integrations.Sonos.Tests` project. The test project is the canonical location for all automated validation covering the library's public contracts, state transitions, group operations, restore flows, and playback behaviors.
 
 Tests shall not be mixed into the production library project. The library project shall remain focused on production code, while the `Integrations.Sonos.Tests` project owns verification and regression coverage.
 
-## 16. Summary
+## 17. Summary
 
 The Sonos integration library shall become a reusable collection of services for Sonos control and state management. It must support player discovery, grouping, playback, queue/favorites/alarm operations, and restoration of prior state. The library shall be generic, strongly typed, and built around an extensible service architecture that can be consumed by HomeCompanion and other .NET applications.
