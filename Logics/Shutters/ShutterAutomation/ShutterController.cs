@@ -27,13 +27,10 @@ public partial class ShutterController : LogicBase, IDiagnosable
     private readonly IEventSubscriber eventSubscriber;
     private readonly TimeProvider timeProvider;
     private readonly IModelProvider modelProvider;
+    private readonly IRuntimesProvider runtimesProvider;
     private readonly IEnvironmentalsProvider environmentalsProvider;
     private readonly ILoggerFactory loggerFactory;
     private readonly ILogger<ShutterController> logger;
-    private readonly Dictionary<ShutterKey, ShutterRuntime> shutterRuntimes = [];
-    private readonly Dictionary<BuildingKey, BuildingRuntime> buildingRuntimes = [];
-    private readonly Dictionary<RoomKey, RoomRuntime> roomRuntimes = [];
-
     /// <summary>
     /// <see cref="ShadowingRuntimesController"/> sends triggers to the event bus from which we received them and enqueue them into the <b>shutter automation trigger collector</b>.
     /// The collector assesses each trigger for its urgency and the time it has been waiting since it was triggered, and decides whether to immediately enqueue it for processing in the <b>state computation loop</b> or to defer it for a short time to allow for more triggers to arrive and be processed together, e.g. to avoid excessive shutter movements in case of rapidly changing input conditions; the collector also batches triggers that are due for processing together into one trigger with a collection of all individual triggers, which is then enqueued into the <b>state computation loop</b>.
@@ -56,6 +53,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
         IEventSubscriber eventSubscriber,
         TimeProvider timeProvider,
         IModelProvider modelProvider,
+        IRuntimesProvider runtimesProvider,
         IEnvironmentalsProvider environmentalsProvider,
         ILoggerFactory loggerFactory,
         ILogger<ShutterController> logger
@@ -66,6 +64,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
         this.eventSubscriber = eventSubscriber;
         this.timeProvider = timeProvider;
         this.modelProvider = modelProvider;
+        this.runtimesProvider = runtimesProvider;
         this.environmentalsProvider = environmentalsProvider;
         this.loggerFactory = loggerFactory;
         this.logger = logger;
@@ -215,9 +214,9 @@ public partial class ShutterController : LogicBase, IDiagnosable
                         try
                         {
                             logger.LogTrace("Processing shutter automation computation trigger for shutter {ShutterKey}", shutterKey.Key);
-                            var buildingRuntime = buildingRuntimes.GetValueOrDefault(shutterKey.RoomKey.BuildingKey) ?? throw new InvalidOperationException($"No runtime found for building {shutterKey.RoomKey.BuildingKey.Key} affected by automation computation trigger for shutter {shutterKey.Key}");
-                            var roomRuntime = roomRuntimes.GetValueOrDefault(shutterKey.RoomKey) ?? throw new InvalidOperationException($"No runtime found for room {shutterKey.RoomKey.Key} affected by automation computation trigger for shutter {shutterKey.Key}");
-                            var shutterRuntime = shutterRuntimes.GetValueOrDefault(shutterKey) ?? throw new InvalidOperationException($"No runtime found for shutter {shutterKey.Key} affected by automation computation trigger");
+                            var buildingRuntime = runtimesProvider.GetBuildingRuntime(shutterKey.RoomKey.BuildingKey.Key);
+                            var roomRuntime = runtimesProvider.GetRoomRuntime(shutterKey.RoomKey.Key);
+                            var shutterRuntime = runtimesProvider.GetShutterRuntime(shutterKey.Key);
                             var runtimeContext = new ShutterRuntimeContext(shutterKey, buildingRuntime, roomRuntime, shutterRuntime);
                             await ComputeShutterTargetStateAsync(runtimeContext, triggerContext, token);
                         }
@@ -242,21 +241,27 @@ public partial class ShutterController : LogicBase, IDiagnosable
         // determine which shutter(s) are affected by the given trigger context.
         if (triggerContext.IsGlobalScope)
         {
-            return shutterRuntimes.Keys;
+            return runtimesProvider.GetAllShutterRuntimes().Select(sr => sr.ShutterKey);
         }
 
         var affectedShutters = new HashSet<ShutterKey>();
+        var availableShutters = runtimesProvider.GetAllShutterRuntimes().Select(sr => sr.ShutterKey).ToArray();
 
         if (triggerContext.IsShutterScoped)
         {
-            affectedShutters.UnionWith(triggerContext.GetShutterKeys());
+            foreach (var triggerShutterKey in triggerContext.GetShutterKeys())
+            {
+                var runtimeShutterKey = availableShutters.FirstOrDefault(sk => sk.Key == triggerShutterKey.Key);
+                if (runtimeShutterKey != null)
+                    affectedShutters.Add(runtimeShutterKey);
+            }
         }
 
         if (triggerContext.IsRoomScoped)
         {
             foreach (var roomKey in triggerContext.GetRoomKeys())
             {
-                affectedShutters.UnionWith(shutterRuntimes.Keys.Where(shutterKey => shutterKey.RoomKey.Equals(roomKey)));
+                affectedShutters.UnionWith(availableShutters.Where(shutterKey => shutterKey.RoomKey.Key == roomKey.Key));
             }
         }
 
@@ -270,7 +275,7 @@ public partial class ShutterController : LogicBase, IDiagnosable
             triggerContext.Scope,
             string.Join(", ", triggerContext.ThingKeys.Select(k => k.Key)));
 
-        return shutterRuntimes.Keys;
+        return runtimesProvider.GetAllShutterRuntimes().Select(sr => sr.ShutterKey);
     }
     #endregion
 
@@ -321,20 +326,14 @@ public partial class ShutterController : LogicBase, IDiagnosable
 
                 foreach (var shutterTarget in latestTargets)
                 {
-                    if (shutterRuntimes.TryGetValue(shutterTarget.ShutterKey, out var runtime))
+                    try
                     {
-                        try
-                        {
-                            await runtime.ExecuteShutterTargetAsync(shutterTarget);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogWarning(ex, "Error executing shutter target for shutter {ShutterKey}. Exception details: {ExceptionMessage}", shutterTarget.ShutterKey, ex.Message);
-                        }
+                        var runtime = runtimesProvider.GetShutterRuntime(shutterTarget.ShutterKey.Key);
+                        await runtime.ExecuteShutterTargetAsync(shutterTarget);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        logger.LogWarning("Received shutter target for unknown shutter {ShutterKey}", shutterTarget.ShutterKey);
+                        logger.LogWarning(ex, "Error executing shutter target for shutter {ShutterKey}. Exception details: {ExceptionMessage}", shutterTarget.ShutterKey, ex.Message);
                     }
                 }
             }

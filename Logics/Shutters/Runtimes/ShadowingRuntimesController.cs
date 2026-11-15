@@ -22,6 +22,9 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
     private readonly Dictionary<BuildingKey, BuildingRuntime> buildingRuntimes = [];
     private readonly Dictionary<RoomKey, RoomRuntime> roomRuntimes = [];
     private readonly Dictionary<ShutterKey, ShutterRuntime> shutterRuntimes = [];
+    private readonly Dictionary<string, BuildingRuntime> buildingRuntimesByKey = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, RoomRuntime> roomRuntimesByKey = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ShutterRuntime> shutterRuntimesByKey = new(StringComparer.Ordinal);
 
     public IReadOnlyDictionary<BuildingKey, BuildingRuntime> BuildingRuntimes => buildingRuntimes;
 
@@ -112,6 +115,28 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         await UpdateRuntimes(buildingRuntimes, runtimesFactory.CreateBuildingRuntimes(buildingRuntimes), cancellationToken);
         await UpdateRuntimes(roomRuntimes, runtimesFactory.CreateRoomRuntimes(roomRuntimes), cancellationToken);
         await UpdateRuntimes(shutterRuntimes, runtimesFactory.CreateShutterRuntimes(shutterRuntimes), cancellationToken);
+        RebuildRuntimeIndexes();
+    }
+
+    private void RebuildRuntimeIndexes()
+    {
+        buildingRuntimesByKey.Clear();
+        foreach (var runtime in buildingRuntimes.Values)
+        {
+            buildingRuntimesByKey[runtime.BuildingKey.Key] = runtime;
+        }
+
+        roomRuntimesByKey.Clear();
+        foreach (var runtime in roomRuntimes.Values)
+        {
+            roomRuntimesByKey[runtime.RoomKey.Key] = runtime;
+        }
+
+        shutterRuntimesByKey.Clear();
+        foreach (var runtime in shutterRuntimes.Values)
+        {
+            shutterRuntimesByKey[runtime.ShutterKey.Key] = runtime;
+        }
     }
 
     private static async Task UpdateRuntimes<TKey, TRuntime>(Dictionary<TKey, TRuntime> runtimesRepo, Dictionary<TKey, TRuntime> newRuntimes, CancellationToken cancellationToken = default)
@@ -196,11 +221,28 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
 
     public ShutterRuntime GetShutterRuntime(ShutterKey shutterKey)
     {
-        if (shutterRuntimes.TryGetValue(shutterKey, out var shutterRuntime))
-        {
+        if (TryGetShutterRuntime(shutterKey, out var shutterRuntime) && shutterRuntime != null)
             return shutterRuntime;
-        }
+
         throw new KeyNotFoundException($"Shutter runtime for key {shutterKey} not found.");
+    }
+
+    public ShutterRuntime GetShutterRuntime(string shutterKey)
+    {
+        if (TryGetShutterRuntime(shutterKey, out var shutterRuntime) && shutterRuntime != null)
+            return shutterRuntime;
+
+        throw new KeyNotFoundException($"Shutter runtime for key {shutterKey} not found.");
+    }
+
+    public bool TryGetShutterRuntime(ShutterKey shutterKey, out ShutterRuntime? shutterRuntime)
+    {
+        return TryGetShutterRuntime(shutterKey.Key, out shutterRuntime);
+    }
+
+    public bool TryGetShutterRuntime(string shutterKey, out ShutterRuntime? shutterRuntime)
+    {
+        return shutterRuntimesByKey.TryGetValue(shutterKey, out shutterRuntime);
     }
 
     #region Diagnostics
@@ -215,20 +257,69 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
 
     public RoomRuntime GetRoomRuntime(RoomKey roomKey)
     {
-        if (roomRuntimes.TryGetValue(roomKey, out var roomRuntime))
-        {
+        if (TryGetRoomRuntime(roomKey, out var roomRuntime) && roomRuntime != null)
             return roomRuntime;
-        }
+
         throw new KeyNotFoundException($"Room runtime for key {roomKey} not found.");
+    }
+
+    public RoomRuntime GetRoomRuntime(string roomKey)
+    {
+        if (TryGetRoomRuntime(roomKey, out var roomRuntime) && roomRuntime != null)
+            return roomRuntime;
+
+        throw new KeyNotFoundException($"Room runtime for key {roomKey} not found.");
+    }
+
+    public bool TryGetRoomRuntime(RoomKey roomKey, out RoomRuntime? roomRuntime)
+    {
+        return TryGetRoomRuntime(roomKey.Key, out roomRuntime);
+    }
+
+    public bool TryGetRoomRuntime(string roomKey, out RoomRuntime? roomRuntime)
+    {
+        return roomRuntimesByKey.TryGetValue(roomKey, out roomRuntime);
     }
 
     public BuildingRuntime GetBuildingRuntime(BuildingKey buildingKey)
     {
-        if (buildingRuntimes.TryGetValue(buildingKey, out var buildingRuntime))
-        {
+        if (TryGetBuildingRuntime(buildingKey, out var buildingRuntime) && buildingRuntime != null)
             return buildingRuntime;
-        }
+
         throw new KeyNotFoundException($"Building runtime for key {buildingKey} not found.");
+    }
+
+    public BuildingRuntime GetBuildingRuntime(string buildingKey)
+    {
+        if (TryGetBuildingRuntime(buildingKey, out var buildingRuntime) && buildingRuntime != null)
+            return buildingRuntime;
+
+        throw new KeyNotFoundException($"Building runtime for key {buildingKey} not found.");
+    }
+
+    public bool TryGetBuildingRuntime(BuildingKey buildingKey, out BuildingRuntime? buildingRuntime)
+    {
+        return TryGetBuildingRuntime(buildingKey.Key, out buildingRuntime);
+    }
+
+    public bool TryGetBuildingRuntime(string buildingKey, out BuildingRuntime? buildingRuntime)
+    {
+        return buildingRuntimesByKey.TryGetValue(buildingKey, out buildingRuntime);
+    }
+
+    public IReadOnlyCollection<ShutterRuntime> GetAllShutterRuntimes()
+    {
+        return shutterRuntimes.Values;
+    }
+
+    public IReadOnlyCollection<RoomRuntime> GetAllRoomRuntimes()
+    {
+        return roomRuntimes.Values;
+    }
+
+    public IReadOnlyCollection<BuildingRuntime> GetAllBuildingRuntimes()
+    {
+        return buildingRuntimes.Values;
     }
     #endregion
 }

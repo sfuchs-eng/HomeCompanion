@@ -60,7 +60,7 @@ public class ShutterResetExternalOverrideJobTests
         var fixture = ShutterAutomationTestFixture.Create();
         await fixture.StartAsync();
 
-        var runtime = fixture.RuntimesProvider.ShutterRuntimes.Values.First();
+        var runtime = fixture.RuntimesProvider.GetAllShutterRuntimes().First();
         var shutter = runtime.ShutterContext.Shutter;
         if (shutter.PositionValue is not IValue<Ratio> positionValue)
         {

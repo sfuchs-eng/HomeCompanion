@@ -187,9 +187,9 @@ public class ShutterRuntime(
     public static async Task ResetAllExternalOverridesAsync(IRuntimesProvider runtimesProvider)
     {
         var resets = runtimesProvider
-            .ShutterRuntimes
-            .Where(kvp => kvp.Value.IsExternalOverrideActive)
-            .Select(kvp => kvp.Value.ResetExternalOverrideAsync());
+            .GetAllShutterRuntimes()
+            .Where(runtime => runtime.IsExternalOverrideActive)
+            .Select(runtime => runtime.ResetExternalOverrideAsync());
         await Task.WhenAll(resets);
     }
 

@@ -39,7 +39,7 @@ public class RoomShutterSceneLogic(
             return;
 
         var roomKeys = @event.Context.IsGlobalScope
-            ? runtimesProvider.RoomRuntimes.Keys
+            ? runtimesProvider.GetAllRoomRuntimes().Select(rr => rr.RoomKey)
             : @event.Context.GetRoomKeys();
 
         if (!roomKeys.Any())
@@ -61,7 +61,7 @@ public class RoomShutterSceneLogic(
 
     private async Task HandleShutterAutomationComputationTriggerEventForRoomAsync(RoomKey roomKey, ShutterAutomationComputationTriggerEvent @event, CancellationToken cancellationToken)
     {
-        if (runtimesProvider.RoomRuntimes.TryGetValue(roomKey, out var roomRuntime))
+        if (runtimesProvider.TryGetRoomRuntime(roomKey, out var roomRuntime) && roomRuntime != null)
         {
             await roomRuntime.HandleShutterAutomationComputationTriggerEvent(@event.Context, cancellationToken);
         }

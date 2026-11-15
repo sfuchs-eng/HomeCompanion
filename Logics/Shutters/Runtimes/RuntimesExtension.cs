@@ -9,15 +9,24 @@ namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 public interface IRuntimesProvider
 {
-    public IReadOnlyDictionary<BuildingKey, BuildingRuntime> BuildingRuntimes { get; }
-    public IReadOnlyDictionary<RoomKey, RoomRuntime> RoomRuntimes { get; }
-    public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes { get; }
-
     ShutterRuntime GetShutterRuntime(ShutterKey shutterKey);
+    ShutterRuntime GetShutterRuntime(string shutterKey);
+    bool TryGetShutterRuntime(ShutterKey shutterKey, out ShutterRuntime? shutterRuntime);
+    bool TryGetShutterRuntime(string shutterKey, out ShutterRuntime? shutterRuntime);
 
     RoomRuntime GetRoomRuntime(RoomKey roomKey);
+    RoomRuntime GetRoomRuntime(string roomKey);
+    bool TryGetRoomRuntime(RoomKey roomKey, out RoomRuntime? roomRuntime);
+    bool TryGetRoomRuntime(string roomKey, out RoomRuntime? roomRuntime);
     
     BuildingRuntime GetBuildingRuntime(BuildingKey buildingKey);
+    BuildingRuntime GetBuildingRuntime(string buildingKey);
+    bool TryGetBuildingRuntime(BuildingKey buildingKey, out BuildingRuntime? buildingRuntime);
+    bool TryGetBuildingRuntime(string buildingKey, out BuildingRuntime? buildingRuntime);
+
+    IReadOnlyCollection<ShutterRuntime> GetAllShutterRuntimes();
+    IReadOnlyCollection<RoomRuntime> GetAllRoomRuntimes();
+    IReadOnlyCollection<BuildingRuntime> GetAllBuildingRuntimes();
 }
 
 public class RuntimesExtension : Extensions.IExtensionRegistration
