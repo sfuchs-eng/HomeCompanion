@@ -68,7 +68,7 @@ This is currently enforced by convention and by scope handling, not by a separat
 ### High-priority clarifications
 
 - [x] Keep scope handling explicit in the dispatcher when room-scene requests and shutter-target requests are handled differently.
-- [~] Make the room-scene versus shutter automation boundary obvious in tests and docs.
+- [x] Make the room-scene versus shutter automation boundary obvious in tests and docs.
 - [x] Keep the trigger type generic but avoid overloading it with unrelated responsibilities as the code grows.
 
 Status note (2026-11-15):
@@ -80,9 +80,18 @@ Status note (2026-11-15):
 
 ### Medium-priority hardening
 
-- Add focused tests for trigger batching by urgency and scope.
+- [~] Add focused tests for trigger batching by urgency and scope.
 - Add tests covering mixed global/room/shutter triggers to validate ordering and de-duplication.
+- Add safety-bypass precedence tests for manual override (storm/wind, hail, approved special scenes).
 - Add diagnostics to visualize queue backlog and dropped/merged trigger counts.
+
+Status note (2026-11-15, additional):
+
+- Added urgency-window tests for default/immediate/mixed deadline handling.
+- Added global + scoped trigger-merge tests and overlapping key de-dup tests.
+- Added override-reset job tests for invalid key handling and shutter-scoped slow recomputation trigger emission.
+- Safety-bypass precedence tests are not implemented yet because `ComputeShutterTargetStateAsync` currently exits early on active manual override with no explicit bypass branch for urgent safety paths.
+- Next step: introduce an explicit urgent-safety bypass branch in `ComputeShutterTargetStateAsync`, then add targeted tests proving bypass behavior while manual override is active.
 
 ### Optional future refactor
 
