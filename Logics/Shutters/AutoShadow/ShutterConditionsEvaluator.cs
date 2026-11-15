@@ -45,6 +45,13 @@ public class ShutterConditionsEvaluationResult
     /// </remarks>
     public CachedValue<bool>? IsInSunExposureRangeCache { get; set; }
     public bool IsInSunExposureRange => IsInSunExposureRangeCache?.Value ?? throw new InvalidOperationException($"IsInSunExposureRangeCache is not initialized for shutter {RuntimeContext.ShutterKey.Key}. Cannot evaluate sun exposure range.");
+
+    /// <summary>
+    /// if true, the building is in night mode, means people might be sleeping yet, so noise minimization is required.
+    /// If false, night mode is not active, so noise minimization is not required.
+    /// </summary>
+    /// <value></value>
+    public bool NightModeActive { get; internal set; }
 }
 
 /// <summary>
@@ -111,6 +118,7 @@ public class ShutterConditionsEvaluator(IEnvironmentalsProvider environmentalsPr
             AutomationMustNotOpenShutter = automationMustNotOpenShutter,
             AutomationMustNotCloseShutter = automationMustNotCloseShutter,
             ManualOverrideActiveAndPriority = manualOverrideActiveAndPriority,
+            NightModeActive = runtimeContext.BuildingRuntime?.IsNightModeActive() ?? false,
 
             ShadowingPolicy = DetermineShadowingPolicy(runtimeContext)
         };

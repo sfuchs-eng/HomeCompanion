@@ -13,6 +13,10 @@ public interface IRuntimesProvider
     public IReadOnlyDictionary<ShutterKey, ShutterRuntime> ShutterRuntimes { get; }
 
     ShutterRuntime GetShutterRuntime(ShutterKey shutterKey);
+
+    RoomRuntime GetRoomRuntime(RoomKey roomKey);
+    
+    BuildingRuntime GetBuildingRuntime(BuildingKey buildingKey);
 }
 
 public class RuntimesExtension : Extensions.IExtensionRegistration

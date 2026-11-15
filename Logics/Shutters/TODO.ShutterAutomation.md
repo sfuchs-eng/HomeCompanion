@@ -37,6 +37,13 @@ This is currently enforced by convention, not by a strongly separated type syste
 
 ## Planned cleanup / improvement
 
+## Structural cleanup
+
+- [ ] Move model related types into a dedicated namespace, e.g. `HomeCompanion.Logics.Shutters.Model`, to clarify that they are the data model for the shutter automation logic, separated from the runtime state and the decision-taking logic.
+- [ ] Separate runtimes into a dedicated namespace, e.g. `HomeCompanion.Logics.Shutters.Runtimes`, to clarify that they are the stateful runtime core, separated from the decision taking logic.
+- [ ] Separate room scene logic and related types into a dedicated namespace, e.g. `HomeCompanion.Logics.Shutters.RoomScene`, to clarify that they are the decision-taking logic at room level, separated from the runtime state and the shutter-level decision logic.
+- [ ] Separate shutter-level decision logic and related types into a dedicated namespace, e.g. `HomeCompanion.Logics.Shutters.ShutterAutomation`, to clarify that they are the decision-taking logic at shutter level, separated from the runtime state and the room-level decision logic.
+
 ### High-priority clarifications
 
 - Separate room-scene trigger and shutter automation trigger contracts if the codebase grows further.

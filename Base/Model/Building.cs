@@ -93,6 +93,11 @@ public class Building : ModelEntityWithConfig<CfgBuilding>
         shadowingSpecial = null!;
         return false;
     }
+
+    public BuildingKey GetKey()
+    {
+        return new BuildingKey(this);
+    }
 }
 
 public interface IBuildingSpecial : ISpecial

@@ -11,6 +11,7 @@ namespace HomeCompanion.Logics.Shutters;
 public class RoomSceneResolver
 {
     protected readonly RoomContext roomContext;
+    protected readonly IRuntimesProvider runtimesProvider;
     protected readonly ILogger<RoomSceneResolver> logger;
 
     #region Room shutter scene state machine
@@ -31,9 +32,10 @@ public class RoomSceneResolver
 
     protected string _lastDecisionMessage = $"{nameof(ResolveTargetRoomShutterScene)} has not been called yet.";
 
-    public RoomSceneResolver(RoomContext roomContext, ILogger<RoomSceneResolver> logger)
+    public RoomSceneResolver(RoomContext roomContext, RuntimeCreationContext<RoomKey, RoomRuntime> runtimeCreationContext, ILogger<RoomSceneResolver> logger)
     {
         this.roomContext = roomContext;
+        this.runtimesProvider = runtimeCreationContext.RuntimesProvider;
         this.logger = logger;
     }
 
@@ -113,6 +115,12 @@ public class RoomSceneResolver
             // current request is manual, proceed
         }
 
+        if ( currentSceneRequest == RoomShutterScene.RequestNone )
+        {
+            currentSceneRequest = RoomShutterScene.AutoNoReopen;
+            _lastDecisionMessage = $"Current requested scene is {RoomShutterScene.RequestNone}. We translate it to {currentSceneRequest} and proceed.";
+        }
+
         // Cleaning modes must exit via Hard* or Disabled or global automation override. Never via Automation or Request* scenes. If the last permitted scene was a cleaning scene, we must stick to it until a hard scene or disabled scene is requested.
         if (lastPermittedScene.IsCleaningScene() && (currentSceneRequest.IsRequestScene() || currentSceneRequest.IsAutomationScene()))
         {
@@ -162,6 +170,12 @@ public class RoomSceneResolver
             //TODO: check sun situation and temperature thresholds to determine whether we can allow the requested scene or not. If not, we need to block it and exit via the last permitted scene.
 
             //TODO: if house in sleeping mode, put to shadow instead of opening
+            var buildingRuntime = runtimesProvider.GetBuildingRuntime(roomContext.Building.GetKey());
+            if ( buildingRuntime?.IsNightModeActive() ?? false )
+            {
+                _lastDecisionMessage = $"Current requested scene is {currentSceneRequest}, which is a manual scene, but the building is in sleeping mode. We transition to {RoomShutterScene.AwakeWaitingForNightClosureRelease} instead.";
+                return permit(RoomShutterScene.AwakeWaitingForNightClosureRelease);
+            }
 
             // thermal priority profile blocks manual scenes
             _lastDecisionMessage = $"Current requested scene is {currentSceneRequest}, which is a manual scene, but the room objective profile is {roomObjectiveProfile}, which blocks manual scenes. We will not allow it and exit via the last permitted scene.";

@@ -27,6 +27,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
     private readonly TimeProvider timeProvider;
     private readonly ISignalStore? signalStore = null;
     private readonly ILogger<RoomRuntime> logger;
+    private readonly IRuntimesProvider runtimesProvider;
 
     public virtual required RoomSceneConditionsAssessor SceneConditionsAssessor { get; init; }
     public virtual required RoomSceneResolver SceneResolver { get; init; }
@@ -47,6 +48,7 @@ public class RoomRuntime : RuntimeBase, IDisposable
         this.queueFeeder = queueFeeder;
         this.timeProvider = timeProvider;
         this.signalStore = runtimeCreationContext.ServiceProvider.GetService<ISignalStore>();
+        this.runtimesProvider = runtimeCreationContext.RuntimesProvider;
         this.logger = logger;
         filteredRoomTemperatureObservableCached = new CachedValue<IObservable<double>>(Observable.Empty<double>(), () =>
         {
@@ -361,8 +363,8 @@ public class RoomRuntime : RuntimeBase, IDisposable
 
             var runtime = new RoomRuntime(roomContext, queueFeeder, runtimeCreationContext.TimeProvider, runtimeCreationContext, loggerFactory.CreateLogger<RoomRuntime>())
             {
-                SceneConditionsAssessor = new RoomSceneConditionsAssessor(roomContext, loggerFactory.CreateLogger<RoomSceneConditionsAssessor>()),
-                SceneResolver = new RoomSceneResolver(roomContext, loggerFactory.CreateLogger<RoomSceneResolver>())
+                SceneConditionsAssessor = new RoomSceneConditionsAssessor(roomContext, runtimeCreationContext, loggerFactory.CreateLogger<RoomSceneConditionsAssessor>()),
+                SceneResolver = new RoomSceneResolver(roomContext, runtimeCreationContext, loggerFactory.CreateLogger<RoomSceneResolver>())
             };
             newRuntimes[roomKey] = runtime;
         }

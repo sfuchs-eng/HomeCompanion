@@ -15,6 +15,7 @@ public class RuntimesFactory(
     TimeProvider timeProvider,
     IModelProvider modelProvider,
     ISchedulerFactory schedulerFactory,
+    IRuntimesProvider runtimesProvider,
     IServiceProvider serviceProvider,
     ILoggerFactory loggerFactory,
     ILogger<RuntimesFactory> logger
@@ -27,6 +28,7 @@ public class RuntimesFactory(
     private readonly TimeProvider timeProvider = timeProvider;
     private readonly IModelProvider modelProvider = modelProvider;
     private readonly ISchedulerFactory schedulerFactory = schedulerFactory;
+    private readonly IRuntimesProvider runtimesProvider = runtimesProvider;
     private readonly IServiceProvider serviceProvider = serviceProvider;
     private readonly ILoggerFactory loggerFactory = loggerFactory;
     private readonly ILogger<RuntimesFactory> logger = logger;
@@ -45,6 +47,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        runtimesProvider,
         serviceProvider,
         loggerFactory
     ));
@@ -65,6 +68,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        runtimesProvider,
         serviceProvider,
         loggerFactory
     ));
@@ -78,6 +82,7 @@ public class RuntimesFactory(
         computationTriggerQueueFeeder,
         schedulerFactory,
         timeProvider,
+        runtimesProvider,
         serviceProvider,
         loggerFactory
     ));
@@ -99,6 +104,7 @@ public record class RuntimeCreationContext<TKey, TRuntime>(
     IQueueFeeder<ShutterAutomationComputationTriggerContext> ComputationTriggerQueueFeeder,
     ISchedulerFactory SchedulerFactory,
     TimeProvider TimeProvider,
+    IRuntimesProvider RuntimesProvider,
     IServiceProvider ServiceProvider,
     ILoggerFactory LoggerFactory
 ) where TKey : notnull, IThingKey

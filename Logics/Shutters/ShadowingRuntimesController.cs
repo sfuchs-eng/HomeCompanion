@@ -58,6 +58,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
             serviceProvider: serviceProvider,
             modelProvider: modelProvider,
             schedulerFactory: schedulerFactory,
+            runtimesProvider: this,
             loggerFactory: loggerFactory,
             logger: loggerFactory.CreateLogger<RuntimesFactory>());
     }
@@ -87,6 +88,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
             serviceProvider: serviceProvider,
             modelProvider: modelProvider,
             schedulerFactory: schedulerFactory,
+            runtimesProvider: this,
             loggerFactory: loggerFactory,
             logger: loggerFactory.CreateLogger<RuntimesFactory>());
     }
@@ -207,6 +209,24 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
         node.AddChilds("RoomRuntimes", await Task.WhenAll(roomRuntimes.Select(async kvp => await kvp.Value.GetDiagnosisAsync(cancellationToken))));
         node.AddChilds("ShutterRuntimes", await Task.WhenAll(shutterRuntimes.Select(async kvp => await kvp.Value.GetDiagnosisAsync(cancellationToken))));
         return node;
+    }
+
+    public RoomRuntime GetRoomRuntime(RoomKey roomKey)
+    {
+        if (roomRuntimes.TryGetValue(roomKey, out var roomRuntime))
+        {
+            return roomRuntime;
+        }
+        throw new KeyNotFoundException($"Room runtime for key {roomKey} not found.");
+    }
+
+    public BuildingRuntime GetBuildingRuntime(BuildingKey buildingKey)
+    {
+        if (buildingRuntimes.TryGetValue(buildingKey, out var buildingRuntime))
+        {
+            return buildingRuntime;
+        }
+        throw new KeyNotFoundException($"Building runtime for key {buildingKey} not found.");
     }
     #endregion
 }

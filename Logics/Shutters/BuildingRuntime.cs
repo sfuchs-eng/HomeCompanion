@@ -130,4 +130,27 @@ public class BuildingRuntime(
         }
         return newRuntimes;
     }
+
+    public bool IsNightModeActive()
+    {
+        // get the shadowing special for this building and check if the sleeping mode is active
+        var shadowingSpecial = BuildingContext.Building.GetShadowingSpecial();
+        if (shadowingSpecial == null)
+        {
+            logger.LogWarning("Building {BuildingKey} does not have a ShadowingSpecial. Cannot determine if sleeping mode is active.", BuildingKey.Key);
+            return false;
+        }
+        if (shadowingSpecial.NightMode == null)
+        {
+            logger.LogWarning("Building {BuildingKey} does not have a NightMode value in its ShadowingSpecial. Cannot determine if sleeping mode is active.", BuildingKey.Key);
+            return false;
+        }
+        if ( !shadowingSpecial.NightMode.IsValid )
+        {
+            logger.LogDebug("Building {BuildingKey} has an invalid NightMode value in its ShadowingSpecial. Cannot determine if sleeping mode is active.", BuildingKey.Key);
+            return false;
+        }
+        var nightModeActive = shadowingSpecial.NightMode.Value;
+        return nightModeActive;
+    }
 }

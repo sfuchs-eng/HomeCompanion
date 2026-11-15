@@ -43,6 +43,14 @@ public enum RoomShutterScene : byte
     HardClosed = 3,
 
     /// <summary>
+    /// KNX scene 21:
+    /// No particular scene requested.
+    /// If used as global scene number: signaling that the global scene shall not impact the room scene. Room scene evaluation ignores this global scene number.
+    /// If used as room scene number: fall through to <see cref="AutoNoReopen"/>
+    /// </summary>
+    RequestNone = 20,
+
+    /// <summary>
     /// KNX scene 22:
     /// Person asks for open shutters in a room.
     /// HomeCompanion should react to this request by opening the shutters, but may ignore it if constraints or safety conditions apply.

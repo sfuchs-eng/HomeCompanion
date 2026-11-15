@@ -23,7 +23,7 @@ public class RoomSceneConditionsAssessor
 
     protected string _lastRoomObjectiveProfileDecisionMessage = string.Empty;
 
-    public RoomSceneConditionsAssessor(RoomContext roomContext, ILogger<RoomSceneConditionsAssessor> logger)
+    public RoomSceneConditionsAssessor(RoomContext roomContext, RuntimeCreationContext<RoomKey, RoomRuntime> runtimeCreationContext, ILogger<RoomSceneConditionsAssessor> logger)
     {
         this.roomContext = roomContext;
         this.logger = logger;
