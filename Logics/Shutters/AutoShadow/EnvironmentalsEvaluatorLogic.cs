@@ -53,11 +53,12 @@ public interface IEnvironmentalsProvider
     bool UvIntensityAboveThreshold { get; }
 
     /// <summary>
-    /// Gets the daily net energy balance in p.u. (per unit). The p.u. normalization must be chosen to land a suitable range for shadowing thresholds and decisions.
-    /// This value is computed from the daily average temperature difference between indoor target and outdoor actual temperature.
+    /// Gets the daily net thermal balance in p.u. (per unit) used for shadowing decisions.
+    /// Positive values mean outdoor conditions are warmer than the indoor target on average (cooling demand / overheating risk).
+    /// Negative values mean outdoor conditions are cooler than the indoor target on average (heating demand).
     /// </summary>
     /// <param name="index">Optional index to specify the day (e.g., 0 for today, -1 for past, 1 for forecast).</param>
-    /// <returns>The estimated daily net energy balance in p.u. for the specified day, ignoring shutter/sunlight impact, or null if not available.</returns>
+    /// <returns>The estimated daily net thermal balance in p.u. for the specified day, ignoring shutter/sunlight impact, or null if not available.</returns>
     double EnergyBalancePU24hActual { get; }
 
     /// <summary>
@@ -297,13 +298,13 @@ public class EnvironmentalsEvaluatorLogic : LogicBase, IEnvironmentalsProvider, 
 
     internal IObservable<double> GetEnergyBalanceObservable(ShadowingSpecial s, TimeSpan? averagingWindow = null)
     {
-        // Compute the daily net energy balance in p.u. (per unit)
-        // This value is computed from the daily average temperature difference between indoor target room temp and outdoor temperature, normalized by a reference value.
+        // Compute the daily net thermal balance in p.u. (per unit).
+        // Sign semantics: positive => cooling demand / overheating risk, negative => heating demand.
         var window = averagingWindow ?? TimeSpan.FromHours(24);
 
         var energyBalanceObs = (s.OutdoorTemperature?.AsObservable((t) => t.As(UnitsNet.Units.TemperatureUnit.DegreeCelsius)) ?? Observable.Return(10.0))
-            // energy balance = (target room temp - outdoor temp) * scaling factor
-            .Select(outdoorTemp => (s.Configuration.DefaultRoomTemperatureTarget - outdoorTemp) * s.Configuration.EnergyBalanceTemperatureScalingFactor)
+            // thermal balance = (outdoor temp - target room temp) * scaling factor
+            .Select(outdoorTemp => (outdoorTemp - s.Configuration.DefaultRoomTemperatureTarget) * s.Configuration.EnergyBalanceTemperatureScalingFactor)
             // 24h average
             .TimeWeightedAverage(window)
             .DistinctUntilChangedWithHysteresis(0.01);

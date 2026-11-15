@@ -51,4 +51,30 @@ public class SphericVectorTests
         Assert.That(vector, Is.InstanceOf<Vector2D>());
         Assert.That(vector.Length, Is.EqualTo(5.0).Within(1e-12));
     }
+
+    [Test]
+    public void SphericComparer_LargeDayNightDifference_IsNotEqual()
+    {
+        var comparer = new SphericVectorComparer()
+            .SetToleranceDeg(2.0)
+            .UseSphericEquality();
+
+        var dayLike = SphericVector.FromDegrees(176.0, 25.64);
+        var nightLike = SphericVector.FromDegrees(285.43, -38.72);
+
+        Assert.That(comparer.Equals(dayLike, nightLike), Is.False);
+    }
+
+    [Test]
+    public void SphericComparer_AzimuthWrapAround_WithinTolerance_IsEqual()
+    {
+        var comparer = new SphericVectorComparer()
+            .SetToleranceDeg(2.5)
+            .UseSphericEquality();
+
+        var nearNorthWest = SphericVector.FromDegrees(359.0, 0.0);
+        var nearNorthEast = SphericVector.FromDegrees(1.0, 0.0);
+
+        Assert.That(comparer.Equals(nearNorthWest, nearNorthEast), Is.True);
+    }
 }

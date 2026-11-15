@@ -406,7 +406,7 @@ public class EnvironmentalsEvaluatorLogicTests
     }
 
     [Test]
-    public async Task GetEnergyBalanceObservable_UsesOutdoorTemperatureAndScaling()
+    public async Task GetEnergyBalanceObservable_WhenOutdoorIsCoolerThanTarget_ReturnsNegativeHeatingDemand()
     {
         var ctx = CreateContext(cfg =>
         {
@@ -421,11 +421,30 @@ public class EnvironmentalsEvaluatorLogicTests
             TimeSpan.FromMilliseconds(500)
         );
 
+        Assert.That(value, Is.EqualTo(-2.0).Within(0.05));
+    }
+
+    [Test]
+    public async Task GetEnergyBalanceObservable_WhenOutdoorIsWarmerThanTarget_ReturnsPositiveCoolingDemand()
+    {
+        var ctx = CreateContext(cfg =>
+        {
+            cfg.DefaultRoomTemperatureTarget = 22.0;
+            cfg.EnergyBalanceTemperatureScalingFactor = 0.5;
+        });
+
+        GetTemperatureValue(ctx.Values, "Temperature:OutdoorTemperature").Write(Temperature.FromDegreesCelsius(26.0));
+
+        var value = await WaitForNextValueAsync(
+            ctx.Sut.GetEnergyBalanceObservable(ctx.Special, TimeSpan.FromMilliseconds(60)),
+            TimeSpan.FromMilliseconds(500)
+        );
+
         Assert.That(value, Is.EqualTo(2.0).Within(0.05));
     }
 
     [Test]
-    public async Task GetEnergyBalanceObservable_WithoutOutdoorTemperatureReference_UsesFallbackTemperature()
+    public async Task GetEnergyBalanceObservable_WithoutOutdoorTemperatureReference_UsesFallbackTemperatureWithSignSemantics()
     {
         var ctx = CreateContext(cfg =>
         {
@@ -439,7 +458,7 @@ public class EnvironmentalsEvaluatorLogicTests
             TimeSpan.FromMilliseconds(500)
         );
 
-        Assert.That(value, Is.EqualTo(2.5).Within(0.05));
+        Assert.That(value, Is.EqualTo(-2.5).Within(0.05));
     }
 
     [Test]

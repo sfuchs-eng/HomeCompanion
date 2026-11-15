@@ -103,7 +103,7 @@ public class SphericVectorComparer : IEqualityComparer<SphericVector>
     public bool EqualsSpheric(SphericVector? x, SphericVector? y)
     {
         if (x is null || y is null) return false;
-        return x.AngleTo(y) <= tolerance;
+        return SphericVector.AngleBetween(x, y) <= tolerance;
     }
 
     public bool EqualsBox(SphericVector? x, SphericVector? y)

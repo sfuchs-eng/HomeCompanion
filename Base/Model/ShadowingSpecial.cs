@@ -95,13 +95,16 @@ public class CfgShadowingSpecial : CfgBuildingSpecial
     public double DefaultRoomTemperatureTarget { get; set; } = 22.0;
 
     /// <summary>
-    /// Factor by which the daily average difference between indoor and outdoor temperature is scaled to compute the daily net energy balance in p.u. (per unit).
-    /// As it's merely about deciding whether to leave shutters open for daylight or to have them cast shadows, the scaling factor is set to 1/10 by default, meaning that a 10°C difference corresponds to 1.0 p.u. energy balance.
+    /// Factor by which the daily average temperature delta is scaled to compute the daily net thermal balance in p.u. (per unit).
+    /// The formula is <c>(outdoor - roomTarget) * factor</c>.
+    /// Positive values indicate cooling demand / overheating risk; negative values indicate heating demand.
+    /// As it's merely about deciding whether to leave shutters open for daylight or to have them cast shadows, the scaling factor is set to 1/10 by default, meaning that a 10°C delta corresponds to 1.0 p.u. thermal balance.
     /// </summary>
     public double EnergyBalanceTemperatureScalingFactor { get; set; } = 1.0/10.0; // 10°C difference corresponds to 1.0 p.u. energy balance
 
     /// <summary>
-    /// If we're in cautious shadowing mode, this threshold defines wether to leave shutters open for daylight or to have them cast shadows.
+    /// If we're in cautious shadowing mode, this threshold defines whether to leave shutters open for daylight or to have them cast shadows.
+    /// The threshold applies to the thermal balance where larger positive values mean higher overheating risk.
     /// </summary>
     /// <value></value>
     public double CautiousShadowingEnergyBalanceThresholdPU { get; set; } = 0.5;
