@@ -33,11 +33,15 @@ public class RoomShutterSceneLogic(
 
     private async ValueTask HandleShutterAutomationComputationTriggerEventAsync(ShutterAutomationComputationTriggerEvent @event, CancellationToken cancellationToken = default)
     {
-        // Room-scene handling is explicit: only RoomSpecific scopes with room keys are processed here.
-        if (!@event.Context.IsRoomScoped)
+        // Room-scene handling is explicit: room-scoped triggers target selected rooms,
+        // and global triggers target all room runtimes.
+        if (!@event.Context.IsRoomScoped && !@event.Context.IsGlobalScope)
             return;
 
-        var roomKeys = @event.Context.GetRoomKeys();
+        var roomKeys = @event.Context.IsGlobalScope
+            ? runtimesProvider.RoomRuntimes.Keys
+            : @event.Context.GetRoomKeys();
+
         if (!roomKeys.Any())
             return;
 

@@ -204,4 +204,42 @@ public class RoomShutterSceneControllerTests
             Assert.That(room.ShutterScene?.Value, Is.EqualTo(sceneBefore));
         }
     }
+
+    [Test(Description = "A global trigger recomputes room scene for all rooms by default, even without attached room keys.")]
+    public async Task GlobalTrigger_RecomputesRoomScene_WithoutRoomKeys()
+    {
+        var fix = ShutterAutomationTestFixture.Create();
+        await fix.StartAsync();
+
+        var roomKey = fix.RuntimesController.RoomRuntimes.Keys.First();
+        var roomRuntime = fix.RuntimesController.RoomRuntimes[roomKey];
+        var room = roomRuntime.RoomContext.Room;
+        var special = fix.ModelProvider.GetModel().Buildings["TestBuilding1"].GetShadowingSpecial();
+
+        ((ValueBase<byte>?)special.ThermalControlMode)?.Write((byte)ThermalControlMode.CoolingPriority, roomRuntime);
+
+        roomRuntime.SetRoomShutterScene(RoomShutterScene.HardOpen);
+        room.ShutterScene?.Write((byte)RoomShutterScene.RequestOpen, roomRuntime);
+
+        await fix.EventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent
+        {
+            Context = new ShutterAutomationComputationTriggerContext(
+                thingKeys: [],
+                scope: ShutterAutomationComputationScope.Global,
+                triggeringValue: [],
+                valueEventArgs: [],
+                timestamp: DateTimeOffset.UtcNow,
+                urgency: ShutterAutomationComputationTriggerUrgency.Immediate)
+        });
+
+        var recomputed = SpinWait.SpinUntil(
+            () => room.ShutterScene?.Value == (byte)RoomShutterScene.AutoNoReopen,
+            TimeSpan.FromSeconds(1));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recomputed, Is.True, "Global trigger should drive room-scene recomputation.");
+            Assert.That(room.ShutterScene?.Value, Is.EqualTo((byte)RoomShutterScene.AutoNoReopen));
+        }
+    }
 }

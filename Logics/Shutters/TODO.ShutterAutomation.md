@@ -59,7 +59,7 @@ The intended model is:
 
 - room-scoped triggers affect room-scene decision logic
 - shutter-scoped triggers affect actual shutter target computation
-- global triggers remain a broad recomputation entry point
+- global triggers are a broad recomputation entry point for both room-scene and shutter-target logic
 
 This is currently enforced by convention and by scope handling, not by a separate type system.
 
@@ -75,7 +75,7 @@ Status note (2026-11-15):
 
 - Scope now uses explicit flag semantics and consumer-side filtering helpers in trigger context.
 - Trigger batching and affected-shutter resolution now use explicit room/shutter/global interpretation.
-- Room-scene consumer now accepts only room-scoped trigger intent.
+- Room-scene consumer now accepts room-scoped trigger intent and global triggers (global recomputes all rooms by default).
 - Initial boundary tests and README scope-dispatch contract have been added.
 
 ### Medium-priority hardening
@@ -99,7 +99,7 @@ A more type-safe version of the architecture would use distinct trigger types fo
 
 - room-scene recomputation
 - shutter-target recomputation
-- global building-level recomputation
+- global building-level recomputation, triggering both room-scene and shutter-target recomputation
 
 This would improve readability and validation without changing the current event-bus + batching concept.
 

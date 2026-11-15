@@ -3,7 +3,7 @@
 ## Overall principles of controlling shutters this way
 
 - Each room has a room shutter scene (KNX DPT scene control) that defines the room-level policy for how shutters should be controlled.
-- Each shutter is controlled individually, considering the room shutter scene and other inputs (for example sun position, room temperature, building state, and thermal-control mode). 
+- Each shutter is controlled individually, considering the room shutter scene and other inputs (for example sun position, room temperature, building state, and thermal-control mode).
 - The model layer contains the global, building, floor, room, and facade-level configuration for shutters, including the room shutter scene and the shutter type.
 - Different shutter types vary by capabilities and actuator kind. `ShutterType` defines the shutter type and its relevant capabilities.
 
@@ -79,10 +79,12 @@ This is why the service is registered as a singleton for `IQueueFeeder<ShutterAu
 ### Scope dispatch contract
 
 - The trigger context remains generic and may carry mixed thing keys and mixed scope flags.
-- `RoomShutterSceneLogic` processes only `RoomSpecific` scope and only `RoomKey` entries.
+- `RoomShutterSceneLogic` processes:
+  - `RoomSpecific` scope for explicitly referenced `RoomKey` entries,
+  - `Global` scope as recomputation for all known room runtimes by default.
 - `ShutterController` processes shutter targets from:
-	- explicit `ShutterKey` entries when `ShutterSpecific` is present,
-	- shutters of referenced rooms when `RoomSpecific` is present,
-	- all shutters when `Global` is present.
+  - explicit `ShutterKey` entries when `ShutterSpecific` is present,
+  - shutters of referenced rooms when `RoomSpecific` is present,
+  - all shutters when `Global` is present.
 - Mixed `RoomSpecific | ShutterSpecific` triggers are valid and intentionally fan out to both consumers.
-- Global triggers do not imply room-scene recomputation by default; room-scene recomputation stays conditional by trigger origin and attached room keys.
+- Global triggers imply room-scene recomputation by default.
