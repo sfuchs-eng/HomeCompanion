@@ -1,10 +1,12 @@
+using BaseModel = global::HomeCompanion.Base.Model.Model;
+using HomeCompanion.Logics.Shutters.Runtimes;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Model;
 
 public static class ShutterExtensions
 {
-    public static IEnumerable<ShutterKey> EnumerateShutterKeys(this Model model)
+    public static IEnumerable<ShutterKey> EnumerateShutterKeys(this BaseModel model)
     {
         foreach (var building in model.Buildings.Values)
         {
@@ -23,7 +25,7 @@ public static class ShutterExtensions
         }
     }
 
-    public static Shutter GetShutter(this Model model, ShutterKey shutterKey)
+    public static Shutter GetShutter(this BaseModel model, ShutterKey shutterKey)
     {
         var building = model.GetBuilding(shutterKey.RoomKey.BuildingKey);
         var floor = building.Floors[shutterKey.RoomKey.FloorName];
@@ -35,7 +37,7 @@ public static class ShutterExtensions
         throw new KeyNotFoundException($"Shutter with key {shutterKey.Key} not found in model.");
     }
 
-    public static IEnumerable<ShutterContext> EnumerateShutterContexts(this Model model)
+    public static IEnumerable<ShutterContext> EnumerateShutterContexts(this BaseModel model)
     {
         foreach (var building in model.Buildings.Values)
         {

@@ -1,4 +1,4 @@
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Model;
 
 /// <summary>
 /// Represents the position of a shutter, including its current state and any relevant metadata.

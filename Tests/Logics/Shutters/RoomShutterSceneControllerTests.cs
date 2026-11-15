@@ -1,6 +1,8 @@
 using Moq;
 using NUnit.Framework;
-using HomeCompanion.Logics.Shutters;
+using HomeCompanion.Logics.Shutters.Runtimes;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
+using HomeCompanion.Logics.Shutters.RoomScene;
 using HomeCompanion.Values;
 using HomeCompanion.Events;
 using HomeCompanion.Base.Model;

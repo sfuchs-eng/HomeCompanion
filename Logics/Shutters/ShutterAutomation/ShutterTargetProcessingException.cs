@@ -1,6 +1,6 @@
 using HomeCompanion.Base.Model;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
 public class ShutterTargetProcessingException : Exception
 {

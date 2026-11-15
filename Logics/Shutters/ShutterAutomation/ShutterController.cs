@@ -2,9 +2,11 @@ using System.Threading.Channels;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Logics.Shutters.AutoShadow;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.Runtimes;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
 /// <summary>
 /// <para>Controls the operation of shutters, including processing shutter targets and executing the necessary actions to achieve the desired shutter states.</para>

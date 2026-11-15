@@ -1,9 +1,11 @@
 using HomeCompanion.Base.Quartz;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 public class ShutterRuntime(
     ShutterContext shutterContext,

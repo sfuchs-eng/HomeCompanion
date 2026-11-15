@@ -1,7 +1,7 @@
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Core;
 using HomeCompanion.Diagnostics;
-using HomeCompanion.Logics.Shutters;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using HomeCompanion.Values;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

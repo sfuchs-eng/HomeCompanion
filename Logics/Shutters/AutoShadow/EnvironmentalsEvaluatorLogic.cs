@@ -1,5 +1,7 @@
 using HomeCompanion.Diagnostics;
 using HomeCompanion.Extensions;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using UnitsNet;

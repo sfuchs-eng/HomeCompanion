@@ -1,3 +1,4 @@
+using HomeCompanion.Logics.Shutters.Model;
 using Microsoft.Extensions.Logging;
 
 namespace HomeCompanion.Logics.Shutters.AutoShadow;

@@ -1,4 +1,4 @@
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
 public class ShutterAutomationComputationTriggerEvent : HomeCompanionEvent
 {

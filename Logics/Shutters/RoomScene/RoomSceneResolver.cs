@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Logging;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Runtimes;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.RoomScene;
 
 /// <summary>
 /// Determines the effective room shutter scene based on the results of <see cref="RoomSceneConditionsAssessor"/>, the current room scene, and potentially arbitrary other factors.

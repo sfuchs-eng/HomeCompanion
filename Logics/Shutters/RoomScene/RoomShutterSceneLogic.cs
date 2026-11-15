@@ -1,8 +1,10 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Runtimes;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.RoomScene;
 
 /// <summary>
 /// Controls the shutter scenes of each room:

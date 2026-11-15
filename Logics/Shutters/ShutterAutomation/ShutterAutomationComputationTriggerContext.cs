@@ -1,6 +1,6 @@
 using HomeCompanion.Base.Utilities;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
 public class ShutterAutomationComputationTriggerContext
 {

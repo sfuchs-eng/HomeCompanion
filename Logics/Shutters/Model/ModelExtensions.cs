@@ -1,6 +1,6 @@
 using HomeCompanion.Logics.Shutters.AutoShadow;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Model;
 
 public static class ModelExtensions
 {

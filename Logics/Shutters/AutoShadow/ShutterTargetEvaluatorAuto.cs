@@ -1,8 +1,11 @@
-namespace HomeCompanion.Logics.Shutters.AutoShadow;
-
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.Runtimes;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging;
+
+namespace HomeCompanion.Logics.Shutters.AutoShadow;
 
 /// <summary>
 /// State-less evaluator for the shutter target position based on environmental measurements and other conditions.

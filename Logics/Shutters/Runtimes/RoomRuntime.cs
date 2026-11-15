@@ -1,9 +1,12 @@
 using HomeCompanion.Base.Diagnostics;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.RoomScene;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 /// <summary>
 /// <para>Encapsulates room level runtime state and logic for shutter scene management.</para>

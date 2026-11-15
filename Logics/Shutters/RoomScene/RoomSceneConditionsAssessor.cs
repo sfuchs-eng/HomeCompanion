@@ -2,9 +2,10 @@ using Microsoft.Extensions.Logging;
 using HomeCompanion.Logics.ThermalControl;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Runtimes;
 using System.Diagnostics;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.RoomScene;
 
 /// <summary>
 /// <para>Assesses the conditions which may lead to a change in the room shutter scene and or prevent it from being changed.</para>

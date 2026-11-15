@@ -1,6 +1,8 @@
 using HomeCompanion.Base.Model;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.Runtimes;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
 /// <summary>
 /// Encapsulates the desired target state for a shutter, including the logic to determine the target position based on various inputs such as time of day, weather conditions, and user preferences.

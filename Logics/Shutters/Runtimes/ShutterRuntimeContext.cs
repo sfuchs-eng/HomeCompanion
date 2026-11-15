@@ -1,4 +1,6 @@
-namespace HomeCompanion.Logics.Shutters;
+using HomeCompanion.Logics.Shutters.Model;
+
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 public class ShutterRuntimeContext(ShutterKey shutterKey, BuildingRuntime? buildingRuntime, RoomRuntime? roomRuntime, ShutterRuntime? shutterRuntime)
 {

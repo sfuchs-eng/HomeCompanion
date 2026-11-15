@@ -3,8 +3,9 @@ using Microsoft.Extensions.Logging;
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Quartz;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 /// <summary>
 /// Resets the temporary external override for a shutter and triggers a recomputation of the shutter automation.

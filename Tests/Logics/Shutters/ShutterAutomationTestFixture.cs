@@ -3,12 +3,15 @@ using Quartz.Impl;
 using HomeCompanion.Base.Model;
 using HomeCompanion.Core.Model;
 using HomeCompanion.Events;
-using HomeCompanion.Logics.Shutters;
+using HomeCompanion.Logics.Shutters.AutoShadow;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.RoomScene;
+using HomeCompanion.Logics.Shutters.Runtimes;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using HomeCompanion.Tests.TestUtilities;
 using HomeCompanion.Values;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using HomeCompanion.Logics.Shutters.AutoShadow;
 using Microsoft.Extensions.DependencyInjection;
 using UnitsNet;
 

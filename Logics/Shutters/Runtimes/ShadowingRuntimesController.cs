@@ -1,10 +1,12 @@
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Diagnostics;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 /// <summary>
 /// Manages the lifecycles of runtimes for buildings, rooms, and shutters, and handles the distribution of shutter automation computation triggers.
@@ -140,7 +142,7 @@ public class ShadowingRuntimesController : LogicBase, IRuntimesProvider, IDiagno
     /// - Do all shutters belong to a room with a shutter scene configured? If there are such without, is there a global shutter scene bound as fall back?
     /// </summary>
     /// <returns>True if no issues were found, false if any issues were found and logged as warnings or errors.</returns>
-    public bool CheckConfiguration(Model model)
+    public bool CheckConfiguration(global::HomeCompanion.Base.Model.Model model)
     {
         var success = true;
         var allShutters = model.EnumerateShutterContexts().ToArray();

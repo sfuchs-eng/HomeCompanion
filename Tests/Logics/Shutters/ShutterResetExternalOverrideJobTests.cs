@@ -1,6 +1,7 @@
 using HomeCompanion.Base.Model;
 using HomeCompanion.Base.Utilities;
-using HomeCompanion.Logics.Shutters;
+using HomeCompanion.Logics.Shutters.Runtimes;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;

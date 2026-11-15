@@ -1,7 +1,9 @@
 using HomeCompanion.Base.Utilities;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 public class BuildingRuntime(
     BuildingContext buildingContext,

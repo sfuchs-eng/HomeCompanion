@@ -1,10 +1,11 @@
 using HomeCompanion.Base.Utilities;
 using HomeCompanion.Events;
 using HomeCompanion.Extensions;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 public interface IRuntimesProvider
 {

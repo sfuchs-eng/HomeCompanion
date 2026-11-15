@@ -1,7 +1,10 @@
+using BaseModel = global::HomeCompanion.Base.Model.Model;
+using HomeCompanion.Logics.Shutters.Model;
+using HomeCompanion.Logics.Shutters.ShutterAutomation;
 using Microsoft.Extensions.Logging;
 using Quartz;
 
-namespace HomeCompanion.Logics.Shutters;
+namespace HomeCompanion.Logics.Shutters.Runtimes;
 
 /// <summary>
 /// Creates runtimes for the <see cref="RoomShutterSceneLogic"/> and <see cref="ShutterController"/> logics which are provided to them by <see cref="ShadowingRuntimesController"/>.
@@ -96,7 +99,7 @@ public interface IRuntimesFactory
 }
 
 public record class RuntimeCreationContext<TKey, TRuntime>(
-    Model Model,
+    BaseModel Model,
     Dictionary<TKey, TRuntime>? ExistingRuntimes,
     IValueProvider ValuesProvider,
     IEventPublisher EventPublisher,
