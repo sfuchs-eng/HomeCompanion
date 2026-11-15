@@ -75,3 +75,14 @@ This means the event bus is not the batching mechanism. It is the distribution m
 Key rule: the queue feeder is intentionally generic and does not encode a specific target key. The target selection happens in the trigger `Context`, which carries the affected thing keys. Quartz jobs such as `ShutterResetExternalOverrideJob` use the same queue abstraction to enqueue recomputation without a dedicated queue per job.
 
 This is why the service is registered as a singleton for `IQueueFeeder<ShutterAutomationComputationTriggerContext>`. All trigger producers publish to the same logical queue, and the event subscribers decide which scope(s) and runtime(s) consume the event.
+
+### Scope dispatch contract
+
+- The trigger context remains generic and may carry mixed thing keys and mixed scope flags.
+- `RoomShutterSceneLogic` processes only `RoomSpecific` scope and only `RoomKey` entries.
+- `ShutterController` processes shutter targets from:
+	- explicit `ShutterKey` entries when `ShutterSpecific` is present,
+	- shutters of referenced rooms when `RoomSpecific` is present,
+	- all shutters when `Global` is present.
+- Mixed `RoomSpecific | ShutterSpecific` triggers are valid and intentionally fan out to both consumers.
+- Global triggers do not imply room-scene recomputation by default; room-scene recomputation stays conditional by trigger origin and attached room keys.

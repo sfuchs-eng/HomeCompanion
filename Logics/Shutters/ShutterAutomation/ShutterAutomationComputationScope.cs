@@ -1,5 +1,6 @@
 namespace HomeCompanion.Logics.Shutters.ShutterAutomation;
 
+[Flags]
 public enum ShutterAutomationComputationScope
 {
     Undefined = 0,
@@ -18,5 +19,5 @@ public enum ShutterAutomationComputationScope
     /// <summary>
     /// The shutter automation computation should be performed for all shutters in the system.
     /// </summary>
-    Global = 3,
+    Global = 4,
 }

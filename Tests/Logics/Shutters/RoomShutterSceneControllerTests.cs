@@ -166,4 +166,42 @@ public class RoomShutterSceneControllerTests
             Assert.That(room.ShutterScene?.Value, Is.EqualTo(expectedSceneAfterTransition), $"Unexpected resulting room scene request value for case '{testDescription}'.");
         }
     }
+
+    [Test(Description = "A shutter-specific trigger must not drive room-scene recomputation in RoomShutterSceneLogic.")]
+    public async Task ShutterSpecificTrigger_DoesNotChangeRoomScene()
+    {
+        var fix = ShutterAutomationTestFixture.Create();
+        await fix.StartAsync();
+
+        var roomKey = fix.RuntimesController.RoomRuntimes.Keys.First();
+        var roomRuntime = fix.RuntimesController.RoomRuntimes[roomKey];
+        var room = roomRuntime.RoomContext.Room;
+        var shutter = room.Shutters.Values.First();
+        var shutterKey = new ShutterKey(roomKey, shutter);
+
+        roomRuntime.SetRoomShutterScene(RoomShutterScene.HardOpen);
+        var sceneBefore = room.ShutterScene?.Value;
+
+        await fix.EventPublisher.PublishAsync(new ShutterAutomationComputationTriggerEvent
+        {
+            Context = new ShutterAutomationComputationTriggerContext(
+                thingKeys: [shutterKey],
+                scope: ShutterAutomationComputationScope.ShutterSpecific,
+                triggeringValue: [],
+                valueEventArgs: [],
+                timestamp: DateTimeOffset.UtcNow,
+                urgency: ShutterAutomationComputationTriggerUrgency.Immediate)
+        });
+
+        var unchanged = SpinWait.SpinUntil(
+            () => room.ShutterScene?.Value == sceneBefore,
+            TimeSpan.FromMilliseconds(500));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(sceneBefore, Is.Not.Null, "Expected room scene to be initialized.");
+            Assert.That(unchanged, Is.True, "Room scene should stay unchanged for shutter-specific triggers.");
+            Assert.That(room.ShutterScene?.Value, Is.EqualTo(sceneBefore));
+        }
+    }
 }

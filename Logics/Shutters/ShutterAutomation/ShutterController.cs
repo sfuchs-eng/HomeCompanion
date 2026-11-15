@@ -120,8 +120,10 @@ public partial class ShutterController : LogicBase, IDiagnosable
         {
             try
             {
-                var triggerCollectionStart = timeProvider.GetLocalNow();
                 var queuedTriggers = new List<ShutterAutomationComputationTriggerContext>();
+
+                // Ensure each batch starts with at least one trigger.
+                queuedTriggers.Add(await channel.Reader.ReadAsync(token));
 
                 // **batching loop**
                 // iterate: collect all triggers in queue, determine max timeout duration remaining, wait for more triggers to arrive, max until timeout.
@@ -139,7 +141,8 @@ public partial class ShutterController : LogicBase, IDiagnosable
                     {
                         using var timeoutCts = new CancellationTokenSource(maxRemainingTime);
                         using var readTimeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);
-                        await channel.Reader.ReadAsync(readTimeoutTokenSource.Token);
+                        var trigger = await channel.Reader.ReadAsync(readTimeoutTokenSource.Token);
+                        queuedTriggers.Add(trigger);
                     }
                     catch (OperationCanceledException)
                     {
@@ -152,17 +155,19 @@ public partial class ShutterController : LogicBase, IDiagnosable
                 // if there's a global scoped trigger --> process all in one new trigger
                 // otherwise: group by shutter and merge triggers for each shutter into one new trigger per shutter; saves evaluation of shutters not having received a trigger.
                 var triggersToProcess = new List<ShutterAutomationComputationTriggerContext>();
-                if (queuedTriggers.Any(tc => tc.Scope == ShutterAutomationComputationScope.Global))
+                if (queuedTriggers.Any(tc => tc.IsGlobalScope))
                 {
                     triggersToProcess.Add(new ShutterAutomationComputationTriggerContext(queuedTriggers));
                 }
                 else
                 {
-                    var triggersGroupedByShutter = queuedTriggers.SelectMany(tc => tc.ThingKeys.Select(sk => (TriggerContext: tc, ShutterKey: sk)))
+                    var triggersGroupedByShutter = queuedTriggers
+                        .SelectMany(tc => DetermineAffectedShutters(tc).Select(shutterKey => (TriggerContext: tc, ShutterKey: shutterKey)))
                         .GroupBy(x => x.ShutterKey);
+
                     foreach (var shutterGroup in triggersGroupedByShutter)
                     {
-                        var shutterTriggers = shutterGroup.Select(x => x.TriggerContext);
+                        var shutterTriggers = shutterGroup.Select(x => x.TriggerContext).Distinct();
                         triggersToProcess.Add(new ShutterAutomationComputationTriggerContext(shutterTriggers));
                     }
                 }
@@ -234,16 +239,38 @@ public partial class ShutterController : LogicBase, IDiagnosable
 
     private IEnumerable<ShutterKey> DetermineAffectedShutters(ShutterAutomationComputationTriggerContext triggerContext)
     {
-        // determine which shutter(s) are affected by the given trigger context, e.g. if the trigger is related to a specific shutter input, then the affected shutter is the one associated with that input, but if the trigger is related to a time-based criterion, then the affected shutters might be all shutters that have a time-based criterion depending on the current time, and similarly for weather-based criteria, user preference criteria, etc.
-        switch (triggerContext.Scope)
+        // determine which shutter(s) are affected by the given trigger context.
+        if (triggerContext.IsGlobalScope)
         {
-            case ShutterAutomationComputationScope.ShutterSpecific:
-                return triggerContext.ThingKeys.Where(k => k is ShutterKey).Cast<ShutterKey>();
-            case ShutterAutomationComputationScope.Global:
-            case ShutterAutomationComputationScope.Undefined:
-            default:
-                return shutterRuntimes.Keys; // if the scope is global or undefined, we conservatively assume that all shutters could potentially be affected and return all shutter keys, which ensures that we don't miss any updates but might result in some unnecessary computations for unaffected shutters, but that's an acceptable trade-off for simplicity and correctness
+            return shutterRuntimes.Keys;
         }
+
+        var affectedShutters = new HashSet<ShutterKey>();
+
+        if (triggerContext.IsShutterScoped)
+        {
+            affectedShutters.UnionWith(triggerContext.GetShutterKeys());
+        }
+
+        if (triggerContext.IsRoomScoped)
+        {
+            foreach (var roomKey in triggerContext.GetRoomKeys())
+            {
+                affectedShutters.UnionWith(shutterRuntimes.Keys.Where(shutterKey => shutterKey.RoomKey.Equals(roomKey)));
+            }
+        }
+
+        if (affectedShutters.Count > 0)
+        {
+            return affectedShutters;
+        }
+
+        logger.LogWarning(
+            "Trigger scope {Scope} with keys [{ThingKeys}] did not resolve explicit affected shutters. Falling back to all shutters.",
+            triggerContext.Scope,
+            string.Join(", ", triggerContext.ThingKeys.Select(k => k.Key)));
+
+        return shutterRuntimes.Keys;
     }
     #endregion
 

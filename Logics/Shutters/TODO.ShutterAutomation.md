@@ -67,9 +67,16 @@ This is currently enforced by convention and by scope handling, not by a separat
 
 ### High-priority clarifications
 
-- Keep scope handling explicit in the dispatcher when room-scene requests and shutter-target requests are handled differently.
-- Make the room-scene versus shutter automation boundary obvious in tests and docs.
-- Keep the trigger type generic but avoid overloading it with unrelated responsibilities as the code grows.
+- [x] Keep scope handling explicit in the dispatcher when room-scene requests and shutter-target requests are handled differently.
+- [~] Make the room-scene versus shutter automation boundary obvious in tests and docs.
+- [x] Keep the trigger type generic but avoid overloading it with unrelated responsibilities as the code grows.
+
+Status note (2026-11-15):
+
+- Scope now uses explicit flag semantics and consumer-side filtering helpers in trigger context.
+- Trigger batching and affected-shutter resolution now use explicit room/shutter/global interpretation.
+- Room-scene consumer now accepts only room-scoped trigger intent.
+- Initial boundary tests and README scope-dispatch contract have been added.
 
 ### Medium-priority hardening
 

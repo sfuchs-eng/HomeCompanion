@@ -33,11 +33,13 @@ public class RoomShutterSceneLogic(
 
     private async ValueTask HandleShutterAutomationComputationTriggerEventAsync(ShutterAutomationComputationTriggerEvent @event, CancellationToken cancellationToken = default)
     {
-        // Only handle events that are relevant to room keys.
-        if (!@event.Context.ThingKeys.Any(k => k is RoomKey))
+        // Room-scene handling is explicit: only RoomSpecific scopes with room keys are processed here.
+        if (!@event.Context.IsRoomScoped)
             return;
 
-        var roomKeys = @event.Context.ThingKeys.OfType<RoomKey>().Distinct();
+        var roomKeys = @event.Context.GetRoomKeys();
+        if (!roomKeys.Any())
+            return;
 
         // iterate each room key. Have each room runtime handle the event, if it exists.
         foreach (var roomKey in roomKeys)

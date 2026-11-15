@@ -11,6 +11,10 @@ public class ShutterAutomationComputationTriggerContext
     public IEnumerable<ValueEventArgs>? ValueEventArgs { get; }
     public DateTimeOffset Timestamp { get; }
 
+    public bool IsGlobalScope => HasScope(ShutterAutomationComputationScope.Global);
+    public bool IsRoomScoped => HasScope(ShutterAutomationComputationScope.RoomSpecific);
+    public bool IsShutterScoped => HasScope(ShutterAutomationComputationScope.ShutterSpecific);
+
     public ShutterAutomationComputationTriggerContext(
         IEnumerable<IThingKey> thingKeys,
         ShutterAutomationComputationScope scope,
@@ -33,14 +37,36 @@ public class ShutterAutomationComputationTriggerContext
     /// <param name="triggerContexts"></param>
     public ShutterAutomationComputationTriggerContext(IEnumerable<ShutterAutomationComputationTriggerContext> triggerContexts)
     {
-        ThingKeys = [.. triggerContexts.SelectMany(tc => tc.ThingKeys)];
-        if (ThingKeys.DistinctBy(sk => sk.Key).Count() != ThingKeys.Count())
-            throw new ArgumentException("Cannot merge trigger contexts with overlapping shutter keys.", nameof(triggerContexts));
-        Scope = triggerContexts.Max(tc => tc.Scope);
-        Urgency = triggerContexts.Max(tc => tc.Urgency);
-        TriggeringValues = triggerContexts.SelectMany(tc => tc.TriggeringValues ?? Enumerable.Empty<IValue>()).Distinct();
-        ValueEventArgs = triggerContexts.SelectMany(tc => tc.ValueEventArgs ?? Enumerable.Empty<ValueEventArgs>()).Distinct();
-        Timestamp = triggerContexts.Min(tc => tc.Timestamp);
+        var triggerContextList = triggerContexts.ToList();
+        if (!triggerContextList.Any())
+            throw new ArgumentException("At least one trigger context is required.", nameof(triggerContexts));
+
+        ThingKeys = [.. triggerContextList.SelectMany(tc => tc.ThingKeys).DistinctBy(sk => sk.Key)];
+        Scope = triggerContextList
+            .Select(tc => tc.Scope)
+            .Aggregate(ShutterAutomationComputationScope.Undefined, (current, next) => current | next);
+        Urgency = triggerContextList.Max(tc => tc.Urgency);
+        TriggeringValues = triggerContextList.SelectMany(tc => tc.TriggeringValues ?? Enumerable.Empty<IValue>()).Distinct();
+        ValueEventArgs = triggerContextList.SelectMany(tc => tc.ValueEventArgs ?? Enumerable.Empty<ValueEventArgs>()).Distinct();
+        Timestamp = triggerContextList.Min(tc => tc.Timestamp);
+    }
+
+    public bool HasScope(ShutterAutomationComputationScope scope)
+    {
+        if (scope == ShutterAutomationComputationScope.Undefined)
+            return Scope == ShutterAutomationComputationScope.Undefined;
+
+        return (Scope & scope) == scope;
+    }
+
+    public IEnumerable<RoomKey> GetRoomKeys()
+    {
+        return ThingKeys.OfType<RoomKey>().Distinct();
+    }
+
+    public IEnumerable<ShutterKey> GetShutterKeys()
+    {
+        return ThingKeys.OfType<ShutterKey>().Distinct();
     }
 }
 
