@@ -8,7 +8,7 @@ namespace HomeCompanion.Base.Model;
 /// <remarks>
 /// mappings=[0="Undefined", 10="Heating", 20="Light heating", 25="Passive", 30="Cooling", 40="Heat protect"]
 /// </remarks>
-public enum ThermalControlMode
+public enum ThermalControlMode : byte
 {
     /// <summary>
     /// Thermal control mode is not defined, normally due to a lack of proper initialization or configuration.

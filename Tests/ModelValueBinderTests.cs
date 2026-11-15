@@ -243,6 +243,40 @@ public class ModelValueBinderTests
         Assert.That(special.SunIntensityWest, Is.SameAs(sunWest));
     }
 
+    [Test]
+    public void ShadowingSpecial_ResolvedThermalControlMode_UsesDynamicByteValue_WhenDefined()
+    {
+        var dynamicMode = CreateValue<byte>("ThermalControlMode");
+        var special = new ShadowingSpecial("Shadowing", new CfgShadowingSpecial
+        {
+            ThermalControl = ThermalControlMode.Passive,
+        })
+        {
+            ThermalControlMode = dynamicMode,
+        };
+
+        dynamicMode.Write((byte)ThermalControlMode.CoolingPriority);
+
+        Assert.That(special.ResolvedThermalControlMode(), Is.EqualTo(ThermalControlMode.CoolingPriority));
+    }
+
+    [Test]
+    public void ShadowingSpecial_ResolvedThermalControlMode_FallsBackToConfig_WhenDynamicByteValueUndefined()
+    {
+        var dynamicMode = CreateValue<byte>("ThermalControlMode");
+        var special = new ShadowingSpecial("Shadowing", new CfgShadowingSpecial
+        {
+            ThermalControl = ThermalControlMode.BalancedCooling,
+        })
+        {
+            ThermalControlMode = dynamicMode,
+        };
+
+        dynamicMode.Write(255);
+
+        Assert.That(special.ResolvedThermalControlMode(), Is.EqualTo(ThermalControlMode.BalancedCooling));
+    }
+
     private static ValueBase<T> CreateValue<T>(string name) where T : notnull
         => new(NullLogger<ValueBase<T>>.Instance) { Name = name };
 

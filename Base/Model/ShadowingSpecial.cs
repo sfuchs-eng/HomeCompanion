@@ -379,14 +379,16 @@ public class ShadowingSpecial(string name, CfgShadowingSpecial config) : Special
     {
         // dynamic valid value?
         var dynamicMode = ThermalControlMode?.IsValid ?? false ? ThermalControlMode?.Value : null;
-        if ( dynamicMode.HasValue && Enum.IsDefined(typeof(ThermalControlMode), dynamicMode.Value))
+        if (dynamicMode.HasValue)
         {
-            return (ThermalControlMode)dynamicMode.Value;
+            var resolvedMode = (ThermalControlMode)dynamicMode.Value;
+            if (Enum.IsDefined(resolvedMode))
+            {
+                return resolvedMode;
+            }
         }
-        else
-        {
-            return Configuration.ThermalControl;
-        }
+
+        return Configuration.ThermalControl;
     }
 
     public bool TrySetSunPosition(SphericVector sunPosition, out Exception? ex)
